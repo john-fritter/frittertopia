@@ -1,0 +1,26 @@
+{
+  "name": "frittertopia",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "dev": "tsx src/main.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "typescript": "^5.9.3",
+    "uuid": "^13.0.0",
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/uuid": "^11.0.0",
+    "tsx": "^4.21.0"
+  }
+}
