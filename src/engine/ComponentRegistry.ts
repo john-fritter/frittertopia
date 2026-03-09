@@ -4,12 +4,16 @@ export type ComponentSchema = z.ZodType<Record<string, unknown>>;
 
 export class ComponentRegistry {
   private schemas = new Map<string, ComponentSchema>();
+  private refPaths = new Map<string, string[]>();
 
-  register(name: string, schema: ComponentSchema): void {
+  register(name: string, schema: ComponentSchema, refs?: string[]): void {
     if (this.schemas.has(name)) {
       throw new Error(`Component type "${name}" is already registered`);
     }
     this.schemas.set(name, schema);
+    if (refs && refs.length > 0) {
+      this.refPaths.set(name, refs);
+    }
   }
 
   get(name: string): ComponentSchema {
@@ -18,6 +22,10 @@ export class ComponentRegistry {
       throw new Error(`Component type "${name}" is not registered`);
     }
     return schema;
+  }
+
+  getRefs(name: string): string[] {
+    return this.refPaths.get(name) ?? [];
   }
 
   has(name: string): boolean {

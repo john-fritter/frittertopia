@@ -25,8 +25,8 @@ export class World {
     );
   }
 
-  registerComponent(name: string, schema: ComponentSchema): void {
-    this.componentRegistry.register(name, schema);
+  registerComponent(name: string, schema: ComponentSchema, refs?: string[]): void {
+    this.componentRegistry.register(name, schema, refs);
   }
 
   createEntity(key?: string): string {

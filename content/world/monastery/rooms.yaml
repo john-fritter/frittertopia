@@ -1,0 +1,104 @@
+entities:
+  - key: starting.room
+    components:
+      Room:
+        name: "The Monastery Courtyard"
+      Description:
+        short: "a crumbling stone courtyard"
+        long: >-
+          Cracked flagstones spread beneath an open sky, edged by low walls of
+          grey stone worn smooth by centuries of rain. A well stands at the
+          center, its rope frayed and its bucket long missing. Moss creeps
+          between the stones in thick green seams, and somewhere above, a bird
+          calls once and falls silent.
+      Exits:
+        exits:
+          east: monastery.corridor
+          south: monastery.kitchen
+
+  - key: monastery.kitchen
+    components:
+      Room:
+        name: "The Monastery Kitchen"
+      Description:
+        short: "a large stone kitchen"
+        long: >-
+          A vaulted ceiling of soot-darkened stone arches above a room that
+          still smells faintly of woodsmoke and dried herbs. A broad hearth
+          dominates the far wall, its iron grate cold and spotted with rust.
+          Bundles of rosemary and thyme hang from hooks along the rafters,
+          brittle and grey with dust. A heavy oak table runs the length of the
+          room, scarred with knife marks.
+      Exits:
+        exits:
+          north: starting.room
+          west: monastery.garden
+
+  - key: monastery.corridor
+    components:
+      Room:
+        name: "The East Corridor"
+      Description:
+        short: "a long stone corridor"
+        long: >-
+          A narrow passage stretches between walls of rough-cut stone, the
+          ceiling low enough to brush with an outstretched hand. Thin light
+          falls from a single window set high in the eastern wall, casting a
+          pale rectangle on the flagstones. The air is cool and still, carrying
+          the faint mineral smell of old stone.
+      Exits:
+        exits:
+          west: starting.room
+          north: monastery.chapel
+          east: monastery.dormitory
+
+  - key: monastery.chapel
+    components:
+      Room:
+        name: "The Small Chapel"
+      Description:
+        short: "a small stone chapel"
+        long: >-
+          A modest chapel of pale limestone, its walls bare except for a simple
+          wooden cross above the altar. Three rows of worn pews face the front,
+          their wood darkened by the oil of countless hands. Light enters
+          through a single arched window of plain glass, filling the room with
+          a quiet, steady glow. The silence here has weight.
+      Exits:
+        exits:
+          south: monastery.corridor
+
+  - key: monastery.dormitory
+    components:
+      Room:
+        name: "The Dormitory"
+      Description:
+        short: "a long, spare dormitory"
+        long: >-
+          A low-ceilinged room lined with narrow cots, each made with the same
+          tight corners and folded blanket. There is nothing on the walls and
+          nothing beneath the beds. A single shuttered window at the far end
+          lets in a thin blade of light. The air smells of wool and cold stone.
+          Everything here is in its place, because there is almost nothing to
+          put anywhere.
+      Exits:
+        exits:
+          west: monastery.corridor
+
+  - key: monastery.garden
+    components:
+      Room:
+        name: "The Herb Garden"
+      Description:
+        short: "an overgrown walled garden"
+        long: >-
+          A small garden enclosed by walls of crumbling stone, half-reclaimed
+          by wildness. Raised beds of dark earth still hold rows of sage and
+          lavender gone leggy and tangled. Brambles have crept in from the
+          corners, and a rosemary bush has grown past all reason, spilling
+          woody branches across the gravel path. The air is thick with the
+          smell of green things — something fragrant, something sharp, and
+          underneath it all, the sweet rot of fallen leaves.
+      Exits:
+        exits:
+          east: monastery.kitchen

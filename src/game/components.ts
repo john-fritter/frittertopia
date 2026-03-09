@@ -7,13 +7,18 @@ export function registerComponents(world: World): void {
     z.object({ short: z.string(), long: z.string() })
   );
 
-  world.registerComponent("Position", z.object({ roomId: z.string() }));
+  world.registerComponent(
+    "Position",
+    z.object({ roomId: z.string() }),
+    ["roomId"]
+  );
 
   world.registerComponent("Room", z.object({ name: z.string() }));
 
   world.registerComponent(
     "Exits",
-    z.object({ exits: z.record(z.string(), z.string()) })
+    z.object({ exits: z.record(z.string(), z.string()) }),
+    ["exits.*"]
   );
 
   world.registerComponent(

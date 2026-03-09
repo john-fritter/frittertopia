@@ -1,0 +1,48 @@
+entities:
+  - components:
+      Position:
+        roomId: monastery.kitchen
+      Description:
+        short: "a broom"
+        long: >-
+          A straw broom with a handle of pale ash, leaning at an angle as
+          though someone set it down mid-sweep and never returned.
+      Presence:
+        description: "A broom leans against the wall, forgotten."
+
+  - components:
+      Position:
+        roomId: monastery.chapel
+      Description:
+        short: "a half-burned candle"
+        long: >-
+          A thick tallow candle in a plain iron holder, burned halfway down. A
+          thread of dried wax traces a line down its side like a frozen tear.
+      Presence:
+        description: "A half-burned candle sits on the altar, its wick cold."
+
+  - components:
+      Position:
+        roomId: monastery.dormitory
+      Description:
+        short: "a folded blanket"
+        long: >-
+          A rough wool blanket folded with military precision, its edges
+          aligned to the cot beneath it. The wool is grey and pilled from
+          washing but free of holes. Someone cared for this, even if no one
+          cares for it now.
+      Presence:
+        description: "A neatly folded blanket sits on the nearest cot."
+
+  - components:
+      Position:
+        roomId: monastery.garden
+      Description:
+        short: "a rosemary bush"
+        long: >-
+          An enormous rosemary bush, woody at the base and sprawling in every
+          direction. Its branches are studded with small blue flowers, and the
+          scent rises sharp and medicinal when you brush against it. It has
+          outlived whoever planted it.
+      Presence:
+        description: "A vast rosemary bush sprawls across the path, fragrant and overgrown."
