@@ -45,6 +45,9 @@ export function saveWorld(db: Database.Database, world: World): void {
 }
 
 export function loadWorld(db: Database.Database, world: World): void {
+  if (world.entities.getAllEntityIds().length > 0) {
+    throw new Error("Cannot load into a non-empty world");
+  }
   const entities = db.prepare("SELECT id, key FROM entities").all() as Array<{
     id: string;
     key: string | null;

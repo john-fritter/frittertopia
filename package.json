@@ -2,6 +2,7 @@
   "name": "frittertopia",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
@@ -16,11 +17,13 @@
     "typescript": "^5.9.3",
     "uuid": "^13.0.0",
     "vitest": "^4.0.18",
+    "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/uuid": "^11.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.21.0"
   }
 }
