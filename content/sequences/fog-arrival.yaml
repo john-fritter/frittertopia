@@ -1,0 +1,34 @@
+entities:
+  - key: sequence.fog-arrival
+    components:
+      Sequence:
+        beats:
+          - delay: 1500
+            text: >-
+              Grey. Nothing but grey, in every direction. The air is thick
+              and wet and very still.
+          - delay: 3500
+            text: >-
+              Ground beneath your feet. Stone, maybe — something hard and
+              uneven. Your hands are numb. You can't remember how long
+              you've been walking.
+          - delay: 3500
+            text: >-
+              Sound returns slowly. Water dripping somewhere. Wind moving
+              through trees you can't see. Your own breathing, which you
+              notice for the first time, as if someone else had been doing
+              it for you.
+          - delay: 3500
+            text: >-
+              The fog thins. Shapes resolve — dark verticals that become
+              tree trunks, a low wall of rough stone, and beyond it,
+              the suggestion of a building. Somewhere ahead, a courtyard.
+          - delay: 3000
+            text: >-
+              You step forward, and the fog closes behind you like a door.
+        onComplete:
+          placeInRoom: starting.room
+        deflectMessage: >-
+          The fog is too thick. You can only move forward.
+        currentBeat: 0
+        elapsed: 0

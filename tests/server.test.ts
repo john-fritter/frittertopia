@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { z } from "zod/v4";
 import { WebSocket } from "ws";
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
@@ -11,6 +12,15 @@ function stripAnsi(text: string): string {
 function setupWorld(): World {
   const world = new World();
   registerComponents(world);
+
+  world.registerEvent(
+    "sequence_beat",
+    z.object({ playerId: z.string(), text: z.string() })
+  );
+  world.registerEvent(
+    "sequence_complete",
+    z.object({ playerId: z.string(), roomId: z.string() })
+  );
 
   const roomA = world.createEntity("starting.room");
   world.addComponent(roomA, "Room", { name: "The Courtyard" });

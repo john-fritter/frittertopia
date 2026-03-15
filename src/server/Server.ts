@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { World } from "../engine/World.js";
 import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
-import { formatSystem } from "./format.js";
+import { formatSystem, formatSequence, formatArrival } from "./format.js";
 
 interface Session {
   ws: WebSocket;
@@ -21,9 +21,11 @@ export class GameServer {
 
   constructor(
     private world: World,
-    private startingRoomKey = "starting.room"
+    private startingRoomKey = "starting.room",
+    private sequenceTemplateKey = "sequence.fog-arrival"
   ) {
     this.resolver = new ActionResolver(world);
+    this.setupEventHandlers();
   }
 
   start(port = 3000): void {
@@ -69,6 +71,47 @@ export class GameServer {
     const addr = this.wss.address();
     if (typeof addr === "string" || !addr) return null;
     return addr.port;
+  }
+
+  private setupEventHandlers(): void {
+    this.world.onEvent("sequence_beat", (payload) => {
+      const { playerId, text } = payload as {
+        playerId: string;
+        text: string;
+      };
+      this.sendToPlayer(playerId, formatSequence(text));
+    });
+
+    this.world.onEvent("sequence_complete", (payload) => {
+      const { playerId, roomId } = payload as {
+        playerId: string;
+        roomId: string;
+      };
+      const lookOutput = this.resolver.composeLook(roomId, playerId, true);
+      this.sendToPlayer(playerId, lookOutput);
+
+      const player = this.world.getComponent(playerId, "Player") as
+        | { name: string; sessionId: string }
+        | undefined;
+      if (player) {
+        this.broadcastToRoom(
+          roomId,
+          formatArrival(player.name),
+          playerId
+        );
+      }
+    });
+  }
+
+  private sendToPlayer(playerId: string, text: string): void {
+    const player = this.world.getComponent(playerId, "Player") as
+      | { name: string; sessionId: string }
+      | undefined;
+    if (!player || !player.sessionId) return;
+    const session = this.sessions.get(player.sessionId);
+    if (session) {
+      this.send(session.ws, text);
+    }
   }
 
   private validateName(name: string): string | null {
@@ -117,6 +160,12 @@ export class GameServer {
       session.state = "playing";
       this.activePlayers.set(playerKey, session.sessionId);
 
+      // If player still has an active sequence, let it continue — no room description
+      const sequence = this.world.getComponent(existingId, "Sequence");
+      if (sequence) {
+        return;
+      }
+
       const position = this.world.getComponent(existingId, "Position") as {
         roomId: string;
       };
@@ -134,25 +183,34 @@ export class GameServer {
       );
     } else {
       // New player
+      const playerId = this.world.createEntity(playerKey);
+      this.world.addComponent(playerId, "Player", {
+        name,
+        sessionId: session.sessionId,
+      });
+
+      session.playerId = playerId;
+      session.state = "playing";
+      this.activePlayers.set(playerKey, session.sessionId);
+
+      // Try to attach fog arrival sequence from template
+      if (this.attachSequenceFromTemplate(playerId)) {
+        // Sequence attached — no Position, no room description.
+        // The sequence system handles timed text and room placement on completion.
+        return;
+      }
+
+      // Fallback: no sequence template — place directly in starting room
       const startingRoom = this.findStartingRoom();
       if (!startingRoom) {
         this.send(session.ws, "Error: No starting room found.");
         return;
       }
 
-      const playerId = this.world.createEntity(playerKey);
-      this.world.addComponent(playerId, "Player", {
-        name,
-        sessionId: session.sessionId,
-      });
       this.world.addComponent(playerId, "Position", { roomId: startingRoom });
       this.world.addComponent(playerId, "VisitedRooms", {
         rooms: [startingRoom],
       });
-
-      session.playerId = playerId;
-      session.state = "playing";
-      this.activePlayers.set(playerKey, session.sessionId);
 
       const lookOutput = this.resolver.composeLook(
         startingRoom,
@@ -167,6 +225,21 @@ export class GameServer {
         playerId
       );
     }
+  }
+
+  private attachSequenceFromTemplate(playerId: string): boolean {
+    const templateId = this.world.getEntityByKey(this.sequenceTemplateKey);
+    if (!templateId) return false;
+
+    const templateSeq = this.world.getComponent(templateId, "Sequence");
+    if (!templateSeq) return false;
+
+    // Deep clone to avoid shared references between players
+    const seqData = JSON.parse(JSON.stringify(templateSeq));
+    seqData.currentBeat = 0;
+    seqData.elapsed = 0;
+    this.world.addComponent(playerId, "Sequence", seqData);
+    return true;
   }
 
   private handleGameInput(session: Session, input: string): void {

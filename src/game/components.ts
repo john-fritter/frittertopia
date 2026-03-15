@@ -35,4 +35,22 @@ export function registerComponents(world: World): void {
     "VisitedRooms",
     z.object({ rooms: z.array(z.string()) })
   );
+
+  world.registerComponent(
+    "Sequence",
+    z.object({
+      beats: z.array(
+        z.object({
+          text: z.string(),
+          delay: z.number(),
+        })
+      ),
+      currentBeat: z.number(),
+      elapsed: z.number(),
+      onComplete: z.object({
+        placeInRoom: z.string().optional(),
+      }),
+      deflectMessage: z.string(),
+    })
+  );
 }

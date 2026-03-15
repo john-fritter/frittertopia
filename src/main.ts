@@ -1,13 +1,30 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { z } from "zod/v4";
 import { World } from "./engine/World.js";
 import { loadContentFromDirectory } from "./engine/ContentLoader.js";
 import { createDatabase, saveWorld, loadWorld } from "./engine/Persistence.js";
 import { registerComponents } from "./game/components.js";
+import { createSequenceSystem } from "./game/systems/SequenceSystem.js";
 import { GameServer } from "./server/Server.js";
 
-const world = new World();
+const TICK_INTERVAL = 250;
+
+const world = new World({ tickInterval: TICK_INTERVAL });
 registerComponents(world);
+
+// Register events
+world.registerEvent(
+  "sequence_beat",
+  z.object({ playerId: z.string(), text: z.string() })
+);
+world.registerEvent(
+  "sequence_complete",
+  z.object({ playerId: z.string(), roomId: z.string() })
+);
+
+// Register systems
+world.addSystem(createSequenceSystem(TICK_INTERVAL));
 
 const dataDir = path.join(import.meta.dirname, "..", "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);

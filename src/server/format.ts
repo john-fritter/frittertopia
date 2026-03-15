@@ -117,3 +117,7 @@ export function formatSystem(text: string): string {
 export function formatNarrative(text: string): string {
   return wordWrap(text);
 }
+
+export function formatSequence(text: string): string {
+  return `${DIM_WHITE}${wordWrap(text)}${RESET}`;
+}

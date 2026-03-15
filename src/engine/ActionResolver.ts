@@ -6,6 +6,7 @@ import {
   formatSay,
   formatArrival,
   formatDeparture,
+  formatSystem,
   type RoomExit,
 } from "../server/format.js";
 
@@ -19,6 +20,13 @@ export class ActionResolver {
   constructor(private world: World) {}
 
   resolve(intent: Intent, playerId: string): ActionResult {
+    const sequence = this.world.getComponent(playerId, "Sequence") as
+      | { deflectMessage: string }
+      | undefined;
+    if (sequence) {
+      return { toPlayer: formatSystem(sequence.deflectMessage) };
+    }
+
     switch (intent.verb) {
       case "move":
         return this.handleMove(intent.target, playerId);
