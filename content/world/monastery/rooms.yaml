@@ -9,8 +9,8 @@ entities:
           Cracked flagstones spread beneath an open sky, edged by low walls of
           grey stone worn smooth by centuries of rain. A well stands at the
           center, its rope frayed and its bucket long missing. Moss creeps
-          between the stones in thick green seams, and somewhere above, a bird
-          calls once and falls silent.
+          between the stones in thick green seams, and somewhere above, bird
+          calls occasionally pierce the silence.
       Exits:
         exits:
           east: monastery.corridor

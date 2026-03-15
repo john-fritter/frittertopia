@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { World } from "../engine/World.js";
 import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
+import { formatSystem } from "./format.js";
 
 interface Session {
   ws: WebSocket;
@@ -75,15 +76,20 @@ export class GameServer {
       sessionId: session.sessionId,
     });
     this.world.addComponent(playerId, "Position", { roomId: startingRoom });
+    this.world.addComponent(playerId, "VisitedRooms", { rooms: [startingRoom] });
 
     session.playerId = playerId;
     session.state = "playing";
 
-    const lookOutput = this.resolver.composeLook(startingRoom, playerId);
+    const lookOutput = this.resolver.composeLook(startingRoom, playerId, true);
     this.send(session.ws, `Welcome, ${name}.\n\n${lookOutput}`);
 
     // Notify others in the room
-    this.broadcastToRoom(startingRoom, `${name} appears from the fog.`, playerId);
+    this.broadcastToRoom(
+      startingRoom,
+      formatSystem(`${name} appears from the fog.`),
+      playerId
+    );
   }
 
   private handleGameInput(session: Session, input: string): void {
@@ -123,7 +129,7 @@ export class GameServer {
       if (player && position) {
         this.broadcastToRoom(
           position.roomId,
-          `${player.name} fades into the fog.`,
+          formatSystem(`${player.name} fades into the fog.`),
           session.playerId
         );
       }

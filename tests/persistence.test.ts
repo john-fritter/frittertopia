@@ -151,6 +151,28 @@ describe("Persistence", () => {
     }
   });
 
+  it("VisitedRooms survives a save/load cycle", () => {
+    const world = new World();
+    world.registerComponent("Player", z.object({ name: z.string(), sessionId: z.string() }));
+    world.registerComponent("VisitedRooms", z.object({ rooms: z.array(z.string()) }));
+
+    const roomA = world.createEntity("room.a");
+    const roomB = world.createEntity("room.b");
+    const player = world.createEntity("player.1");
+    world.addComponent(player, "Player", { name: "Tester", sessionId: "s1" });
+    world.addComponent(player, "VisitedRooms", { rooms: [roomA, roomB] });
+
+    saveWorld(db, world);
+
+    const loaded = new World();
+    loaded.registerComponent("Player", z.object({ name: z.string(), sessionId: z.string() }));
+    loaded.registerComponent("VisitedRooms", z.object({ rooms: z.array(z.string()) }));
+    loadWorld(db, loaded);
+
+    const visited = loaded.getComponent(player, "VisitedRooms") as { rooms: string[] };
+    expect(visited.rooms).toEqual([roomA, roomB]);
+  });
+
   it("World convenience methods save() and load() work", () => {
     const world = makeWorld();
     const id = world.createEntity("hero");

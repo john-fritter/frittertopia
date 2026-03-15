@@ -30,4 +30,9 @@ export function registerComponents(world: World): void {
     "Presence",
     z.object({ description: z.string() })
   );
+
+  world.registerComponent(
+    "VisitedRooms",
+    z.object({ rooms: z.array(z.string()) })
+  );
 }

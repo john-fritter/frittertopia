@@ -1,5 +1,13 @@
 import type { Intent } from "./Parser.js";
 import type { World } from "./World.js";
+import {
+  formatRoom,
+  formatSelfSay,
+  formatSay,
+  formatArrival,
+  formatDeparture,
+  type RoomExit,
+} from "../server/format.js";
 
 export interface ActionResult {
   toPlayer: string;
@@ -52,19 +60,22 @@ export class ActionResolver {
     // Move the player
     this.world.setComponent(playerId, "Position", { roomId: newRoomId });
 
-    // Build the look output for the new room
+    // Build the look output BEFORE marking visited (first visit gets long desc)
     const lookOutput = this.composeLook(newRoomId, playerId);
+
+    // Now mark the new room as visited
+    this.markVisited(playerId, newRoomId);
 
     return {
       toPlayer: lookOutput,
       toRoom: {
         roomId: oldRoomId,
-        text: `${playerName} leaves to the ${direction}.`,
+        text: formatDeparture(playerName, direction),
         excludePlayer: playerId,
       },
       toOtherRoom: {
         roomId: newRoomId,
-        text: `${playerName} arrives.`,
+        text: formatArrival(playerName),
       },
     };
   }
@@ -79,7 +90,8 @@ export class ActionResolver {
     if (!position) return { toPlayer: "You aren't anywhere." };
 
     if (!target) {
-      return { toPlayer: this.composeLook(position.roomId, playerId) };
+      // Explicit look always shows long description
+      return { toPlayer: this.composeLook(position.roomId, playerId, true) };
     }
 
     return { toPlayer: this.lookAtTarget(target, position.roomId) };
@@ -102,16 +114,16 @@ export class ActionResolver {
     const playerName = player?.name ?? "Someone";
 
     return {
-      toPlayer: `You say, "${message}"`,
+      toPlayer: formatSelfSay(message),
       toRoom: {
         roomId: position.roomId,
-        text: `${playerName} says, "${message}"`,
+        text: formatSay(playerName, message),
         excludePlayer: playerId,
       },
     };
   }
 
-  composeLook(roomId: string, playerId: string): string {
+  composeLook(roomId: string, playerId: string, forceLong = false): string {
     const room = this.world.getComponent(roomId, "Room") as
       | { name: string }
       | undefined;
@@ -122,45 +134,68 @@ export class ActionResolver {
       | { exits: Record<string, string> }
       | undefined;
 
-    const lines: string[] = [];
+    const visitedRooms = this.getVisitedRooms(playerId);
+    const hasVisited = visitedRooms.has(roomId);
 
-    lines.push(room?.name ?? "Unknown Room");
-    lines.push("");
-    lines.push(desc?.long ?? "You see nothing special.");
-    lines.push("");
+    // First visit or explicit look → long description
+    const description =
+      forceLong || !hasVisited
+        ? (desc?.long ?? "You see nothing special.")
+        : (desc?.short ?? "You see nothing special.");
 
-    if (exits && Object.keys(exits.exits).length > 0) {
-      lines.push("Exits: " + Object.keys(exits.exits).join(", "));
-    } else {
-      lines.push("Exits: none");
+    // Build exits with room names for visited rooms only
+    const exitList: RoomExit[] = [];
+    if (exits) {
+      for (const [direction, targetRoomId] of Object.entries(exits.exits)) {
+        const exit: RoomExit = { direction };
+        if (visitedRooms.has(targetRoomId)) {
+          const targetRoom = this.world.getComponent(targetRoomId, "Room") as
+            | { name: string }
+            | undefined;
+          if (targetRoom) {
+            exit.roomName = targetRoom.name;
+          }
+        }
+        exitList.push(exit);
+      }
     }
 
-    // Presences in the room (other entities with Position matching this room + Presence)
+    // Collect items and players in the room
+    const items: string[] = [];
+    const players: string[] = [];
+
     const entitiesInRoom = this.world.getEntitiesWithComponent("Position");
     for (const id of entitiesInRoom) {
       if (id === playerId) continue;
       if (id === roomId) continue;
-      const pos = this.world.getComponent(id, "Position") as { roomId: string };
+      const pos = this.world.getComponent(id, "Position") as {
+        roomId: string;
+      };
       if (pos.roomId !== roomId) continue;
 
       const presence = this.world.getComponent(id, "Presence") as
         | { description: string }
         | undefined;
       if (presence) {
-        lines.push(presence.description);
+        items.push(presence.description);
         continue;
       }
 
-      // Other players show as "[Name] is here."
       const otherPlayer = this.world.getComponent(id, "Player") as
         | { name: string; sessionId: string }
         | undefined;
       if (otherPlayer) {
-        lines.push(`${otherPlayer.name} is here.`);
+        players.push(otherPlayer.name);
       }
     }
 
-    return lines.join("\n");
+    return formatRoom({
+      name: room?.name ?? "Unknown Room",
+      description,
+      items: items.length > 0 ? items : undefined,
+      players: players.length > 0 ? players : undefined,
+      exits: exitList,
+    });
   }
 
   private lookAtTarget(target: string, roomId: string): string {
@@ -169,7 +204,9 @@ export class ActionResolver {
     // Check entities in the room
     const entitiesInRoom = this.world.getEntitiesWithComponent("Position");
     for (const id of entitiesInRoom) {
-      const pos = this.world.getComponent(id, "Position") as { roomId: string };
+      const pos = this.world.getComponent(id, "Position") as {
+        roomId: string;
+      };
       if (pos.roomId !== roomId) continue;
 
       const desc = this.world.getComponent(id, "Description") as
@@ -192,5 +229,27 @@ export class ActionResolver {
     }
 
     return "You don't see that here.";
+  }
+
+  private getVisitedRooms(playerId: string): Set<string> {
+    const visited = this.world.getComponent(playerId, "VisitedRooms") as
+      | { rooms: string[] }
+      | undefined;
+    return new Set(visited?.rooms ?? []);
+  }
+
+  private markVisited(playerId: string, roomId: string): void {
+    const visited = this.world.getComponent(playerId, "VisitedRooms") as
+      | { rooms: string[] }
+      | undefined;
+    if (visited) {
+      if (!visited.rooms.includes(roomId)) {
+        this.world.setComponent(playerId, "VisitedRooms", {
+          rooms: [...visited.rooms, roomId],
+        });
+      }
+    } else {
+      this.world.setComponent(playerId, "VisitedRooms", { rooms: [roomId] });
+    }
   }
 }

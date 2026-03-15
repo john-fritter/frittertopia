@@ -4,6 +4,10 @@ import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { ActionResolver } from "../src/engine/ActionResolver.js";
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
 describe("ActionResolver", () => {
   let world: World;
   let resolver: ActionResolver;
@@ -43,27 +47,26 @@ describe("ActionResolver", () => {
       description: "A wooden chair sits in the corner.",
     });
 
-    // Create the player in roomA
+    // Create the player in roomA with visited rooms
     playerId = world.createEntity();
     world.addComponent(playerId, "Player", {
       name: "Tester",
       sessionId: "test-session",
     });
     world.addComponent(playerId, "Position", { roomId: roomA });
+    world.addComponent(playerId, "VisitedRooms", { rooms: [roomA] });
 
     resolver = new ActionResolver(world);
   });
 
   it("look at current room produces correct output", () => {
     const result = resolver.resolve({ verb: "look" }, playerId);
-    const lines = result.toPlayer.split("\n");
+    const plain = stripAnsi(result.toPlayer);
 
-    expect(lines[0]).toBe("The Stone Hall");
-    expect(lines[1]).toBe("");
-    expect(lines[2]).toBe("A wide hall of grey stone, cold and echoing.");
-    expect(lines[3]).toBe("");
-    expect(lines[4]).toBe("Exits: north");
-    expect(lines[5]).toBe("A wooden chair sits in the corner.");
+    expect(plain).toContain("The Stone Hall");
+    expect(plain).toContain("A wide hall of grey stone, cold and echoing.");
+    expect(plain).toContain("A wooden chair sits in the corner.");
+    expect(plain).toContain("north");
   });
 
   it("move through a valid exit changes position and returns new room look", () => {
@@ -77,20 +80,22 @@ describe("ActionResolver", () => {
     expect(pos.roomId).toBe(roomB);
 
     // Output is the look for roomB
-    expect(result.toPlayer).toContain("The Garden");
-    expect(result.toPlayer).toContain("Weeds push through the gravel.");
-    expect(result.toPlayer).toContain("Exits: south");
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("The Garden");
+    expect(plain).toContain("Weeds push through the gravel.");
+    expect(plain).toContain("south");
 
-    // Room messages
-    expect(result.toRoom).toEqual({
-      roomId: roomA,
-      text: "Tester leaves to the north.",
-      excludePlayer: playerId,
-    });
-    expect(result.toOtherRoom).toEqual({
-      roomId: roomB,
-      text: "Tester arrives.",
-    });
+    // Room messages contain ANSI codes
+    expect(result.toRoom).toBeDefined();
+    expect(stripAnsi(result.toRoom!.text)).toContain("Tester");
+    expect(stripAnsi(result.toRoom!.text)).toContain("leaves to the north");
+    expect(result.toRoom!.roomId).toBe(roomA);
+    expect(result.toRoom!.excludePlayer).toBe(playerId);
+
+    expect(result.toOtherRoom).toBeDefined();
+    expect(stripAnsi(result.toOtherRoom!.text)).toContain("Tester");
+    expect(stripAnsi(result.toOtherRoom!.text)).toContain("arrives");
+    expect(result.toOtherRoom!.roomId).toBe(roomB);
   });
 
   it("move through invalid exit returns error", () => {
@@ -121,7 +126,6 @@ describe("ActionResolver", () => {
   });
 
   it("say produces correct output for speaker and others", () => {
-    // Add a second player in the same room
     const otherPlayer = world.createEntity();
     world.addComponent(otherPlayer, "Player", {
       name: "Other",
@@ -134,12 +138,12 @@ describe("ActionResolver", () => {
       playerId
     );
 
-    expect(result.toPlayer).toBe('You say, "hello everyone"');
-    expect(result.toRoom).toEqual({
-      roomId: roomA,
-      text: 'Tester says, "hello everyone"',
-      excludePlayer: playerId,
-    });
+    expect(stripAnsi(result.toPlayer)).toBe('You say, "hello everyone"');
+    expect(stripAnsi(result.toRoom!.text)).toBe(
+      'Tester says, "hello everyone"'
+    );
+    expect(result.toRoom!.roomId).toBe(roomA);
+    expect(result.toRoom!.excludePlayer).toBe(playerId);
   });
 
   it("unrecognized verb returns error", () => {
@@ -156,6 +160,116 @@ describe("ActionResolver", () => {
     world.addComponent(otherPlayer, "Position", { roomId: roomA });
 
     const result = resolver.resolve({ verb: "look" }, playerId);
-    expect(result.toPlayer).toContain("Aldric is here.");
+    expect(stripAnsi(result.toPlayer)).toContain("Aldric");
+    expect(stripAnsi(result.toPlayer)).toContain("is here");
+  });
+});
+
+describe("VisitedRooms behavior", () => {
+  let world: World;
+  let resolver: ActionResolver;
+  let roomA: string;
+  let roomB: string;
+  let playerId: string;
+
+  beforeEach(() => {
+    world = new World();
+    registerComponents(world);
+
+    roomA = world.createEntity("room.a");
+    world.addComponent(roomA, "Room", { name: "The Stone Hall" });
+    world.addComponent(roomA, "Description", {
+      short: "a stone hall",
+      long: "A wide hall of grey stone, cold and echoing.",
+    });
+
+    roomB = world.createEntity("room.b");
+    world.addComponent(roomB, "Room", { name: "The Garden" });
+    world.addComponent(roomB, "Description", {
+      short: "a walled garden",
+      long: "A small garden enclosed by crumbling walls. Weeds push through the gravel.",
+    });
+
+    world.addComponent(roomA, "Exits", { exits: { north: roomB } });
+    world.addComponent(roomB, "Exits", { exits: { south: roomA } });
+
+    playerId = world.createEntity();
+    world.addComponent(playerId, "Player", {
+      name: "Tester",
+      sessionId: "test-session",
+    });
+    world.addComponent(playerId, "Position", { roomId: roomA });
+    world.addComponent(playerId, "VisitedRooms", { rooms: [roomA] });
+
+    resolver = new ActionResolver(world);
+  });
+
+  it("first visit to a room shows long description", () => {
+    // roomB is not in visited rooms, so moving there shows long desc
+    const result = resolver.resolve(
+      { verb: "move", target: "north" },
+      playerId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain(
+      "A small garden enclosed by crumbling walls. Weeds push through the gravel."
+    );
+  });
+
+  it("revisit shows short description", () => {
+    // Mark roomB as already visited
+    world.setComponent(playerId, "VisitedRooms", {
+      rooms: [roomA, roomB],
+    });
+
+    const result = resolver.resolve(
+      { verb: "move", target: "north" },
+      playerId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("a walled garden");
+    expect(plain).not.toContain("Weeds push through the gravel.");
+  });
+
+  it("explicit look always shows long description regardless of visited state", () => {
+    // Player is in roomA which is visited
+    const result = resolver.resolve({ verb: "look" }, playerId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain(
+      "A wide hall of grey stone, cold and echoing."
+    );
+  });
+
+  it("moving to a room adds it to visited rooms", () => {
+    resolver.resolve({ verb: "move", target: "north" }, playerId);
+
+    const visited = world.getComponent(playerId, "VisitedRooms") as {
+      rooms: string[];
+    };
+    expect(visited.rooms).toContain(roomB);
+  });
+
+  it("exit room names shown only for visited rooms", () => {
+    // Player is in roomA, roomB is not visited
+    const result = resolver.resolve({ verb: "look" }, playerId);
+    const plain = stripAnsi(result.toPlayer);
+
+    // roomB exit should show bare direction, no room name
+    expect(plain).toContain("north");
+    expect(plain).not.toContain("The Garden");
+  });
+
+  it("exit room names shown for visited rooms", () => {
+    // Mark roomB as visited
+    world.setComponent(playerId, "VisitedRooms", {
+      rooms: [roomA, roomB],
+    });
+
+    const result = resolver.resolve({ verb: "look" }, playerId);
+    const plain = stripAnsi(result.toPlayer);
+
+    // roomB exit should show room name
+    expect(plain).toContain("north");
+    expect(plain).toContain("The Garden");
   });
 });
