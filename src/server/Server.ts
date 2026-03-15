@@ -15,6 +15,7 @@ interface Session {
 export class GameServer {
   private wss: WebSocketServer | null = null;
   private sessions = new Map<string, Session>();
+  private activePlayers = new Map<string, string>(); // playerKey -> sessionId
   private parser = new Parser();
   private resolver: ActionResolver;
 
@@ -63,33 +64,109 @@ export class GameServer {
     }
   }
 
+  getPort(): number | null {
+    if (!this.wss) return null;
+    const addr = this.wss.address();
+    if (typeof addr === "string" || !addr) return null;
+    return addr.port;
+  }
+
+  private validateName(name: string): string | null {
+    if (name.length < 2 || name.length > 20) {
+      return "Name must be 2\u201320 characters.";
+    }
+    if (!/^[a-zA-Z]+$/.test(name)) {
+      return "Name must contain only letters.";
+    }
+    return null;
+  }
+
   private handleNameInput(session: Session, name: string): void {
-    const startingRoom = this.findStartingRoom();
-    if (!startingRoom) {
-      this.send(session.ws, "Error: No starting room found.");
+    const validationError = this.validateName(name);
+    if (validationError) {
+      this.send(session.ws, `${validationError}\nWhat is your name?`);
       return;
     }
 
-    const playerId = this.world.createEntity();
-    this.world.addComponent(playerId, "Player", {
-      name,
-      sessionId: session.sessionId,
-    });
-    this.world.addComponent(playerId, "Position", { roomId: startingRoom });
-    this.world.addComponent(playerId, "VisitedRooms", { rooms: [startingRoom] });
+    const playerKey = `player.${name.toLowerCase()}`;
 
-    session.playerId = playerId;
-    session.state = "playing";
+    // Check for duplicate session
+    if (this.activePlayers.has(playerKey)) {
+      this.send(
+        session.ws,
+        "That character is already being played by someone else.\nWhat is your name?"
+      );
+      return;
+    }
 
-    const lookOutput = this.resolver.composeLook(startingRoom, playerId, true);
-    this.send(session.ws, `Welcome, ${name}.\n\n${lookOutput}`);
+    const existingId = this.world.getEntityByKey(playerKey);
 
-    // Notify others in the room
-    this.broadcastToRoom(
-      startingRoom,
-      formatSystem(`${name} appears from the fog.`),
-      playerId
-    );
+    if (existingId) {
+      // Returning player — reattach to existing entity
+      const player = this.world.getComponent(existingId, "Player") as {
+        name: string;
+        sessionId: string;
+      };
+
+      this.world.setComponent(existingId, "Player", {
+        name: player.name,
+        sessionId: session.sessionId,
+      });
+
+      session.playerId = existingId;
+      session.state = "playing";
+      this.activePlayers.set(playerKey, session.sessionId);
+
+      const position = this.world.getComponent(existingId, "Position") as {
+        roomId: string;
+      };
+      const lookOutput = this.resolver.composeLook(
+        position.roomId,
+        existingId,
+        true
+      );
+      this.send(session.ws, `Welcome back, ${player.name}.\n\n${lookOutput}`);
+
+      this.broadcastToRoom(
+        position.roomId,
+        formatSystem(`${player.name} appears from the fog.`),
+        existingId
+      );
+    } else {
+      // New player
+      const startingRoom = this.findStartingRoom();
+      if (!startingRoom) {
+        this.send(session.ws, "Error: No starting room found.");
+        return;
+      }
+
+      const playerId = this.world.createEntity(playerKey);
+      this.world.addComponent(playerId, "Player", {
+        name,
+        sessionId: session.sessionId,
+      });
+      this.world.addComponent(playerId, "Position", { roomId: startingRoom });
+      this.world.addComponent(playerId, "VisitedRooms", {
+        rooms: [startingRoom],
+      });
+
+      session.playerId = playerId;
+      session.state = "playing";
+      this.activePlayers.set(playerKey, session.sessionId);
+
+      const lookOutput = this.resolver.composeLook(
+        startingRoom,
+        playerId,
+        true
+      );
+      this.send(session.ws, `Welcome, ${name}.\n\n${lookOutput}`);
+
+      this.broadcastToRoom(
+        startingRoom,
+        formatSystem(`${name} appears from the fog.`),
+        playerId
+      );
+    }
   }
 
   private handleGameInput(session: Session, input: string): void {
@@ -134,18 +211,28 @@ export class GameServer {
         );
       }
 
-      this.world.deleteEntity(session.playerId);
+      // Clear sessionId so player doesn't appear in room listings
+      if (player) {
+        this.world.setComponent(session.playerId, "Player", {
+          name: player.name,
+          sessionId: "",
+        });
+      }
+
+      // Remove from active players tracking
+      const key = this.world.entities.getKeyForEntity(session.playerId);
+      if (key) {
+        this.activePlayers.delete(key);
+      }
     }
 
     this.sessions.delete(session.sessionId);
   }
 
   private findStartingRoom(): string | undefined {
-    // Try the keyed starting room first
     const keyed = this.world.getEntityByKey(this.startingRoomKey);
     if (keyed) return keyed;
 
-    // Fall back to the first room entity
     const rooms = this.world.getEntitiesWithComponent("Room");
     return rooms[0];
   }
@@ -161,13 +248,16 @@ export class GameServer {
     ]);
     for (const id of playersInRoom) {
       if (id === excludePlayerId) continue;
-      const pos = this.world.getComponent(id, "Position") as { roomId: string };
+      const pos = this.world.getComponent(id, "Position") as {
+        roomId: string;
+      };
       if (pos.roomId !== roomId) continue;
 
       const player = this.world.getComponent(id, "Player") as {
         name: string;
         sessionId: string;
       };
+      if (!player.sessionId) continue; // skip offline players
       const session = this.sessions.get(player.sessionId);
       if (session && session.ws.readyState === WebSocket.OPEN) {
         this.send(session.ws, text);

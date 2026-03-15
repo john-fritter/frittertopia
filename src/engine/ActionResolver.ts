@@ -184,7 +184,7 @@ export class ActionResolver {
       const otherPlayer = this.world.getComponent(id, "Player") as
         | { name: string; sessionId: string }
         | undefined;
-      if (otherPlayer) {
+      if (otherPlayer && otherPlayer.sessionId) {
         players.push(otherPlayer.name);
       }
     }
