@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest",
-    "dev": "tsx src/main.ts"
+    "dev": "tsx src/main.ts",
+    "reset": "tsx src/main.ts --fresh"
   },
   "keywords": [],
   "author": "",

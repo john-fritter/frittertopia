@@ -3,7 +3,7 @@ import type { z } from "zod/v4";
 import { ComponentRegistry, type ComponentSchema } from "./ComponentRegistry.js";
 import { EntityManager } from "./EntityManager.js";
 import { EventBus, type EventSchema } from "./EventBus.js";
-import { saveWorld, loadWorld } from "./Persistence.js";
+import { saveWorld, loadWorld, loadSavedState } from "./Persistence.js";
 import { TickLoop, type SystemFn } from "./TickLoop.js";
 
 export class World {
@@ -107,5 +107,9 @@ export class World {
 
   load(db: Database.Database): void {
     loadWorld(db, this);
+  }
+
+  loadSavedState(db: Database.Database, startingRoomKey?: string): void {
+    loadSavedState(db, this, startingRoomKey);
   }
 }

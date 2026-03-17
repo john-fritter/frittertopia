@@ -3,7 +3,11 @@ import * as fs from "node:fs";
 import { z } from "zod/v4";
 import { World } from "./engine/World.js";
 import { loadContentFromDirectory } from "./engine/ContentLoader.js";
-import { createDatabase, saveWorld, loadWorld } from "./engine/Persistence.js";
+import {
+  createDatabase,
+  saveWorld,
+  loadSavedState,
+} from "./engine/Persistence.js";
 import { registerComponents } from "./game/components.js";
 import { createSequenceSystem } from "./game/systems/SequenceSystem.js";
 import { GameServer } from "./server/Server.js";
@@ -29,22 +33,31 @@ world.addSystem(createSequenceSystem(TICK_INTERVAL));
 const dataDir = path.join(import.meta.dirname, "..", "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
 
-const db = createDatabase(path.join(dataDir, "world.db"));
+const dbPath = path.join(dataDir, "world.db");
 
-const entityCount = (
+// --fresh flag: delete saved state for a clean start
+if (process.argv.includes("--fresh")) {
+  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+  console.log("Fresh start: cleared saved state.");
+}
+
+const db = createDatabase(dbPath);
+
+// Always load content from YAML — it's the authoritative source for rooms, items, sequences
+const contentDir = path.join(import.meta.dirname, "..", "content");
+loadContentFromDirectory(contentDir, world);
+console.log("Loaded content from YAML.");
+
+// Restore runtime state from DB (players + runtime-modified content entities)
+const savedEntityCount = (
   db.prepare("SELECT COUNT(*) as count FROM entities").get() as {
     count: number;
   }
 ).count;
 
-if (entityCount > 0) {
-  loadWorld(db, world);
-  console.log(`Restored world from database (${entityCount} entities).`);
-} else {
-  const contentDir = path.join(import.meta.dirname, "..", "content");
-  loadContentFromDirectory(contentDir, world);
-  saveWorld(db, world);
-  console.log("Loaded content from YAML and saved initial state.");
+if (savedEntityCount > 0) {
+  loadSavedState(db, world);
+  console.log(`Restored ${savedEntityCount} saved entity/entities from database.`);
 }
 
 const port = parseInt(process.env["PORT"] ?? "3000", 10);

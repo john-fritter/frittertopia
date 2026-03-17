@@ -53,4 +53,5 @@ export function registerComponents(world: World): void {
       deflectMessage: z.string(),
     })
   );
+
 }
