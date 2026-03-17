@@ -24,7 +24,7 @@ export class GameServer {
     private startingRoomKey = "starting.room",
     private sequenceTemplateKey = "sequence.fog-arrival"
   ) {
-    this.resolver = new ActionResolver(world);
+    this.resolver = new ActionResolver(world, this.parser);
     this.setupEventHandlers();
   }
 

@@ -4,6 +4,14 @@ export interface Intent {
   modifiers?: string[];
 }
 
+export interface VerbHelpData {
+  verb: string;
+  description: string;
+  usage: string;
+  category: string;
+  aliases: string[];
+}
+
 const DIRECTION_FULL: Record<string, string> = {
   n: "north",
   s: "south",
@@ -20,6 +28,7 @@ const ALL_DIRECTIONS = new Set([
 
 export class Parser {
   private aliases = new Map<string, string>();
+  private verbMetadata = new Map<string, { description: string; usage: string; category: string; aliases: string[] }>();
 
   constructor() {
     // Default aliases
@@ -30,6 +39,35 @@ export class Parser {
 
   alias(from: string, to: string): void {
     this.aliases.set(from, to);
+  }
+
+  registerVerb(verb: string, options?: {
+    aliases?: string[];
+    description?: string;
+    usage?: string;
+    category?: string;
+  }): void {
+    if (options?.aliases) {
+      for (const a of options.aliases) {
+        this.aliases.set(a, verb);
+      }
+    }
+    if (options?.description !== undefined && options?.usage !== undefined && options?.category !== undefined) {
+      this.verbMetadata.set(verb, {
+        description: options.description,
+        usage: options.usage,
+        category: options.category,
+        aliases: options.aliases ?? [],
+      });
+    }
+  }
+
+  getHelpData(): VerbHelpData[] {
+    const result: VerbHelpData[] = [];
+    for (const [verb, meta] of this.verbMetadata) {
+      result.push({ verb, ...meta });
+    }
+    return result;
   }
 
   parse(input: string): Intent {

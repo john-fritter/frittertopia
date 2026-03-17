@@ -121,3 +121,15 @@ export function formatNarrative(text: string): string {
 export function formatSequence(text: string): string {
   return `${DIM_WHITE}${wordWrap(text)}${RESET}`;
 }
+
+export function formatBold(text: string): string {
+  return `${BOLD_WHITE}${text}${RESET}`;
+}
+
+export function formatCyan(text: string): string {
+  return `${CYAN}${text}${RESET}`;
+}
+
+export function formatDim(text: string): string {
+  return `${DIM_WHITE}${text}${RESET}`;
+}
