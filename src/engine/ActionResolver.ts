@@ -11,6 +11,7 @@ import {
   formatBold,
   formatCyan,
   formatDim,
+  type RoomData,
   type RoomExit,
 } from "../server/format.js";
 
@@ -263,13 +264,15 @@ export class ActionResolver {
       }
     }
 
-    return formatRoom({
+    const roomData: RoomData = {
       name: room?.name ?? "Unknown Room",
       description,
-      items: items.length > 0 ? items : undefined,
-      players: players.length > 0 ? players : undefined,
       exits: exitList,
-    });
+    };
+    if (items.length > 0) roomData.items = items;
+    if (players.length > 0) roomData.players = players;
+
+    return formatRoom(roomData);
   }
 
   private handleHelp(target: string | undefined): ActionResult {
