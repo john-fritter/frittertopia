@@ -26,6 +26,10 @@ world.registerEvent(
   "sequence_complete",
   z.object({ playerId: z.string(), roomId: z.string() })
 );
+world.registerEvent(
+  "player_destroyed",
+  z.object({ playerId: z.string() })
+);
 
 // Register systems
 world.addSystem(createSequenceSystem(TICK_INTERVAL));

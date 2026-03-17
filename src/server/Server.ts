@@ -18,6 +18,8 @@ export class GameServer {
   private activePlayers = new Map<string, string>(); // playerKey -> sessionId
   private parser = new Parser();
   private resolver: ActionResolver;
+  private adminNames: Set<string> | null; // null = first-player-gets-admin
+  private firstPlayerConnected = false;
 
   constructor(
     private world: World,
@@ -25,6 +27,16 @@ export class GameServer {
     private sequenceTemplateKey = "sequence.fog-arrival"
   ) {
     this.resolver = new ActionResolver(world, this.parser);
+
+    const adminEnv = process.env["ADMIN_PLAYERS"];
+    if (adminEnv) {
+      this.adminNames = new Set(
+        adminEnv.split(",").map((n) => n.trim().toLowerCase()).filter((n) => n)
+      );
+    } else {
+      this.adminNames = null;
+    }
+
     this.setupEventHandlers();
   }
 
@@ -101,6 +113,29 @@ export class GameServer {
         );
       }
     });
+
+    this.world.onEvent("player_destroyed", (payload) => {
+      const { playerId } = payload as { playerId: string };
+
+      // Find and disconnect the session for this player
+      for (const [sessionId, session] of this.sessions) {
+        if (session.playerId === playerId) {
+          this.send(
+            session.ws,
+            "Your character has been removed by an administrator."
+          );
+          session.ws.close();
+
+          // Clean up active players tracking
+          const key = this.world.entities.getKeyForEntity(playerId);
+          if (key) {
+            this.activePlayers.delete(key);
+          }
+          this.sessions.delete(sessionId);
+          break;
+        }
+      }
+    });
   }
 
   private sendToPlayer(playerId: string, text: string): void {
@@ -156,6 +191,8 @@ export class GameServer {
         sessionId: session.sessionId,
       });
 
+      this.grantAdminIfEligible(existingId, player.name);
+
       session.playerId = existingId;
       session.state = "playing";
       this.activePlayers.set(playerKey, session.sessionId);
@@ -188,6 +225,8 @@ export class GameServer {
         name,
         sessionId: session.sessionId,
       });
+
+      this.grantAdminIfEligible(playerId, name);
 
       session.playerId = playerId;
       session.state = "playing";
@@ -264,6 +303,21 @@ export class GameServer {
         result.toOtherRoom.text,
         session.playerId
       );
+    }
+  }
+
+  private grantAdminIfEligible(playerId: string, name: string): void {
+    if (this.adminNames !== null) {
+      // Explicit admin list from env var
+      if (this.adminNames.has(name.toLowerCase())) {
+        this.world.setComponent(playerId, "Admin", { level: 1 });
+      }
+    } else {
+      // No ADMIN_PLAYERS set — first player gets admin
+      if (!this.firstPlayerConnected) {
+        this.firstPlayerConnected = true;
+        this.world.setComponent(playerId, "Admin", { level: 1 });
+      }
     }
   }
 

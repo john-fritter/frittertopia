@@ -154,6 +154,17 @@ export function loadSavedState(
   }
 }
 
+export function deleteEntityData(
+  db: Database.Database,
+  entityId: string
+): void {
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM components WHERE entity_id = ?").run(entityId);
+    db.prepare("DELETE FROM entities WHERE id = ?").run(entityId);
+  });
+  transaction();
+}
+
 // Backward-compatible aliases
 export const loadRuntimeState = loadSavedState;
 export function loadWorld(db: Database.Database, world: World): void {

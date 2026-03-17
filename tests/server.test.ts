@@ -21,6 +21,10 @@ function setupWorld(): World {
     "sequence_complete",
     z.object({ playerId: z.string(), roomId: z.string() })
   );
+  world.registerEvent(
+    "player_destroyed",
+    z.object({ playerId: z.string() })
+  );
 
   const roomA = world.createEntity("starting.room");
   world.addComponent(roomA, "Room", { name: "The Courtyard" });

@@ -26,6 +26,10 @@ function makeSequenceWorld(): World {
     "sequence_complete",
     z.object({ playerId: z.string(), roomId: z.string() })
   );
+  world.registerEvent(
+    "player_destroyed",
+    z.object({ playerId: z.string() })
+  );
 
   world.addSystem(createSequenceSystem(TICK));
   return world;

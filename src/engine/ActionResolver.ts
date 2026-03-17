@@ -61,6 +61,12 @@ export class ActionResolver {
       usage: "help, help <command>, help <category>",
       category: "system",
     });
+
+    // Admin commands — no metadata so they don't appear in help
+    this.parser.registerVerb("@destroy");
+    this.parser.registerVerb("@inspect");
+    this.parser.registerVerb("@teleport");
+    this.parser.registerVerb("@help");
   }
 
   resolve(intent: Intent, playerId: string): ActionResult {
@@ -80,6 +86,20 @@ export class ActionResolver {
         return this.handleSay(intent.target, playerId);
       case "help":
         return this.handleHelp(intent.target);
+      case "@destroy":
+        return this.adminGate(playerId, () =>
+          this.handleAdminDestroy(intent.target, playerId)
+        );
+      case "@inspect":
+        return this.adminGate(playerId, () =>
+          this.handleAdminInspect(intent.target, playerId)
+        );
+      case "@teleport":
+        return this.adminGate(playerId, () =>
+          this.handleAdminTeleport(intent.target, playerId)
+        );
+      case "@help":
+        return this.adminGate(playerId, () => this.handleAdminHelp());
       default:
         return { toPlayer: "I don't understand that." };
     }
@@ -337,6 +357,210 @@ export class ActionResolver {
     }
 
     return lines.join("\n");
+  }
+
+  private isAdmin(playerId: string): boolean {
+    return this.world.getComponent(playerId, "Admin") !== undefined;
+  }
+
+  private adminGate(
+    playerId: string,
+    handler: () => ActionResult
+  ): ActionResult {
+    if (!this.isAdmin(playerId)) {
+      return { toPlayer: "You don't have permission to do that." };
+    }
+    return handler();
+  }
+
+  private handleAdminDestroy(
+    target: string | undefined,
+    playerId: string
+  ): ActionResult {
+    if (!target) return { toPlayer: formatDim("Usage: @destroy <player>") };
+
+    // Find player by name (case-insensitive)
+    const playerIds = this.world.getEntitiesWithComponent("Player");
+    let targetId: string | undefined;
+    let targetName: string | undefined;
+
+    for (const id of playerIds) {
+      const player = this.world.getComponent(id, "Player") as {
+        name: string;
+        sessionId: string;
+      };
+      if (player.name.toLowerCase() === target.toLowerCase()) {
+        targetId = id;
+        targetName = player.name;
+        break;
+      }
+    }
+
+    if (!targetId || !targetName) {
+      return { toPlayer: formatDim(`No player found: ${target}`) };
+    }
+
+    if (targetId === playerId) {
+      return { toPlayer: formatDim("You can't destroy yourself.") };
+    }
+
+    // Emit event so Server can disconnect the session
+    this.world.emit("player_destroyed", { playerId: targetId });
+
+    // Remove the entity from the world
+    this.world.deleteEntity(targetId);
+
+    return { toPlayer: formatDim(`Destroyed player: ${targetName}`) };
+  }
+
+  private handleAdminInspect(
+    target: string | undefined,
+    playerId: string
+  ): ActionResult {
+    if (!target) return { toPlayer: formatDim("Usage: @inspect <target>") };
+
+    const entityId = this.resolveTarget(target, playerId);
+    if (!entityId) {
+      return { toPlayer: formatDim(`Nothing found: ${target}`) };
+    }
+
+    const key = this.world.entities.getKeyForEntity(entityId);
+    const components = this.world.entities.getComponentsForEntity(entityId);
+
+    const lines: string[] = [];
+    const label = key ? `${key} / id: ${entityId}` : `id: ${entityId}`;
+    lines.push(formatBold(`[Inspecting: ${target}]`) + `  (${label})`);
+    lines.push(formatDim("─".repeat(24)));
+
+    for (const [typeName, data] of components) {
+      lines.push("");
+      lines.push(formatBold(typeName));
+      for (const [field, value] of Object.entries(data)) {
+        lines.push(`  ${formatCyan(field)}: ${JSON.stringify(value)}`);
+      }
+    }
+
+    return { toPlayer: lines.join("\n") };
+  }
+
+  private handleAdminTeleport(
+    target: string | undefined,
+    playerId: string
+  ): ActionResult {
+    if (!target) return { toPlayer: formatDim("Usage: @teleport <room-id>") };
+
+    const roomId = this.world.getEntityByKey(target);
+    if (!roomId) {
+      return { toPlayer: formatDim(`No room found: ${target}`) };
+    }
+
+    // Verify it's actually a room
+    const room = this.world.getComponent(roomId, "Room");
+    if (!room) {
+      return { toPlayer: formatDim(`No room found: ${target}`) };
+    }
+
+    const position = this.world.getComponent(playerId, "Position") as
+      | { roomId: string }
+      | undefined;
+    const oldRoomId = position?.roomId;
+
+    const player = this.world.getComponent(playerId, "Player") as
+      | { name: string; sessionId: string }
+      | undefined;
+    const playerName = player?.name ?? "Someone";
+
+    // Move the player
+    this.world.setComponent(playerId, "Position", { roomId });
+    this.markVisited(playerId, roomId);
+
+    const lookOutput = this.composeLook(roomId, playerId, true);
+
+    const result: ActionResult = { toPlayer: lookOutput };
+
+    if (oldRoomId) {
+      result.toRoom = {
+        roomId: oldRoomId,
+        text: formatDim(`${playerName} vanishes.`),
+        excludePlayer: playerId,
+      };
+    }
+
+    result.toOtherRoom = {
+      roomId,
+      text: formatDim(`${playerName} appears.`),
+    };
+
+    return result;
+  }
+
+  private handleAdminHelp(): ActionResult {
+    const DESC_COL = 38;
+    const lines: string[] = [];
+
+    lines.push(formatBold("Admin Commands"));
+    lines.push(formatDim("─".repeat(14)));
+
+    const commands = [
+      { name: "@destroy <player>", desc: "Remove a player and their data" },
+      { name: "@inspect <target>", desc: "Show all component data for an entity" },
+      { name: "@teleport <room-id>", desc: "Move to any room" },
+      { name: "@help", desc: "Show this list" },
+    ];
+
+    lines.push("");
+    for (const cmd of commands) {
+      const visiblePrefix = cmd.name.length + 3;
+      const dotsNeeded = Math.max(3, DESC_COL - visiblePrefix - 3);
+      const dots = ".".repeat(dotsNeeded);
+      lines.push(
+        `  ${formatCyan(cmd.name)} ${formatDim(dots)}   ${cmd.desc}`
+      );
+    }
+
+    return { toPlayer: lines.join("\n") };
+  }
+
+  private resolveTarget(target: string, playerId: string): string | undefined {
+    const lowerTarget = target.toLowerCase();
+
+    // Check by entity key first
+    const byKey = this.world.getEntityByKey(target);
+    if (byKey) return byKey;
+
+    // Check players by name
+    const playerIds = this.world.getEntitiesWithComponent("Player");
+    for (const id of playerIds) {
+      const player = this.world.getComponent(id, "Player") as {
+        name: string;
+      };
+      if (player.name.toLowerCase() === lowerTarget) {
+        return id;
+      }
+    }
+
+    // Check entities in the admin's room
+    const position = this.world.getComponent(playerId, "Position") as
+      | { roomId: string }
+      | undefined;
+    if (position) {
+      const entitiesInRoom = this.world.getEntitiesWithComponent("Position");
+      for (const id of entitiesInRoom) {
+        const pos = this.world.getComponent(id, "Position") as {
+          roomId: string;
+        };
+        if (pos.roomId !== position.roomId) continue;
+
+        const desc = this.world.getComponent(id, "Description") as
+          | { short: string; long: string }
+          | undefined;
+        if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
+          return id;
+        }
+      }
+    }
+
+    return undefined;
   }
 
   private lookAtTarget(target: string, roomId: string): string {
