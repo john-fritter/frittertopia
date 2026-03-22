@@ -44,6 +44,14 @@ export function registerComponents(world: World): void {
   world.registerComponent("Admin", z.object({ level: z.number().default(1) }));
 
   world.registerComponent(
+    "TimeOfDay",
+    z.object({
+      bracket: z.string(),
+      updatedAt: z.string(),
+    })
+  );
+
+  world.registerComponent(
     "Sequence",
     z.object({
       beats: z.array(

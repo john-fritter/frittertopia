@@ -10,6 +10,7 @@ import {
 } from "./engine/Persistence.js";
 import { registerComponents } from "./game/components.js";
 import { createSequenceSystem } from "./game/systems/SequenceSystem.js";
+import { createTimeOfDaySystem } from "./game/systems/TimeOfDaySystem.js";
 import { GameServer } from "./server/Server.js";
 
 const TICK_INTERVAL = 250;
@@ -33,6 +34,14 @@ world.registerEvent(
 
 // Register systems
 world.addSystem(createSequenceSystem(TICK_INTERVAL));
+world.addSystem(createTimeOfDaySystem(TICK_INTERVAL));
+
+// Create world.time singleton entity
+const worldTimeId = world.createEntity("world.time");
+world.addComponent(worldTimeId, "TimeOfDay", {
+  bracket: "unknown",
+  updatedAt: new Date().toISOString(),
+});
 
 const dataDir = path.join(import.meta.dirname, "..", "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);

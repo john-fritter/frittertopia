@@ -46,7 +46,7 @@ Entities are unique IDs. Components are typed data bags. Systems run each tick o
 - `setComponent` — system updates, fast path, skips validation
 
 **Current components** (registered in `src/game/components.ts`):
-- `Description` — `{short, long}` strings
+- `Description` — `{short, long?, blocks?}` — short for brief refs, blocks for visibility-gated room descriptions, long for simple items
 - `Position` — `{roomId}` (entity ref)
 - `Room` — `{name}`
 - `Exits` — `{exits: Record<direction, roomId>}` (entity refs)
