@@ -2,6 +2,11 @@ import type { Intent, VerbHelpData } from "./Parser.js";
 import { Parser } from "./Parser.js";
 import type { World } from "./World.js";
 import {
+  renderDescription,
+  getVisibility,
+  type DescriptionBlock,
+} from "../game/description.js";
+import {
   formatRoom,
   formatSelfSay,
   formatSay,
@@ -203,7 +208,7 @@ export class ActionResolver {
       | { name: string }
       | undefined;
     const desc = this.world.getComponent(roomId, "Description") as
-      | { short: string; long: string }
+      | { short: string; long?: string; blocks?: DescriptionBlock[] }
       | undefined;
     const exits = this.world.getComponent(roomId, "Exits") as
       | { exits: Record<string, string> }
@@ -212,11 +217,15 @@ export class ActionResolver {
     const visitedRooms = this.getVisitedRooms(playerId);
     const hasVisited = visitedRooms.has(roomId);
 
-    // First visit or explicit look → long description
-    const description =
-      forceLong || !hasVisited
-        ? (desc?.long ?? "You see nothing special.")
-        : (desc?.short ?? "You see nothing special.");
+    // First visit or explicit look → full description; revisit → short
+    let description: string;
+    if (forceLong || !hasVisited) {
+      description = desc
+        ? this.fullDescription(desc)
+        : "You see nothing special.";
+    } else {
+      description = desc?.short ?? "You see nothing special.";
+    }
 
     // Build exits with room names for visited rooms only
     const exitList: RoomExit[] = [];
@@ -555,7 +564,7 @@ export class ActionResolver {
         if (pos.roomId !== position.roomId) continue;
 
         const desc = this.world.getComponent(id, "Description") as
-          | { short: string; long: string }
+          | { short: string }
           | undefined;
         if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
           return id;
@@ -564,6 +573,22 @@ export class ActionResolver {
     }
 
     return undefined;
+  }
+
+  /** Resolve the full description text from a Description component, using blocks if available. */
+  private fullDescription(desc: {
+    short: string;
+    long?: string;
+    blocks?: DescriptionBlock[];
+  }): string {
+    if (desc.blocks) {
+      const visibility = getVisibility("");
+      return (
+        renderDescription(desc.blocks, { visibility }) ||
+        (desc.long ?? desc.short)
+      );
+    }
+    return desc.long ?? desc.short;
   }
 
   private lookAtTarget(target: string, roomId: string): string {
@@ -578,10 +603,10 @@ export class ActionResolver {
       if (pos.roomId !== roomId) continue;
 
       const desc = this.world.getComponent(id, "Description") as
-        | { short: string; long: string }
+        | { short: string; long?: string; blocks?: DescriptionBlock[] }
         | undefined;
       if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
-        return desc.long;
+        return this.fullDescription(desc);
       }
     }
 
@@ -591,9 +616,9 @@ export class ActionResolver {
       | undefined;
     if (roomComp && roomComp.name.toLowerCase().includes(lowerTarget)) {
       const roomDesc = this.world.getComponent(roomId, "Description") as
-        | { short: string; long: string }
+        | { short: string; long?: string; blocks?: DescriptionBlock[] }
         | undefined;
-      if (roomDesc) return roomDesc.long;
+      if (roomDesc) return this.fullDescription(roomDesc);
     }
 
     return "You don't see that here.";

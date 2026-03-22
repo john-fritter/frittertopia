@@ -13,7 +13,11 @@ function makeWorld(): World {
   world.registerComponent("Room", z.object({ name: z.string() }));
   world.registerComponent(
     "Description",
-    z.object({ short: z.string(), long: z.string() })
+    z.object({
+      short: z.string(),
+      long: z.string().optional(),
+      blocks: z.array(z.any()).optional(),
+    })
   );
   world.registerComponent(
     "Position",

@@ -1,10 +1,15 @@
 import { z } from "zod/v4";
 import type { World } from "../engine/World.js";
+import { DescriptionBlockSchema } from "./description.js";
 
 export function registerComponents(world: World): void {
   world.registerComponent(
     "Description",
-    z.object({ short: z.string(), long: z.string() })
+    z.object({
+      short: z.string(),
+      long: z.string().optional(),
+      blocks: z.array(DescriptionBlockSchema).optional(),
+    })
   );
 
   world.registerComponent(
