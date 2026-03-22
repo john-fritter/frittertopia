@@ -81,6 +81,55 @@ function localMidnightUtc(date: Date): Date {
   return new Date(midnightLocalAsUtc - offsetMs);
 }
 
+// --- Moon phase ---
+
+export type MoonPhaseName =
+  | "new"
+  | "waxing_crescent"
+  | "first_quarter"
+  | "waxing_gibbous"
+  | "full"
+  | "waning_gibbous"
+  | "third_quarter"
+  | "waning_crescent";
+
+const MOON_PHASE_NAMES: MoonPhaseName[] = [
+  "new",
+  "waxing_crescent",
+  "first_quarter",
+  "waxing_gibbous",
+  "full",
+  "waning_gibbous",
+  "third_quarter",
+  "waning_crescent",
+];
+
+/**
+ * Derive a human-readable moon phase name from suncalc's 0-1 phase value.
+ * Eight equal divisions of the lunar cycle.
+ */
+export function getMoonPhaseName(phase: number): MoonPhaseName {
+  // phase 0 = new moon, 0.25 = first quarter, 0.5 = full, 0.75 = third quarter
+  // Each of 8 phases spans 0.125 of the cycle, centered on its ideal position.
+  const index = Math.floor(((phase + 0.0625) % 1) * 8);
+  return MOON_PHASE_NAMES[index] ?? "new";
+}
+
+/**
+ * Get moon illumination fraction and phase name for a date.
+ */
+export function getMoonData(date?: Date): {
+  fraction: number;
+  phase: MoonPhaseName;
+} {
+  const now = date ?? getCurrentTime();
+  const moonData = SunCalc.getMoonIllumination(now);
+  return {
+    fraction: moonData.fraction,
+    phase: getMoonPhaseName(moonData.phase),
+  };
+}
+
 // --- Bracket computation ---
 
 function isValidSunTime(d: Date): boolean {

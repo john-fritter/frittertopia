@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import type { World } from "../engine/World.js";
+import type { TimeBracket } from "./solar.js";
 
 // Visibility levels ordered from best to worst
 export type VisibilityLevel = "full" | "reduced" | "minimal" | "none";
@@ -40,6 +42,7 @@ export type DescriptionBlock = z.infer<typeof DescriptionBlockSchema>;
 
 export interface ConditionState {
   visibility: VisibilityLevel;
+  variables?: Record<string, string>;
   weather?: string;
   temperature?: number;
   month?: number;
@@ -72,9 +75,26 @@ function specificity(condition: string | undefined): number {
 }
 
 /**
+ * Replace {variableName} patterns with values from the variable map.
+ * Unknown variables are left as-is.
+ */
+export function substituteVariables(
+  text: string,
+  variables: Record<string, string>
+): string {
+  return text.replace(/\{([^}]+)\}/g, (match, key: string) => {
+    const value = variables[key];
+    return value !== undefined ? value : match;
+  });
+}
+
+/**
  * Render a room's description from blocks given the current conditions.
  * Currently only evaluates base blocks by visibility. Other block types
  * (weather, season, temperature) are accepted but ignored.
+ *
+ * If conditions.variables is provided, {variable} patterns in the composed
+ * text are substituted with current values.
  */
 export function renderDescription(
   blocks: DescriptionBlock[],
@@ -102,10 +122,110 @@ export function renderDescription(
     }
   }
 
-  return parts.join(" ");
+  let text = parts.join(" ");
+
+  if (conditions.variables) {
+    text = substituteVariables(text, conditions.variables);
+  }
+
+  return text;
 }
 
-/** Returns the current visibility level for a room. Hardcoded to full for now. */
-export function getVisibility(_roomId: string): VisibilityLevel {
-  return "full";
+// --- Visibility computation ---
+
+type Exposure = "outdoor" | "sheltered" | "indoor";
+
+/**
+ * Bracket-to-visibility mapping for outdoor rooms.
+ * Moon bonus: moonFraction > 0.75 improves visibility by one tier at night.
+ */
+const OUTDOOR_VISIBILITY: Record<TimeBracket, VisibilityLevel> = {
+  morning: "full",
+  midday: "full",
+  afternoon: "full",
+  dawn: "reduced",
+  dusk: "reduced",
+  evening: "minimal",
+  night: "minimal",
+  deep_night: "none",
+};
+
+const OUTDOOR_MOON_BONUS: Record<TimeBracket, VisibilityLevel> = {
+  morning: "full",
+  midday: "full",
+  afternoon: "full",
+  dawn: "reduced",
+  dusk: "reduced",
+  evening: "minimal",
+  night: "reduced",
+  deep_night: "minimal",
+};
+
+/**
+ * Sheltered rooms: same as outdoor but one tier better at the low end.
+ * Moon bonus and shelter bonus don't stack above reduced.
+ */
+const SHELTERED_VISIBILITY: Record<TimeBracket, VisibilityLevel> = {
+  morning: "full",
+  midday: "full",
+  afternoon: "full",
+  dawn: "full",
+  dusk: "reduced",
+  evening: "reduced",
+  night: "minimal",
+  deep_night: "minimal",
+};
+
+const SHELTERED_MOON_BONUS: Record<TimeBracket, VisibilityLevel> = {
+  morning: "full",
+  midday: "full",
+  afternoon: "full",
+  dawn: "full",
+  dusk: "reduced",
+  evening: "reduced",
+  night: "reduced",
+  deep_night: "minimal",
+};
+
+const BRIGHT_MOON_THRESHOLD = 0.75;
+
+/**
+ * Compute the current visibility level for a room.
+ *
+ * Reads the room's RoomExposure and the current time bracket and moon data
+ * from the world.time entity.
+ *
+ * Indoor rooms are always full visibility (they have their own light sources).
+ * Outdoor and sheltered rooms depend on time of day and moon brightness.
+ */
+export function getVisibility(roomId: string, world: World): VisibilityLevel {
+  const exposureComp = world.getComponent(roomId, "RoomExposure") as
+    | { exposure: string }
+    | undefined;
+  const exposure: Exposure =
+    (exposureComp?.exposure as Exposure) ?? "outdoor";
+
+  if (exposure === "indoor") return "full";
+
+  const timeEntity = world.getEntityByKey("world.time");
+  if (!timeEntity) return "full";
+
+  const tod = world.getComponent(timeEntity, "TimeOfDay") as
+    | { bracket: string; moonFraction: number; moonPhase: string }
+    | undefined;
+  if (!tod || tod.bracket === "unknown") return "full";
+
+  const bracket = tod.bracket as TimeBracket;
+  const brightMoon = tod.moonFraction > BRIGHT_MOON_THRESHOLD;
+
+  if (exposure === "sheltered") {
+    return brightMoon
+      ? SHELTERED_MOON_BONUS[bracket]
+      : SHELTERED_VISIBILITY[bracket];
+  }
+
+  // outdoor
+  return brightMoon
+    ? OUTDOOR_MOON_BONUS[bracket]
+    : OUTDOOR_VISIBILITY[bracket];
 }

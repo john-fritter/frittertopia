@@ -40,6 +40,8 @@ world.addSystem(createTimeOfDaySystem(TICK_INTERVAL));
 const worldTimeId = world.createEntity("world.time");
 world.addComponent(worldTimeId, "TimeOfDay", {
   bracket: "unknown",
+  moonFraction: 0,
+  moonPhase: "new",
   updatedAt: new Date().toISOString(),
 });
 

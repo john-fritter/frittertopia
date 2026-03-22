@@ -148,6 +148,8 @@ describe("TimeOfDaySystem", () => {
     const timeId = world.createEntity("world.time");
     world.addComponent(timeId, "TimeOfDay", {
       bracket: "unknown",
+      moonFraction: 0,
+      moonPhase: "new",
       updatedAt: "",
     });
 

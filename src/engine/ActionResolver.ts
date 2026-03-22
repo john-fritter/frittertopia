@@ -221,7 +221,7 @@ export class ActionResolver {
     let description: string;
     if (forceLong || !hasVisited) {
       description = desc
-        ? this.fullDescription(desc)
+        ? this.fullDescription(desc, roomId)
         : "You see nothing special.";
     } else {
       description = desc?.short ?? "You see nothing special.";
@@ -576,19 +576,66 @@ export class ActionResolver {
   }
 
   /** Resolve the full description text from a Description component, using blocks if available. */
-  private fullDescription(desc: {
-    short: string;
-    long?: string;
-    blocks?: DescriptionBlock[];
-  }): string {
+  private fullDescription(
+    desc: { short: string; long?: string; blocks?: DescriptionBlock[] },
+    roomId: string
+  ): string {
     if (desc.blocks) {
-      const visibility = getVisibility("");
+      const visibility = getVisibility(roomId, this.world);
+      const variables = this.buildSkyVariables();
       return (
-        renderDescription(desc.blocks, { visibility }) ||
+        renderDescription(desc.blocks, { visibility, variables }) ||
         (desc.long ?? desc.short)
       );
     }
     return desc.long ?? desc.short;
+  }
+
+  private buildSkyVariables(): Record<string, string> {
+    const vars: Record<string, string> = {};
+
+    const timeEntity = this.world.getEntityByKey("world.time");
+    if (!timeEntity) return vars;
+
+    const tod = this.world.getComponent(timeEntity, "TimeOfDay") as
+      | { bracket: string; moonFraction: number; moonPhase: string }
+      | undefined;
+    if (!tod || tod.bracket === "unknown") return vars;
+
+    const skyEntity = this.world.getEntityByKey("world.sky");
+    if (!skyEntity) return vars;
+
+    const skyData = this.world.getComponent(skyEntity, "SkyDescriptions") as
+      | {
+          brackets: Record<
+            string,
+            {
+              sky: string;
+              window: string;
+              sound: string;
+              moon?: Record<string, string>;
+            }
+          >;
+        }
+      | undefined;
+    if (!skyData) return vars;
+
+    const bracketData = skyData.brackets[tod.bracket];
+    if (!bracketData) return vars;
+
+    let skyText = bracketData.sky;
+    if (bracketData.moon) {
+      const moonText = bracketData.moon[tod.moonPhase];
+      if (moonText) {
+        skyText = skyText ? skyText + " " + moonText : moonText;
+      }
+    }
+
+    vars["sky"] = skyText;
+    vars["sky.window"] = bracketData.window;
+    vars["sky.sound"] = bracketData.sound;
+
+    return vars;
   }
 
   private lookAtTarget(target: string, roomId: string): string {
@@ -606,7 +653,7 @@ export class ActionResolver {
         | { short: string; long?: string; blocks?: DescriptionBlock[] }
         | undefined;
       if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
-        return this.fullDescription(desc);
+        return this.fullDescription(desc, roomId);
       }
     }
 
@@ -618,7 +665,7 @@ export class ActionResolver {
       const roomDesc = this.world.getComponent(roomId, "Description") as
         | { short: string; long?: string; blocks?: DescriptionBlock[] }
         | undefined;
-      if (roomDesc) return this.fullDescription(roomDesc);
+      if (roomDesc) return this.fullDescription(roomDesc, roomId);
     }
 
     return "You don't see that here.";

@@ -44,9 +44,33 @@ export function registerComponents(world: World): void {
   world.registerComponent("Admin", z.object({ level: z.number().default(1) }));
 
   world.registerComponent(
+    "RoomExposure",
+    z.object({
+      exposure: z.enum(["outdoor", "sheltered", "indoor"]),
+    })
+  );
+
+  world.registerComponent(
+    "SkyDescriptions",
+    z.object({
+      brackets: z.record(
+        z.string(),
+        z.object({
+          sky: z.string(),
+          window: z.string(),
+          sound: z.string(),
+          moon: z.record(z.string(), z.string()).optional(),
+        })
+      ),
+    })
+  );
+
+  world.registerComponent(
     "TimeOfDay",
     z.object({
       bracket: z.string(),
+      moonFraction: z.number(),
+      moonPhase: z.string(),
       updatedAt: z.string(),
     })
   );

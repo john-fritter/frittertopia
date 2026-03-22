@@ -3,6 +3,8 @@ entities:
     components:
       Room:
         name: "The Monastery Courtyard"
+      RoomExposure:
+        exposure: outdoor
       Description:
         short: "a crumbling stone courtyard"
         blocks:
@@ -18,18 +20,19 @@ entities:
                 text: >-
                   Moss creeps between the stones in thick green seams, and
                   somewhere above, bird calls occasionally pierce the silence.
+                  {sky}
           - id: courtyard-minimal
             type: base
             visibility: minimal
             text: >-
               Stone underfoot. Open sky above. The vague shape of a well at the
-              center of a courtyard.
+              center of a courtyard. {sky}
           - id: courtyard-none
             type: base
             visibility: none
             text: >-
               Cold stone underfoot. The smell of rain and moss. Somewhere, the
-              hollow echo of dripping water.
+              hollow echo of dripping water. {sky.sound}
       Exits:
         exits:
           east: monastery.corridor
@@ -39,6 +42,8 @@ entities:
     components:
       Room:
         name: "The Monastery Kitchen"
+      RoomExposure:
+        exposure: indoor
       Description:
         short: "a large stone kitchen"
         blocks:
@@ -61,6 +66,8 @@ entities:
     components:
       Room:
         name: "The East Corridor"
+      RoomExposure:
+        exposure: indoor
       Description:
         short: "a long stone corridor"
         blocks:
@@ -83,6 +90,8 @@ entities:
     components:
       Room:
         name: "The Small Chapel"
+      RoomExposure:
+        exposure: indoor
       Description:
         short: "a small stone chapel"
         blocks:
@@ -93,9 +102,8 @@ entities:
               A modest chapel of pale limestone, its walls bare except for a
               simple wooden cross above the altar. Three rows of worn pews face
               the front, their wood darkened by the oil of countless hands.
-              Light enters through a single arched window of plain glass,
-              filling the room with a quiet, steady glow. The silence here has
-              weight.
+              Through the arched window of plain glass, {sky.window} falls
+              across the stone floor. The silence here has weight.
       Exits:
         exits:
           south: monastery.corridor
@@ -104,6 +112,8 @@ entities:
     components:
       Room:
         name: "The Dormitory"
+      RoomExposure:
+        exposure: indoor
       Description:
         short: "a long, spare dormitory"
         blocks:
@@ -125,6 +135,8 @@ entities:
     components:
       Room:
         name: "The Herb Garden"
+      RoomExposure:
+        exposure: outdoor
       Description:
         short: "an overgrown walled garden"
         blocks:
