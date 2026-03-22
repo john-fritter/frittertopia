@@ -1,4 +1,7 @@
-import * as SunCalc from "suncalc";
+import _SunCalc from "suncalc";
+// suncalc is CJS; under ESM the namespace lands on .default at runtime
+// but vitest's transform may hoist it directly. Handle both shapes.
+const SunCalc = ("default" in _SunCalc ? (_SunCalc as unknown as { default: typeof _SunCalc }).default : _SunCalc);
 
 /** Configured world location — Bend, Oregon. */
 export const LOCATION = {
