@@ -1,0 +1,23 @@
+entities:
+  - key: monastery.dormitory
+    components:
+      Room:
+        name: "The Dormitory"
+      RoomExposure:
+        exposure: indoor
+      Description:
+        short: "a long, spare dormitory"
+        blocks:
+          - id: dormitory-base
+            type: base
+            visibility: "reduced+"
+            text: >-
+              A low-ceilinged room lined with narrow cots, each made with the
+              same tight corners and folded blanket. There is nothing on the
+              walls and nothing beneath the beds. A single shuttered window at
+              the far end lets in a thin blade of light. The air smells of wool
+              and cold stone. Everything here is in its place, because there is
+              almost nothing to put anywhere.
+      Exits:
+        exits:
+          west: monastery.corridor

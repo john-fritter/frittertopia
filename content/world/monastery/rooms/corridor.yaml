@@ -1,0 +1,24 @@
+entities:
+  - key: monastery.corridor
+    components:
+      Room:
+        name: "The East Corridor"
+      RoomExposure:
+        exposure: indoor
+      Description:
+        short: "a long stone corridor"
+        blocks:
+          - id: corridor-base
+            type: base
+            visibility: "reduced+"
+            text: >-
+              A narrow passage stretches between walls of rough-cut stone, the
+              ceiling low enough to brush with an outstretched hand. Thin light
+              falls from a single window set high in the eastern wall, casting a
+              pale rectangle on the flagstones. The air is cool and still,
+              carrying the faint mineral smell of old stone.
+      Exits:
+        exits:
+          west: starting.room
+          north: monastery.chapel
+          east: monastery.dormitory

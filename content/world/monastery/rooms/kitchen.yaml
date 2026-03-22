@@ -1,0 +1,24 @@
+entities:
+  - key: monastery.kitchen
+    components:
+      Room:
+        name: "The Monastery Kitchen"
+      RoomExposure:
+        exposure: indoor
+      Description:
+        short: "a large stone kitchen"
+        blocks:
+          - id: kitchen-base
+            type: base
+            visibility: "reduced+"
+            text: >-
+              A vaulted ceiling of soot-darkened stone arches above a room that
+              still smells faintly of woodsmoke and dried herbs. A broad hearth
+              dominates the far wall, its iron grate cold and spotted with rust.
+              Bundles of rosemary and thyme hang from hooks along the rafters,
+              brittle and grey with dust. A heavy oak table runs the length of
+              the room, scarred with knife marks.
+      Exits:
+        exits:
+          north: starting.room
+          west: monastery.garden

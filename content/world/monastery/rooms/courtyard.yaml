@@ -1,0 +1,39 @@
+entities:
+  - key: starting.room
+    components:
+      Room:
+        name: "The Monastery Courtyard"
+      RoomExposure:
+        exposure: outdoor
+      Description:
+        short: "a crumbling stone courtyard"
+        blocks:
+          - id: courtyard-base
+            type: base
+            visibility: "reduced+"
+            text: >-
+              Cracked flagstones spread beneath an open sky, edged by low walls
+              of grey stone worn smooth by centuries of rain. A well stands at
+              the center, its rope frayed and its bucket long missing.
+            details:
+              - visibility: "full"
+                text: >-
+                  Moss creeps between the stones in thick green seams, and
+                  somewhere above, bird calls occasionally pierce the silence.
+                  {sky}
+          - id: courtyard-minimal
+            type: base
+            visibility: minimal
+            text: >-
+              Stone underfoot. Open sky above. The vague shape of a well at the
+              center of a courtyard. {sky}
+          - id: courtyard-none
+            type: base
+            visibility: none
+            text: >-
+              Cold stone underfoot. The smell of rain and moss. Somewhere, the
+              hollow echo of dripping water. {sky.sound}
+      Exits:
+        exits:
+          east: monastery.corridor
+          south: monastery.kitchen

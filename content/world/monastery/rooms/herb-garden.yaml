@@ -1,0 +1,24 @@
+entities:
+  - key: monastery.garden
+    components:
+      Room:
+        name: "The Herb Garden"
+      RoomExposure:
+        exposure: outdoor
+      Description:
+        short: "an overgrown walled garden"
+        blocks:
+          - id: garden-base
+            type: base
+            visibility: "reduced+"
+            text: >-
+              A small garden enclosed by walls of crumbling stone, half-reclaimed
+              by wildness. Raised beds of dark earth still hold rows of sage and
+              lavender gone leggy and tangled. Brambles have crept in from the
+              corners, and a rosemary bush has grown past all reason, spilling
+              woody branches across the gravel path. The air is thick with the
+              smell of green things — something fragrant, something sharp, and
+              underneath it all, the sweet rot of fallen leaves.
+      Exits:
+        exits:
+          east: monastery.kitchen
