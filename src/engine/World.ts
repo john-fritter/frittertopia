@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
-import type { z } from "zod/v4";
 import { ComponentRegistry, type ComponentSchema } from "./ComponentRegistry.js";
 import { EntityManager } from "./EntityManager.js";
 import { EventBus, type EventSchema } from "./EventBus.js";
+import { DescriptionService } from "./description/index.js";
 import { LLMClient } from "./LLMClient.js";
 import { saveWorld, loadWorld, loadSavedState } from "./Persistence.js";
 import { TickLoop, type SystemFn } from "./TickLoop.js";
@@ -12,6 +12,7 @@ export class World {
   readonly entities: EntityManager;
   readonly events: EventBus;
   readonly llm: LLMClient;
+  readonly description: DescriptionService;
   private systems: SystemFn[] = [];
   private tickLoop: TickLoop;
 
@@ -20,6 +21,7 @@ export class World {
     this.entities = new EntityManager(this.componentRegistry);
     this.events = new EventBus();
     this.llm = new LLMClient();
+    this.description = new DescriptionService(this);
     this.tickLoop = new TickLoop(
       this.systems,
       this.entities,
