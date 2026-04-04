@@ -95,7 +95,7 @@ export class Parser {
 
     // "say" captures everything after as target
     if (verb === "say") {
-      return { verb: "say", target: rest };
+      return rest ? { verb: "say", target: rest } : { verb: "say" };
     }
 
     if (rest) {
