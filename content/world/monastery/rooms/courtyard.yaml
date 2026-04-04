@@ -7,6 +7,16 @@ entities:
         exposure: outdoor
       Description:
         short: "a crumbling stone courtyard"
+        long: |
+          The courtyard is the center of the monastery, a roughly square expanse of old flagstone open to the sky. The stones are uneven and cracked, worn smooth along the paths between doorways and rough where nobody walks. Moss fills the gaps in the shaded corners. The space is maybe thirty feet across.
+
+          [well] A stone well near the center of the courtyard. The rim is worn smooth from hands and rope. The wooden frame above it is darkened with age, slightly crooked. The rope is hemp, frayed but recently replaced — newer than anything else on the structure. The bucket is old leather, cracked at the seams but still holding water. The water is clean and very cold. In the morning the well produces a clear, bright echo — sound bouncing off cold stone that hasn't warmed yet. Midday it goes flat and dull, the sun heating the shaft walls. In the evening the echo deepens and lingers, as though the well is slower to give sound back. At night it rings — a single drop sounds like it falls for a long time. (Describe the echo quality appropriate to the current time of day when the player interacts with the well or listens. Don't explain why it changes.)
+
+          Heavy oak doors in the east wall lead into the corridor — old, iron-banded, always propped open during daylight. To the south, a low doorway opens toward the kitchen, and the smell of whatever's cooking usually reaches the courtyard before you get close. The stone around the kitchen doorway is darker than the rest, stained by years of smoke drifting out.
+
+          The sky is the dominant feature. This is the only place in the monastery fully open to weather — rain pools in the low spots between flagstones, wind funnels through the doorways, snow piles against the walls in winter. On clear nights the stars feel very close. The altitude is real here.
+
+          Exits: East to the corridor. South to the kitchen.
         blocks:
           - id: courtyard-base
             type: base

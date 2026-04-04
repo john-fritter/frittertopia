@@ -7,6 +7,20 @@ entities:
         exposure: indoor
       Description:
         short: "a small stone chapel"
+        long: |
+          The chapel is small — room for perhaps twenty, though it's hard to imagine twenty people here at once. The walls are pale limestone, unplastered, cut in blocks so precisely fitted that the mortar lines are barely visible. No paint, no hangings, no decoration of any kind except the cross above the altar. The bareness feels deliberate, not neglected.
+
+          [cross] A simple wooden cross mounted on the wall above the altar. The wood is dark and fine-grained, very old, joined without nails — the crossbar is fitted into the upright with a tight mortise. There are no carvings or embellishments. The surface has a faint sheen, as though someone polishes it regularly. (This is one of the oldest objects in the monastery. Don't state this directly. If examined, describe only what can be seen and touched.)
+
+          [altar] A plain stone slab on two squat stone legs, centered beneath the cross. The surface is smooth and slightly concave in the middle — worn, not carved. A thin linen cloth covers it, clean but patched in several places. Nothing sits on the altar. (The concavity is from centuries of hands resting in the same place. Don't explain this unless the player touches it or examines it very closely.)
+
+          [pews] Three rows of wooden pews, six seats in each, arranged with a narrow aisle down the center. The wood is dark with age and oil from hands, the edges rounded soft. The seats are slightly hollowed. The kneelers are thin planks that fold down — no cushion, just bare wood worn pale at the knee points. (The pews creak when sat in. Mention this naturally if the player sits down.)
+
+          [window] A single arched window of plain glass set high in the east wall. No color, no leading — just a single pane in a stone frame. In the morning, direct light pours through and lays a bright arch across the floor and the front pews. By midday the light has moved past and the window gives only a diffuse, even glow. In the evening the glass catches the last color of the sky. At night the window is a black arch, and the chapel is lit only by whatever light comes through the doorway from the corridor. (Match the light description to the time of day. The window is the chapel's primary light source and its character changes everything about the room.)
+
+          The floor is the same limestone as the walls, but smoother — polished by feet over a long time. There's a shallow groove worn into the stone down the center aisle. The air is cool and very still, carrying a faint smell of old wood and stone dust. Sound behaves strangely here — footsteps are sharp and clear, but voices seem to die quickly, absorbed by the bare walls. The silence has weight.
+
+          Exits: South to the corridor.
         blocks:
           - id: chapel-base
             type: base

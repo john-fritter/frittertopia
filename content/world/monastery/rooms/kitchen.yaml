@@ -7,6 +7,20 @@ entities:
         exposure: indoor
       Description:
         short: "a large stone kitchen"
+        long: |
+          The kitchen is the warmest room in the monastery, even when the hearth is cold. The ceiling is vaulted stone, darkened almost black by decades of smoke. The room is large enough that it serves as both kitchen and refectory — you cook at one end and eat at the other, and there's never been a need to separate them.
+
+          [hearth] A broad stone hearth built into the north wall, deep enough to stand in. The firebox is blackened and cracked in places, repaired with rough mortar that doesn't quite match. An iron grate sits inside, heavy and pitted with rust but structurally sound. Iron hooks of various lengths hang from a bar across the top of the firebox, for pots. The mantelpiece is a single slab of stone, slightly bowed in the middle from heat or weight or both. When lit, the fire heats the stone walls and they hold the warmth for hours after the flames die. The smoke draws well — the flue was built by someone who knew what they were doing. (When the hearth is lit, the kitchen should feel close and warm. When cold, describe the residual warmth in the stones if it's been recently used, or the cool emptiness if it hasn't.)
+
+          [table] A heavy oak table running most of the room's length, wide enough for platters and elbows on both sides. The surface is thick with knife marks, ring stains, and scorch marks from hot pots set down without trivets. The edges are rounded from hands gripping them. The wood has absorbed so much oil and food over the years that it has a faint, not-unpleasant smell — old bread, animal fat, something fermented. Benches on both sides, equally scarred. (The table is the social center of the monastery. Meals, conversations, mending, any task that needs a flat surface happens here.)
+
+          [herbs] Bundles of dried herbs hang from hooks along the rafters — rosemary, thyme, sage, lavender. The oldest bundles are grey and brittle and have probably been hanging there longer than anyone remembers. The newer ones still have color. The smell is strongest near the hearth end, where the heat draws it out. (The herbs are both practical and decorative at this point. Some are still used in cooking; others are just part of the room.)
+
+          The walls hold shelves of rough-cut planks carrying an assortment of clay pots, iron cookware, wooden bowls, and a few glass jars of preserved things — dark and amber and impossible to identify without opening them. Everything has a place, but the system is intuitive, not labeled. A stone basin near the hearth serves as a sink, with a copper pipe that brings water from somewhere above — it runs slow and cold and tastes of minerals.
+
+          To the north, the doorway leads back to the courtyard — during the day you can see the flagstones and the sky beyond. To the west, a low passage opens into the herb garden, with a constant draft carrying the smell of green things inward. The threshold is worn and there's a permanent patch of grit where garden dirt tracks in.
+
+          Exits: North to the courtyard. West to the herb garden.
         blocks:
           - id: kitchen-base
             type: base

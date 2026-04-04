@@ -7,6 +7,16 @@ entities:
         exposure: indoor
       Description:
         short: "a long stone corridor"
+        long: |
+          A narrow passage of rough-cut stone, running east to west with a branch to the north. The ceiling is low — tall people duck by instinct even where they don't need to. The walls are unfinished, the chisel marks still visible in the grey stone, and the floor is worn flagstone with a slight dip along the center where feet have passed for a very long time.
+
+          [window] A single window set high in the south wall, narrow and deep-set in the thick stone. The glass is old and slightly uneven, giving the light that comes through a faintly rippled quality. In the morning the light falls as a pale rectangle on the opposite wall. By afternoon it's moved to the floor, a long bright trapezoid. In the evening the corridor dims quickly — the window faces south and catches no sunset light. At night the corridor is dark except for what spills from adjacent rooms. (Match the light description to time of day. The corridor has no light source of its own.)
+
+          The west end opens into the courtyard through a broad stone archway — the brightest point in the corridor during daylight, and the source of drafts in cold weather. The air here carries whatever the courtyard carries: rain-smell, cooking smoke, cold mountain wind. To the north a rounded doorway leads into the chapel; the frame is slightly too short for the opening, as though the door was rehung from somewhere else. The passage narrows toward the east, ending at the dormitory door — a heavy thing of dark wood that sits slightly crooked in its frame and scrapes the floor when opened.
+
+          The corridor smells of cold stone and, faintly, of the kitchen — oil and woodsmoke that have seeped into the walls over years. Sounds carry strangely: footsteps echo, but conversation from adjacent rooms arrives muffled and indistinct. The stone stays cool even in summer.
+
+          Exits: West to the courtyard. North to the chapel. East to the dormitory.
         blocks:
           - id: corridor-base
             type: base

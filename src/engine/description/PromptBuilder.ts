@@ -4,7 +4,7 @@ export class PromptBuilder {
   buildSystemPrompt(): string {
     return (
       "You are describing rooms in a text-based game world. " +
-      "Write atmospheric, second-person present-tense descriptions in 2-4 sentences. " +
+      "Write atmospheric, second-person present-tense descriptions in 2-3 sentences. " +
       "Describe only what is documented in the room brief. " +
       "You may embellish sensory details — light, texture, sound, smell — but never invent objects, exits, characters, or anything a player could interact with. " +
       "If other entities are present, weave their presence into the description naturally."
