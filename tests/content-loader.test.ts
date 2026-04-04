@@ -20,8 +20,6 @@ function makeWorld(): World {
     "Description",
     z.object({
       short: z.string(),
-      long: z.string().optional(),
-      blocks: z.array(z.any()).optional(),
     })
   );
   world.registerComponent(
@@ -53,7 +51,6 @@ entities:
         name: "Test Room"
       Description:
         short: "a test room"
-        long: "A plain room for testing."
 `,
       world
     );
@@ -63,7 +60,6 @@ entities:
     expect(world.getComponent(id!, "Room")).toEqual({ name: "Test Room" });
     expect(world.getComponent(id!, "Description")).toEqual({
       short: "a test room",
-      long: "A plain room for testing.",
     });
   });
 
@@ -78,7 +74,6 @@ entities:
         name: "Room A"
       Description:
         short: "room a"
-        long: "Room A."
       Exits:
         exits:
           north: room.b
@@ -88,7 +83,6 @@ entities:
         name: "Room B"
       Description:
         short: "room b"
-        long: "Room B."
       Exits:
         exits:
           south: room.a
@@ -121,7 +115,6 @@ entities:
         name: "A Room"
       Description:
         short: "a room"
-        long: "A room."
   - components:
       Position:
         roomId: my.room
@@ -169,7 +162,6 @@ entities:
         name: "Lonely"
       Description:
         short: "lonely"
-        long: "Lonely."
       Exits:
         exits:
           north: nonexistent.room
@@ -191,14 +183,12 @@ entities:
         name: "First"
       Description:
         short: "first"
-        long: "First."
   - key: dup.room
     components:
       Room:
         name: "Second"
       Description:
         short: "second"
-        long: "Second."
 `,
         world
       )
@@ -219,7 +209,6 @@ entities:
         name: "Cross Room"
       Description:
         short: "a room"
-        long: "A room."
 `,
         },
         {
@@ -269,7 +258,6 @@ entities:
         name: "Dir Room"
       Description:
         short: "a dir room"
-        long: "A directory room."
 `
       );
       fs.writeFileSync(

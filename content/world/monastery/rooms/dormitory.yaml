@@ -3,11 +3,10 @@ entities:
     components:
       Room:
         name: "The Dormitory"
-      RoomExposure:
-        exposure: indoor
       Description:
         short: "a long, spare dormitory"
-        long: |
+      RoomBrief:
+        brief: |
           A long, low-ceilinged room that runs along the east wall of the monastery. The ceiling is close — rough-hewn beams with the bark still on in places, dark with age. The room is austere by design, not poverty. Everything here exists because it was deemed necessary, and nothing else was.
 
           [cots] Eight narrow cots arranged in a row along the north wall, each identical: a wooden frame, a thin straw mattress, a single wool blanket folded with tight corners. The frames are old but well-maintained — someone has replaced joints and tightened pegs over the years. The blankets are coarse grey wool, heavy and warm, each one slightly different in its wear. A few mattresses show the shapes of their occupants — faint impressions that haven't quite sprung back. (Not all the cots are in use. Describe some as clearly unslept-in — blankets too perfect, no impression in the mattress. The room was built for more people than currently live here. Don't state this directly.)
@@ -21,17 +20,6 @@ entities:
           The door to the west is heavy dark wood, slightly crooked in its stone frame — it scrapes the floor when opened or closed, and the sound carries through the dormitory. There's a groove worn into the stone where it drags.
 
           Exits: West to the corridor.
-        blocks:
-          - id: dormitory-base
-            type: base
-            visibility: "reduced+"
-            text: >-
-              A low-ceilinged room lined with narrow cots, each made with the
-              same tight corners and folded blanket. There is nothing on the
-              walls and nothing beneath the beds. A single shuttered window at
-              the far end lets in a thin blade of light. The air smells of wool
-              and cold stone. Everything here is in its place, because there is
-              almost nothing to put anywhere.
       Exits:
         exits:
           west: monastery.corridor

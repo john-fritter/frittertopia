@@ -442,10 +442,7 @@ describe("GameServer sequence integration", () => {
 
     const roomA = w.createEntity("starting.room");
     w.addComponent(roomA, "Room", { name: "The Courtyard" });
-    w.addComponent(roomA, "Description", {
-      short: "a courtyard",
-      long: "A crumbling stone courtyard.",
-    });
+    w.addComponent(roomA, "Description", { short: "a courtyard" });
     w.addComponent(roomA, "Exits", { exits: {} });
 
     // Create the sequence template entity
@@ -514,7 +511,7 @@ describe("GameServer sequence integration", () => {
     // After all beats, should receive the room description
     const roomDesc = stripAnsi(await client.waitForMessage());
     expect(roomDesc).toContain("The Courtyard");
-    expect(roomDesc).toContain("A crumbling stone courtyard.");
+    expect(roomDesc).toContain("a courtyard");
 
     // Sequence should be removed
     const playerId = world.getEntityByKey("player.aldric")!;

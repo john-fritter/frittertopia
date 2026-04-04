@@ -30,17 +30,11 @@ function setupWorld(): World {
 
   const roomA = world.createEntity("starting.room");
   world.addComponent(roomA, "Room", { name: "The Courtyard" });
-  world.addComponent(roomA, "Description", {
-    short: "a courtyard",
-    long: "A crumbling stone courtyard.",
-  });
+  world.addComponent(roomA, "Description", { short: "a courtyard" });
 
   const roomB = world.createEntity("room.garden");
   world.addComponent(roomB, "Room", { name: "The Garden" });
-  world.addComponent(roomB, "Description", {
-    short: "a garden",
-    long: "An overgrown walled garden.",
-  });
+  world.addComponent(roomB, "Description", { short: "a garden" });
 
   world.addComponent(roomA, "Exits", { exits: { south: roomB } });
   world.addComponent(roomB, "Exits", { exits: { north: roomA } });
@@ -48,10 +42,7 @@ function setupWorld(): World {
   // Add an item in the courtyard
   const broom = world.createEntity("monastery.broom");
   world.addComponent(broom, "Position", { roomId: roomA });
-  world.addComponent(broom, "Description", {
-    short: "an old broom",
-    long: "A well-worn broom with a handle smooth from years of use.",
-  });
+  world.addComponent(broom, "Description", { short: "an old broom" });
   world.addComponent(broom, "Presence", {
     description: "An old broom leans against the wall.",
   });
@@ -213,7 +204,7 @@ describe("Admin commands (unit)", () => {
     );
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("The Garden");
-    expect(plain).toContain("An overgrown walled garden.");
+    expect(plain).toContain("a garden");
 
     const pos = world.getComponent(adminId, "Position") as { roomId: string };
     expect(pos.roomId).toBe(world.getEntityByKey("room.garden"));

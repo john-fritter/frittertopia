@@ -91,6 +91,10 @@ describe("getVisibility", () => {
   ): World {
     const world = new World({ tickInterval: TICK });
     registerComponents(world);
+    world.registerComponent(
+      "RoomExposure",
+      z.object({ exposure: z.enum(["outdoor", "sheltered", "indoor"]) })
+    );
 
     const timeId = world.createEntity("world.time");
     world.addComponent(timeId, "TimeOfDay", {
@@ -357,6 +361,10 @@ describe("sky variable integration", () => {
   function makeFullWorld(bracket: string, moonPhase: string): World {
     const world = new World();
     registerComponents(world);
+    world.registerComponent(
+      "RoomExposure",
+      z.object({ exposure: z.enum(["outdoor", "sheltered", "indoor"]) })
+    );
 
     const timeId = world.createEntity("world.time");
     world.addComponent(timeId, "TimeOfDay", {
@@ -395,19 +403,12 @@ describe("sky variable integration", () => {
     const roomId = world.createEntity("test.courtyard");
     world.addComponent(roomId, "Room", { name: "Courtyard" });
     world.addComponent(roomId, "RoomExposure", { exposure: "outdoor" });
-    world.addComponent(roomId, "Description", {
-      short: "a courtyard",
-      blocks: [
-        {
-          id: "base",
-          type: "base",
-          visibility: "reduced+",
-          text: "Stones. {sky}",
-        },
-      ],
-    });
+    world.addComponent(roomId, "Description", { short: "a courtyard" });
 
-    // Simulate what ActionResolver.buildSkyVariables does
+    const blocks: DescriptionBlock[] = [
+      { id: "base", type: "base", visibility: "reduced+", text: "Stones. {sky}" },
+    ];
+
     const tod = world.getComponent(
       world.getEntityByKey("world.time")!,
       "TimeOfDay"
@@ -429,14 +430,7 @@ describe("sky variable integration", () => {
     };
 
     const visibility = getVisibility(roomId, world);
-    const result = renderDescription(
-      (
-        world.getComponent(roomId, "Description") as {
-          blocks: DescriptionBlock[];
-        }
-      ).blocks,
-      { visibility, variables }
-    );
+    const result = renderDescription(blocks, { visibility, variables });
 
     expect(result).toBe("Stones. The sun is up.");
   });
@@ -490,29 +484,16 @@ describe("sky variable integration", () => {
     const roomId = world.createEntity("test.kitchen");
     world.addComponent(roomId, "Room", { name: "Kitchen" });
     world.addComponent(roomId, "RoomExposure", { exposure: "indoor" });
-    world.addComponent(roomId, "Description", {
-      short: "a kitchen",
-      blocks: [
-        {
-          id: "base",
-          type: "base",
-          visibility: "reduced+",
-          text: "Soot-darkened stone arches above.",
-        },
-      ],
-    });
+    world.addComponent(roomId, "Description", { short: "a kitchen" });
+
+    const blocks: DescriptionBlock[] = [
+      { id: "base", type: "base", visibility: "reduced+", text: "Soot-darkened stone arches above." },
+    ];
 
     const visibility = getVisibility(roomId, world);
     expect(visibility).toBe("full");
 
-    const result = renderDescription(
-      (
-        world.getComponent(roomId, "Description") as {
-          blocks: DescriptionBlock[];
-        }
-      ).blocks,
-      { visibility, variables: { sky: "Sun is up." } }
-    );
+    const result = renderDescription(blocks, { visibility, variables: { sky: "Sun is up." } });
 
     // No {sky} in the text, so no substitution happens
     expect(result).toBe("Soot-darkened stone arches above.");
@@ -554,32 +535,11 @@ describe("sky variable integration", () => {
 
 // --- Courtyard YAML integration ---
 
-describe("courtyard renders with sky variables from YAML", () => {
-  function makeWorldWithContent(): World {
+describe("courtyard YAML loads with RoomBrief", () => {
+  it("loads courtyard with RoomBrief and Description.short", () => {
     const world = new World();
     registerComponents(world);
 
-    const timeId = world.createEntity("world.time");
-    world.addComponent(timeId, "TimeOfDay", {
-      bracket: "midday",
-      moonFraction: 0.01,
-      moonPhase: "new",
-      updatedAt: "",
-    });
-
-    // Minimal sky data for the test
-    const skyId = world.createEntity("world.sky");
-    world.addComponent(skyId, "SkyDescriptions", {
-      brackets: {
-        midday: {
-          sky: "The sun is high and the sky is a hard blue.",
-          window: "bright midday light",
-          sound: "Insects drone faintly.",
-        },
-      },
-    });
-
-    // Load just the courtyard
     loadContentFromString(
       `
 entities:
@@ -587,49 +547,23 @@ entities:
     components:
       Room:
         name: "The Monastery Courtyard"
-      RoomExposure:
-        exposure: outdoor
       Description:
         short: "a crumbling stone courtyard"
-        blocks:
-          - id: courtyard-base
-            type: base
-            visibility: "reduced+"
-            text: "Cracked flagstones."
-            details:
-              - visibility: "full"
-                text: "{sky}"
+      RoomBrief:
+        brief: "Cracked flagstones beneath an open sky."
+      Exits:
+        exits: {}
 `,
       world,
       "test-courtyard.yaml"
     );
 
-    return world;
-  }
-
-  it("courtyard at midday includes sky text in full-visibility detail", () => {
-    const world = makeWorldWithContent();
     const roomId = world.getEntityByKey("starting.room")!;
-
-    const visibility = getVisibility(roomId, world);
-    expect(visibility).toBe("full");
-
-    const desc = world.getComponent(roomId, "Description") as {
-      blocks: DescriptionBlock[];
-    };
-
-    const result = renderDescription(desc.blocks, {
-      visibility,
-      variables: {
-        sky: "The sun is high and the sky is a hard blue.",
-        "sky.window": "bright midday light",
-        "sky.sound": "Insects drone faintly.",
-      },
+    expect(world.getComponent(roomId, "Description")).toEqual({
+      short: "a crumbling stone courtyard",
     });
-
-    expect(result).toContain("Cracked flagstones.");
-    expect(result).toContain(
-      "The sun is high and the sky is a hard blue."
-    );
+    expect(world.getComponent(roomId, "RoomBrief")).toEqual({
+      brief: "Cracked flagstones beneath an open sky.",
+    });
   });
 });

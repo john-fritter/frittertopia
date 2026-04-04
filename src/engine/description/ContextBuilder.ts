@@ -2,8 +2,7 @@ import type { World } from "../World.js";
 
 export interface RoomContext {
   roomName: string;
-  /** Full brief text sent to the LLM. Uses Description.long if present, otherwise short.
-   * TODO: switch to a dedicated RoomBrief component when it exists. */
+  /** Full brief text sent to the LLM. Uses RoomBrief.brief if present, otherwise Description.short. */
   roomBrief: string;
   /** Short description, always available — used for fallback rendering. */
   roomShort: string;
@@ -16,6 +15,8 @@ export interface RoomContext {
   timeOfDay: string;
   /** TODO: read from weather system when implemented. */
   weather: string;
+  /** Mechanical exits: direction → target room name. */
+  exits?: Record<string, string>;
 }
 
 export class ContextBuilder {
@@ -28,10 +29,14 @@ export class ContextBuilder {
     const roomName = room?.name ?? "Unknown Room";
 
     const description = this.world.getComponent(roomId, "Description") as
-      | { short: string; long?: string }
+      | { short: string }
       | undefined;
     const roomShort = description?.short ?? "";
-    const roomBrief = description?.long ?? description?.short ?? "";
+
+    const roomBriefComp = this.world.getComponent(roomId, "RoomBrief") as
+      | { brief: string }
+      | undefined;
+    const roomBrief = roomBriefComp?.brief ?? roomShort;
 
     const inRoom = this.world
       .getEntitiesWithComponent("Position")
@@ -72,6 +77,20 @@ export class ContextBuilder {
       | undefined;
     const isFirstVisit = !visited?.rooms.includes(roomId);
 
+    const exitsComp = this.world.getComponent(roomId, "Exits") as
+      | { exits: Record<string, string> }
+      | undefined;
+    let exits: Record<string, string> | undefined;
+    if (exitsComp) {
+      exits = {};
+      for (const [direction, targetId] of Object.entries(exitsComp.exits)) {
+        const targetRoom = this.world.getComponent(targetId, "Room") as
+          | { name: string }
+          | undefined;
+        exits[direction] = targetRoom?.name ?? targetId;
+      }
+    }
+
     return {
       roomName,
       roomBrief,
@@ -81,6 +100,7 @@ export class ContextBuilder {
       isFirstVisit,
       timeOfDay: "day",
       weather: "clear",
+      exits,
     };
   }
 }

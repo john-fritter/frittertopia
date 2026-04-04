@@ -3,11 +3,10 @@ entities:
     components:
       Room:
         name: "The Small Chapel"
-      RoomExposure:
-        exposure: indoor
       Description:
         short: "a small stone chapel"
-        long: |
+      RoomBrief:
+        brief: |
           The chapel is small — room for perhaps twenty, though it's hard to imagine twenty people here at once. The walls are pale limestone, unplastered, cut in blocks so precisely fitted that the mortar lines are barely visible. No paint, no hangings, no decoration of any kind except the cross above the altar. The bareness feels deliberate, not neglected.
 
           [cross] A simple wooden cross mounted on the wall above the altar. The wood is dark and fine-grained, very old, joined without nails — the crossbar is fitted into the upright with a tight mortise. There are no carvings or embellishments. The surface has a faint sheen, as though someone polishes it regularly. (This is one of the oldest objects in the monastery. Don't state this directly. If examined, describe only what can be seen and touched.)
@@ -21,16 +20,6 @@ entities:
           The floor is the same limestone as the walls, but smoother — polished by feet over a long time. There's a shallow groove worn into the stone down the center aisle. The air is cool and very still, carrying a faint smell of old wood and stone dust. Sound behaves strangely here — footsteps are sharp and clear, but voices seem to die quickly, absorbed by the bare walls. The silence has weight.
 
           Exits: South to the corridor.
-        blocks:
-          - id: chapel-base
-            type: base
-            visibility: "reduced+"
-            text: >-
-              A modest chapel of pale limestone, its walls bare except for a
-              simple wooden cross above the altar. Three rows of worn pews face
-              the front, their wood darkened by the oil of countless hands.
-              Through the arched window of plain glass, {sky.window} falls
-              across the stone floor. The silence here has weight.
       Exits:
         exits:
           south: monastery.corridor

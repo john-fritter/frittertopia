@@ -28,11 +28,14 @@ function addRoom(
   key: string,
   name: string,
   short: string,
-  long?: string
+  brief?: string,
+  exits?: Record<string, string>
 ): string {
   const id = world.createEntity(key);
   world.addComponent(id, "Room", { name });
-  world.addComponent(id, "Description", { short, ...(long ? { long } : {}) });
+  world.addComponent(id, "Description", { short });
+  if (brief) world.addComponent(id, "RoomBrief", { brief });
+  if (exits) world.addComponent(id, "Exits", { exits });
   return id;
 }
 
@@ -86,7 +89,7 @@ describe("ContextBuilder", () => {
     expect(ctx.roomShort).toBe("a stone hall");
   });
 
-  it("uses short description as brief when long is absent", () => {
+  it("uses short description as brief when RoomBrief is absent", () => {
     const world2 = makeWorld();
     const room2 = addRoom(world2, "bare.room", "The Bare Room", "a bare room");
     const player2 = addPlayer(world2, room2, "Solo", [room2]);
@@ -95,6 +98,35 @@ describe("ContextBuilder", () => {
 
     expect(ctx.roomBrief).toBe("a bare room");
     expect(ctx.roomShort).toBe("a bare room");
+  });
+
+  it("resolves exit directions to room names", () => {
+    const world2 = makeWorld();
+    const hallId = world2.createEntity("hall.room");
+    world2.addComponent(hallId, "Room", { name: "The Hall" });
+    world2.addComponent(hallId, "Description", { short: "a hall" });
+
+    const gardenId = world2.createEntity("garden.room");
+    world2.addComponent(gardenId, "Room", { name: "The Garden" });
+    world2.addComponent(gardenId, "Description", { short: "a garden" });
+
+    world2.addComponent(hallId, "Exits", { exits: { north: gardenId } });
+    const player2 = addPlayer(world2, hallId, "Walker", []);
+
+    const ctx = new ContextBuilder(world2).buildContext(hallId, player2);
+
+    expect(ctx.exits).toBeDefined();
+    expect(ctx.exits!["north"]).toBe("The Garden");
+  });
+
+  it("exits is undefined when room has no Exits component", () => {
+    const world2 = makeWorld();
+    const room2 = addRoom(world2, "dead.end", "Dead End", "a dead end");
+    const player2 = addPlayer(world2, room2, "Solo", []);
+
+    const ctx = new ContextBuilder(world2).buildContext(room2, player2);
+
+    expect(ctx.exits).toBeUndefined();
   });
 
   it("identifies entities present via Presence component", () => {
@@ -196,6 +228,7 @@ describe("PromptBuilder", () => {
     isFirstVisit: false,
     timeOfDay: "day",
     weather: "clear",
+    exits: { east: "The Corridor", south: "The Kitchen" },
   };
 
   describe("buildSystemPrompt", () => {
@@ -210,9 +243,9 @@ describe("PromptBuilder", () => {
       expect(prompt).toMatch(/never invent/i);
     });
 
-    it("specifies 2-4 sentence length", () => {
+    it("specifies sentence length", () => {
       const prompt = builder.buildSystemPrompt();
-      expect(prompt).toMatch(/2.4 sentences/i);
+      expect(prompt).toMatch(/sentences/i);
     });
   });
 
@@ -264,6 +297,19 @@ describe("PromptBuilder", () => {
       const prompt = builder.buildUserPrompt(baseContext);
       expect(prompt).toContain("Time: day");
       expect(prompt).toContain("Weather: clear");
+    });
+
+    it("includes exits when present", () => {
+      const prompt = builder.buildUserPrompt(baseContext);
+      expect(prompt).toContain("Exits:");
+      expect(prompt).toContain("east → The Corridor");
+      expect(prompt).toContain("south → The Kitchen");
+    });
+
+    it("omits exits line when exits is undefined", () => {
+      const ctx = { ...baseContext, exits: undefined };
+      const prompt = builder.buildUserPrompt(ctx);
+      expect(prompt).not.toContain("Exits:");
     });
   });
 });

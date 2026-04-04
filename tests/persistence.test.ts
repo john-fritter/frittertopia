@@ -15,8 +15,6 @@ function makeWorld(): World {
     "Description",
     z.object({
       short: z.string(),
-      long: z.string().optional(),
-      blocks: z.array(z.any()).optional(),
     })
   );
   world.registerComponent(
@@ -52,17 +50,11 @@ function populateContent(world: World): {
 } {
   const kitchen = world.createEntity("monastery.kitchen");
   world.addComponent(kitchen, "Room", { name: "Kitchen" });
-  world.addComponent(kitchen, "Description", {
-    short: "A kitchen.",
-    long: "A large monastery kitchen.",
-  });
+  world.addComponent(kitchen, "Description", { short: "A kitchen." });
 
   const courtyard = world.createEntity("starting.room");
   world.addComponent(courtyard, "Room", { name: "Courtyard" });
-  world.addComponent(courtyard, "Description", {
-    short: "A courtyard.",
-    long: "A sunlit courtyard.",
-  });
+  world.addComponent(courtyard, "Description", { short: "A courtyard." });
 
   world.addComponent(kitchen, "Exits", {
     exits: { south: courtyard },
@@ -72,10 +64,7 @@ function populateContent(world: World): {
   });
 
   const broom = world.createEntity("monastery.broom");
-  world.addComponent(broom, "Description", {
-    short: "A broom",
-    long: "A worn straw broom.",
-  });
+  world.addComponent(broom, "Description", { short: "A broom" });
   world.addComponent(broom, "Presence", {
     description: "A straw broom leans against the wall.",
   });

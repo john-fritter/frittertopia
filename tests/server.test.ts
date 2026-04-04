@@ -28,17 +28,11 @@ function setupWorld(): World {
 
   const roomA = world.createEntity("starting.room");
   world.addComponent(roomA, "Room", { name: "The Courtyard" });
-  world.addComponent(roomA, "Description", {
-    short: "a courtyard",
-    long: "A crumbling stone courtyard.",
-  });
+  world.addComponent(roomA, "Description", { short: "a courtyard" });
 
   const roomB = world.createEntity("room.garden");
   world.addComponent(roomB, "Room", { name: "The Garden" });
-  world.addComponent(roomB, "Description", {
-    short: "a garden",
-    long: "An overgrown walled garden.",
-  });
+  world.addComponent(roomB, "Description", { short: "a garden" });
 
   world.addComponent(roomA, "Exits", { exits: { south: roomB } });
   world.addComponent(roomB, "Exits", { exits: { north: roomA } });
@@ -218,7 +212,7 @@ describe("GameServer", () => {
       const response = stripAnsi(await client.waitForMessage());
       expect(response).toContain("Welcome, Aldric.");
       expect(response).toContain("The Courtyard");
-      expect(response).toContain("A crumbling stone courtyard.");
+      expect(response).toContain("a courtyard");
       await client.close();
     });
   });
