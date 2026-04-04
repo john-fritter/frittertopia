@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config();
+
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { z } from "zod/v4";
