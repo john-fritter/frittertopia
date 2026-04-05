@@ -45,9 +45,9 @@ export class ActionResolver {
       category: "movement",
     });
     this.parser.registerVerb("look", {
-      aliases: ["l"],
+      aliases: ["l", "examine", "x"],
       description: "Look around the room or examine something specific",
-      usage: "look, look <target>, l",
+      usage: "look, look at <target>, examine <target>, l, x",
       category: "interaction",
     });
     this.parser.registerVerb("say", {
@@ -169,7 +169,12 @@ export class ActionResolver {
       return { toPlayer: await this.composeLook(position.roomId, playerId, true) };
     }
 
-    return { toPlayer: this.lookAtTarget(target, position.roomId) };
+    const description = await this.world.description.describeTarget(
+      position.roomId,
+      playerId,
+      target
+    );
+    return { toPlayer: description };
   }
 
   private handleSay(
@@ -566,39 +571,6 @@ export class ActionResolver {
     }
 
     return undefined;
-  }
-
-  private lookAtTarget(target: string, roomId: string): string {
-    const lowerTarget = target.toLowerCase();
-
-    // Check entities in the room
-    const entitiesInRoom = this.world.getEntitiesWithComponent("Position");
-    for (const id of entitiesInRoom) {
-      const pos = this.world.getComponent(id, "Position") as {
-        roomId: string;
-      };
-      if (pos.roomId !== roomId) continue;
-
-      const desc = this.world.getComponent(id, "Description") as
-        | { short: string }
-        | undefined;
-      if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
-        return desc.short;
-      }
-    }
-
-    // Also check the room itself (by Room name)
-    const roomComp = this.world.getComponent(roomId, "Room") as
-      | { name: string }
-      | undefined;
-    if (roomComp && roomComp.name.toLowerCase().includes(lowerTarget)) {
-      const roomDesc = this.world.getComponent(roomId, "Description") as
-        | { short: string }
-        | undefined;
-      if (roomDesc) return roomDesc.short;
-    }
-
-    return "You don't see that here.";
   }
 
   private getVisitedRooms(playerId: string): Set<string> {

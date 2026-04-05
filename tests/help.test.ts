@@ -66,7 +66,7 @@ describe("Help system", () => {
       "Look around the room or examine something specific"
     );
     expect(plain).toContain("Usage:");
-    expect(plain).toContain("look, look <target>, l");
+    expect(plain).toContain("look, look at <target>, examine <target>, l, x");
   });
 
   it("help <category> returns all verbs in that category", async () => {

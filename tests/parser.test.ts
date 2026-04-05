@@ -56,4 +56,14 @@ describe("Parser", () => {
     expect(parser.parse("  NORTH  ")).toEqual({ verb: "move", target: "north" });
     expect(parser.parse("  Look  ")).toEqual({ verb: "look" });
   });
+
+  it("strips 'at' from 'look at <target>'", () => {
+    expect(parser.parse("look at chair")).toEqual({ verb: "look", target: "chair" });
+    expect(parser.parse("l at broom")).toEqual({ verb: "look", target: "broom" });
+  });
+
+  it("does not strip 'at' when it is the whole target", () => {
+    // "look at" with nothing after should keep "at" as the target
+    expect(parser.parse("look at")).toEqual({ verb: "look", target: "at" });
+  });
 });

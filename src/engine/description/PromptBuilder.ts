@@ -11,6 +11,29 @@ export class PromptBuilder {
     );
   }
 
+  buildTargetSystemPrompt(): string {
+    return (
+      "You are describing a specific feature or detail that a player is examining in a text-based game world. " +
+      "Write an atmospheric, second-person present-tense description in 1-3 sentences. " +
+      "Focus on the specific thing the player is looking at, drawing from the room brief. " +
+      "If the brief contains a bracketed section matching the target, use those details. " +
+      "If the target is something plausibly present but not specifically detailed, describe it briefly using context from the brief. " +
+      "If the target is not something that could reasonably be in this room, respond with a short, natural message indicating there's nothing notable to see."
+    );
+  }
+
+  buildTargetUserPrompt(context: RoomContext, target: string): string {
+    const lines = [
+      `Room: ${context.roomName}`,
+      `Brief: ${context.roomBrief}`,
+      `Time: ${context.timeOfDay}`,
+      `Weather: ${context.weather}`,
+      `Target: ${target}`,
+    ];
+
+    return lines.join("\n");
+  }
+
   buildUserPrompt(context: RoomContext): string {
     const visitLabel = context.isFirstVisit ? "first visit" : "returning";
 

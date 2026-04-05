@@ -37,6 +37,29 @@ export class DescriptionService {
     return this.fallback(ctx);
   }
 
+  async describeTarget(roomId: string, playerId: string, target: string): Promise<string> {
+    const ctx = this.contextBuilder.buildContext(roomId, playerId);
+    const systemPrompt = this.promptBuilder.buildTargetSystemPrompt();
+    const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target);
+
+    let result;
+    try {
+      result = await this.world.llm.generate(systemPrompt, userPrompt);
+    } catch {
+      return this.targetFallback();
+    }
+
+    if (result.ok) {
+      return result.text;
+    }
+
+    return this.targetFallback();
+  }
+
+  private targetFallback(): string {
+    return "You don't see anything notable.";
+  }
+
   private fallback(ctx: { roomName: string; roomShort: string }): string {
     const name = ctx.roomName.toLowerCase();
     return `The shapes of ${name} surround you, but the details won't quite resolve. The rest is fog.`;

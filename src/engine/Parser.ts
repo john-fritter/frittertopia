@@ -99,6 +99,10 @@ export class Parser {
     }
 
     if (rest) {
+      // "look at <target>" → strip the "at" prefix
+      if (verb === "look" && rest.startsWith("at ")) {
+        return { verb, target: rest.slice(3) };
+      }
       return { verb, target: rest };
     }
 

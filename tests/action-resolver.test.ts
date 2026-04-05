@@ -99,20 +99,22 @@ describe("ActionResolver", () => {
     expect(result.toRoom).toBeUndefined();
   });
 
-  it("look at a specific entity in the room returns its description", async () => {
+  it("look at a target routes through description service", async () => {
     const result = await resolver.resolve(
       { verb: "look", target: "chair" },
       playerId
     );
-    expect(result.toPlayer).toBe("a wooden chair");
+    // DescriptionService fallback (no LLM in tests)
+    expect(result.toPlayer).toBe("You don't see anything notable.");
   });
 
-  it("look at something not in the room returns not-found message", async () => {
+  it("look at unknown target also routes through description service", async () => {
     const result = await resolver.resolve(
       { verb: "look", target: "dragon" },
       playerId
     );
-    expect(result.toPlayer).toBe("You don't see that here.");
+    // DescriptionService fallback (no LLM in tests)
+    expect(result.toPlayer).toBe("You don't see anything notable.");
   });
 
   it("say produces correct output for speaker and others", async () => {
