@@ -49,18 +49,19 @@ describe("ActionResolver", () => {
     resolver = new ActionResolver(world);
   });
 
-  it("look at current room produces correct output", () => {
-    const result = resolver.resolve({ verb: "look" }, playerId);
+  it("look at current room produces correct output", async () => {
+    const result = await resolver.resolve({ verb: "look" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
     expect(plain).toContain("The Stone Hall");
-    expect(plain).toContain("a stone hall");
+    // DescriptionService fallback (no LLM in tests)
+    expect(plain).toContain("the stone hall");
     expect(plain).toContain("A wooden chair sits in the corner.");
     expect(plain).toContain("north");
   });
 
-  it("move through a valid exit changes position and returns new room look", () => {
-    const result = resolver.resolve(
+  it("move through a valid exit changes position and returns new room look", async () => {
+    const result = await resolver.resolve(
       { verb: "move", target: "north" },
       playerId
     );
@@ -72,7 +73,8 @@ describe("ActionResolver", () => {
     // Output is the look for roomB
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("The Garden");
-    expect(plain).toContain("a walled garden");
+    // DescriptionService fallback (no LLM in tests)
+    expect(plain).toContain("the garden");
     expect(plain).toContain("south");
 
     // Room messages contain ANSI codes
@@ -88,8 +90,8 @@ describe("ActionResolver", () => {
     expect(result.toOtherRoom!.roomId).toBe(roomB);
   });
 
-  it("move through invalid exit returns error", () => {
-    const result = resolver.resolve(
+  it("move through invalid exit returns error", async () => {
+    const result = await resolver.resolve(
       { verb: "move", target: "west" },
       playerId
     );
@@ -97,23 +99,23 @@ describe("ActionResolver", () => {
     expect(result.toRoom).toBeUndefined();
   });
 
-  it("look at a specific entity in the room returns its description", () => {
-    const result = resolver.resolve(
+  it("look at a specific entity in the room returns its description", async () => {
+    const result = await resolver.resolve(
       { verb: "look", target: "chair" },
       playerId
     );
     expect(result.toPlayer).toBe("a wooden chair");
   });
 
-  it("look at something not in the room returns not-found message", () => {
-    const result = resolver.resolve(
+  it("look at something not in the room returns not-found message", async () => {
+    const result = await resolver.resolve(
       { verb: "look", target: "dragon" },
       playerId
     );
     expect(result.toPlayer).toBe("You don't see that here.");
   });
 
-  it("say produces correct output for speaker and others", () => {
+  it("say produces correct output for speaker and others", async () => {
     const otherPlayer = world.createEntity();
     world.addComponent(otherPlayer, "Player", {
       name: "Other",
@@ -121,7 +123,7 @@ describe("ActionResolver", () => {
     });
     world.addComponent(otherPlayer, "Position", { roomId: roomA });
 
-    const result = resolver.resolve(
+    const result = await resolver.resolve(
       { verb: "say", target: "hello everyone" },
       playerId
     );
@@ -134,12 +136,12 @@ describe("ActionResolver", () => {
     expect(result.toRoom!.excludePlayer).toBe(playerId);
   });
 
-  it("unrecognized verb returns error", () => {
-    const result = resolver.resolve({ verb: "dance" }, playerId);
+  it("unrecognized verb returns error", async () => {
+    const result = await resolver.resolve({ verb: "dance" }, playerId);
     expect(result.toPlayer).toBe("I don't understand that.");
   });
 
-  it("other players appear in look output", () => {
+  it("other players appear in look output", async () => {
     const otherPlayer = world.createEntity();
     world.addComponent(otherPlayer, "Player", {
       name: "Aldric",
@@ -147,7 +149,7 @@ describe("ActionResolver", () => {
     });
     world.addComponent(otherPlayer, "Position", { roomId: roomA });
 
-    const result = resolver.resolve({ verb: "look" }, playerId);
+    const result = await resolver.resolve({ verb: "look" }, playerId);
     expect(stripAnsi(result.toPlayer)).toContain("Aldric");
     expect(stripAnsi(result.toPlayer)).toContain("is here");
   });
@@ -186,22 +188,23 @@ describe("VisitedRooms behavior", () => {
     resolver = new ActionResolver(world);
   });
 
-  it("first visit to a room shows description", () => {
-    const result = resolver.resolve(
+  it("first visit to a room shows description", async () => {
+    const result = await resolver.resolve(
       { verb: "move", target: "north" },
       playerId
     );
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("The Garden");
-    expect(plain).toContain("a walled garden");
+    // DescriptionService fallback (no LLM in tests)
+    expect(plain).toContain("the garden");
   });
 
-  it("revisit shows short description", () => {
+  it("revisit shows short description", async () => {
     world.setComponent(playerId, "VisitedRooms", {
       rooms: [roomA, roomB],
     });
 
-    const result = resolver.resolve(
+    const result = await resolver.resolve(
       { verb: "move", target: "north" },
       playerId
     );
@@ -209,15 +212,16 @@ describe("VisitedRooms behavior", () => {
     expect(plain).toContain("a walled garden");
   });
 
-  it("explicit look shows description", () => {
-    const result = resolver.resolve({ verb: "look" }, playerId);
+  it("explicit look shows description", async () => {
+    const result = await resolver.resolve({ verb: "look" }, playerId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("The Stone Hall");
-    expect(plain).toContain("a stone hall");
+    // DescriptionService fallback (no LLM in tests)
+    expect(plain).toContain("the stone hall");
   });
 
-  it("moving to a room adds it to visited rooms", () => {
-    resolver.resolve({ verb: "move", target: "north" }, playerId);
+  it("moving to a room adds it to visited rooms", async () => {
+    await resolver.resolve({ verb: "move", target: "north" }, playerId);
 
     const visited = world.getComponent(playerId, "VisitedRooms") as {
       rooms: string[];
@@ -225,9 +229,9 @@ describe("VisitedRooms behavior", () => {
     expect(visited.rooms).toContain(roomB);
   });
 
-  it("exit room names shown only for visited rooms", () => {
+  it("exit room names shown only for visited rooms", async () => {
     // Player is in roomA, roomB is not visited
-    const result = resolver.resolve({ verb: "look" }, playerId);
+    const result = await resolver.resolve({ verb: "look" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
     // roomB exit should show bare direction, no room name
@@ -235,13 +239,13 @@ describe("VisitedRooms behavior", () => {
     expect(plain).not.toContain("The Garden");
   });
 
-  it("exit room names shown for visited rooms", () => {
+  it("exit room names shown for visited rooms", async () => {
     // Mark roomB as visited
     world.setComponent(playerId, "VisitedRooms", {
       rooms: [roomA, roomB],
     });
 
-    const result = resolver.resolve({ verb: "look" }, playerId);
+    const result = await resolver.resolve({ verb: "look" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
     // roomB exit should show room name

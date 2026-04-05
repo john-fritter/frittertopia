@@ -38,8 +38,8 @@ describe("Help system", () => {
     resolver = new ActionResolver(world, parser);
   });
 
-  it("help with no target returns overview with all registered verbs", () => {
-    const result = resolver.resolve({ verb: "help" }, playerId);
+  it("help with no target returns overview with all registered verbs", async () => {
+    const result = await resolver.resolve({ verb: "help" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
     expect(plain).toContain("Available Commands");
@@ -54,8 +54,8 @@ describe("Help system", () => {
     expect(plain).toContain("Type 'help <command>' for details.");
   });
 
-  it("help <known-verb> returns description and usage", () => {
-    const result = resolver.resolve(
+  it("help <known-verb> returns description and usage", async () => {
+    const result = await resolver.resolve(
       { verb: "help", target: "look" },
       playerId
     );
@@ -69,8 +69,8 @@ describe("Help system", () => {
     expect(plain).toContain("look, look <target>, l");
   });
 
-  it("help <category> returns all verbs in that category", () => {
-    const result = resolver.resolve(
+  it("help <category> returns all verbs in that category", async () => {
+    const result = await resolver.resolve(
       { verb: "help", target: "interaction" },
       playerId
     );
@@ -84,8 +84,8 @@ describe("Help system", () => {
     expect(plain).toContain("Usage:");
   });
 
-  it("help <unknown> returns friendly unknown message", () => {
-    const result = resolver.resolve(
+  it("help <unknown> returns friendly unknown message", async () => {
+    const result = await resolver.resolve(
       { verb: "help", target: "dance" },
       playerId
     );
@@ -95,11 +95,11 @@ describe("Help system", () => {
     expect(plain).toContain("Type 'help' for a list of commands.");
   });
 
-  it("? alias resolves the same as help", () => {
+  it("? alias resolves the same as help", async () => {
     const intent = parser.parse("?");
     expect(intent.verb).toBe("help");
 
-    const result = resolver.resolve(intent, playerId);
+    const result = await resolver.resolve(intent, playerId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("Available Commands");
   });
@@ -115,18 +115,18 @@ describe("Help system", () => {
     expect(intent.target).toBe("look");
   });
 
-  it("verbs without metadata do not appear in help output", () => {
+  it("verbs without metadata do not appear in help output", async () => {
     // Register a verb with no metadata (like a hidden admin command)
     parser.registerVerb("smite", { aliases: ["sm"] });
 
-    const result = resolver.resolve({ verb: "help" }, playerId);
+    const result = await resolver.resolve({ verb: "help" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
     expect(plain).not.toContain("smite");
   });
 
-  it("help for a verb shows correct detail format", () => {
-    const result = resolver.resolve(
+  it("help for a verb shows correct detail format", async () => {
+    const result = await resolver.resolve(
       { verb: "help", target: "say" },
       playerId
     );
@@ -137,8 +137,8 @@ describe("Help system", () => {
     expect(plain).toContain("Usage:");
   });
 
-  it("help for move shows movement details", () => {
-    const result = resolver.resolve(
+  it("help for move shows movement details", async () => {
+    const result = await resolver.resolve(
       { verb: "help", target: "move" },
       playerId
     );

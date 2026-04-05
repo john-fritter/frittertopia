@@ -119,14 +119,14 @@ describe("ContextBuilder", () => {
     expect(ctx.exits!["north"]).toBe("The Garden");
   });
 
-  it("exits is undefined when room has no Exits component", () => {
+  it("exits is empty when room has no Exits component", () => {
     const world2 = makeWorld();
     const room2 = addRoom(world2, "dead.end", "Dead End", "a dead end");
     const player2 = addPlayer(world2, room2, "Solo", []);
 
     const ctx = new ContextBuilder(world2).buildContext(room2, player2);
 
-    expect(ctx.exits).toBeUndefined();
+    expect(ctx.exits).toEqual({});
   });
 
   it("identifies entities present via Presence component", () => {

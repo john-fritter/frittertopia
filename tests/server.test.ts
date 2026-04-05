@@ -212,7 +212,8 @@ describe("GameServer", () => {
       const response = stripAnsi(await client.waitForMessage());
       expect(response).toContain("Welcome, Aldric.");
       expect(response).toContain("The Courtyard");
-      expect(response).toContain("a courtyard");
+      // DescriptionService fallback (no LLM in tests)
+      expect(response).toContain("the courtyard");
       await client.close();
     });
   });

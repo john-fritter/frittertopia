@@ -84,23 +84,23 @@ describe("Admin commands (unit)", () => {
     world.addComponent(normalId, "VisitedRooms", { rooms: [startingRoom] });
   });
 
-  it("non-admin gets flat denial for admin commands", () => {
-    const result = resolver.resolve({ verb: "@help" }, normalId);
+  it("non-admin gets flat denial for admin commands", async () => {
+    const result = await resolver.resolve({ verb: "@help" }, normalId);
     expect(result.toPlayer).toBe("You don't have permission to do that.");
   });
 
-  it("denial message does not mention admin or reveal command exists", () => {
+  it("denial message does not mention admin or reveal command exists", async () => {
     const commands = ["@destroy", "@inspect", "@teleport", "@help"];
     for (const verb of commands) {
-      const result = resolver.resolve({ verb }, normalId);
+      const result = await resolver.resolve({ verb }, normalId);
       const text = result.toPlayer.toLowerCase();
       expect(text).not.toContain("admin");
       expect(text).not.toContain("command");
     }
   });
 
-  it("admin commands do not appear in regular help output", () => {
-    const result = resolver.resolve({ verb: "help" }, adminId);
+  it("admin commands do not appear in regular help output", async () => {
+    const result = await resolver.resolve({ verb: "help" }, adminId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).not.toContain("@destroy");
     expect(plain).not.toContain("@inspect");
@@ -108,8 +108,8 @@ describe("Admin commands (unit)", () => {
     expect(plain).not.toContain("@help");
   });
 
-  it("@help shows admin command list to admins", () => {
-    const result = resolver.resolve({ verb: "@help" }, adminId);
+  it("@help shows admin command list to admins", async () => {
+    const result = await resolver.resolve({ verb: "@help" }, adminId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("Admin Commands");
     expect(plain).toContain("@destroy");
@@ -118,12 +118,12 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("@help");
   });
 
-  it("@help shows denial to non-admins", () => {
-    const result = resolver.resolve({ verb: "@help" }, normalId);
+  it("@help shows denial to non-admins", async () => {
+    const result = await resolver.resolve({ verb: "@help" }, normalId);
     expect(result.toPlayer).toBe("You don't have permission to do that.");
   });
 
-  it("@destroy removes entity", () => {
+  it("@destroy removes entity", async () => {
     const targetId = world.createEntity("player.target");
     world.addComponent(targetId, "Player", {
       name: "Target",
@@ -133,7 +133,7 @@ describe("Admin commands (unit)", () => {
       roomId: world.getEntityByKey("starting.room")!,
     });
 
-    const result = resolver.resolve(
+    const result = await resolver.resolve(
       { verb: "@destroy", target: "target" },
       adminId
     );
@@ -145,8 +145,8 @@ describe("Admin commands (unit)", () => {
     expect(world.entities.hasEntity(targetId)).toBe(false);
   });
 
-  it("@destroy prevents self-destruction", () => {
-    const result = resolver.resolve(
+  it("@destroy prevents self-destruction", async () => {
+    const result = await resolver.resolve(
       { verb: "@destroy", target: "admin" },
       adminId
     );
@@ -154,8 +154,8 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("You can't destroy yourself.");
   });
 
-  it("@destroy reports not found for unknown player", () => {
-    const result = resolver.resolve(
+  it("@destroy reports not found for unknown player", async () => {
+    const result = await resolver.resolve(
       { verb: "@destroy", target: "nobody" },
       adminId
     );
@@ -163,8 +163,8 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("No player found: nobody");
   });
 
-  it("@inspect shows component data for a valid target", () => {
-    const result = resolver.resolve(
+  it("@inspect shows component data for a valid target", async () => {
+    const result = await resolver.resolve(
       { verb: "@inspect", target: "normal" },
       adminId
     );
@@ -176,8 +176,8 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("Position");
   });
 
-  it("@inspect works with entity string keys", () => {
-    const result = resolver.resolve(
+  it("@inspect works with entity string keys", async () => {
+    const result = await resolver.resolve(
       { verb: "@inspect", target: "monastery.broom" },
       adminId
     );
@@ -188,8 +188,8 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("Presence");
   });
 
-  it("@inspect reports not found for unknown target", () => {
-    const result = resolver.resolve(
+  it("@inspect reports not found for unknown target", async () => {
+    const result = await resolver.resolve(
       { verb: "@inspect", target: "nonexistent" },
       adminId
     );
@@ -197,21 +197,22 @@ describe("Admin commands (unit)", () => {
     expect(plain).toContain("Nothing found: nonexistent");
   });
 
-  it("@teleport moves admin to target room", () => {
-    const result = resolver.resolve(
+  it("@teleport moves admin to target room", async () => {
+    const result = await resolver.resolve(
       { verb: "@teleport", target: "room.garden" },
       adminId
     );
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("The Garden");
-    expect(plain).toContain("a garden");
+    // DescriptionService fallback (no LLM in tests)
+    expect(plain).toContain("the garden");
 
     const pos = world.getComponent(adminId, "Position") as { roomId: string };
     expect(pos.roomId).toBe(world.getEntityByKey("room.garden"));
   });
 
-  it("@teleport shows vanish/appear messages", () => {
-    const result = resolver.resolve(
+  it("@teleport shows vanish/appear messages", async () => {
+    const result = await resolver.resolve(
       { verb: "@teleport", target: "room.garden" },
       adminId
     );
@@ -226,8 +227,8 @@ describe("Admin commands (unit)", () => {
     expect(stripAnsi(result.toOtherRoom!.text)).toContain("Admin appears.");
   });
 
-  it("@teleport reports not found for unknown room", () => {
-    const result = resolver.resolve(
+  it("@teleport reports not found for unknown room", async () => {
+    const result = await resolver.resolve(
       { verb: "@teleport", target: "nonexistent.room" },
       adminId
     );

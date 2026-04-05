@@ -195,7 +195,7 @@ describe("SequenceSystem", () => {
 });
 
 describe("Input deflection during sequences", () => {
-  it("player with Sequence gets deflect message instead of normal commands", () => {
+  it("player with Sequence gets deflect message instead of normal commands", async () => {
     const world = new World();
     registerComponents(world);
 
@@ -224,26 +224,26 @@ describe("Input deflection during sequences", () => {
     const resolver = new ActionResolver(world);
 
     // Try look
-    const lookResult = resolver.resolve({ verb: "look" }, playerId);
+    const lookResult = await resolver.resolve({ verb: "look" }, playerId);
     expect(stripAnsi(lookResult.toPlayer)).toBe("The fog is too thick.");
     expect(lookResult.toRoom).toBeUndefined();
 
     // Try move
-    const moveResult = resolver.resolve(
+    const moveResult = await resolver.resolve(
       { verb: "move", target: "north" },
       playerId
     );
     expect(stripAnsi(moveResult.toPlayer)).toBe("The fog is too thick.");
 
     // Try say
-    const sayResult = resolver.resolve(
+    const sayResult = await resolver.resolve(
       { verb: "say", target: "hello" },
       playerId
     );
     expect(stripAnsi(sayResult.toPlayer)).toBe("The fog is too thick.");
   });
 
-  it("deflection stops after sequence is removed", () => {
+  it("deflection stops after sequence is removed", async () => {
     const world = new World();
     registerComponents(world);
 
@@ -273,14 +273,14 @@ describe("Input deflection during sequences", () => {
     const resolver = new ActionResolver(world);
 
     // Deflected while sequence is active
-    let result = resolver.resolve({ verb: "look" }, playerId);
+    let result = await resolver.resolve({ verb: "look" }, playerId);
     expect(stripAnsi(result.toPlayer)).toBe("The fog is too thick.");
 
     // Remove sequence
     world.removeComponent(playerId, "Sequence");
 
     // Now look works normally
-    result = resolver.resolve({ verb: "look" }, playerId);
+    result = await resolver.resolve({ verb: "look" }, playerId);
     expect(stripAnsi(result.toPlayer)).toContain("A Room");
   });
 });
@@ -511,7 +511,8 @@ describe("GameServer sequence integration", () => {
     // After all beats, should receive the room description
     const roomDesc = stripAnsi(await client.waitForMessage());
     expect(roomDesc).toContain("The Courtyard");
-    expect(roomDesc).toContain("a courtyard");
+    // DescriptionService fallback (no LLM in tests)
+    expect(roomDesc).toContain("the courtyard");
 
     // Sequence should be removed
     const playerId = world.getEntityByKey("player.aldric")!;

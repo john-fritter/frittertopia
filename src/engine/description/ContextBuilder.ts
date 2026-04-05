@@ -80,7 +80,7 @@ export class ContextBuilder {
     const exitsComp = this.world.getComponent(roomId, "Exits") as
       | { exits: Record<string, string> }
       | undefined;
-    let exits: Record<string, string> | undefined;
+    let exits: Record<string, string> = {};
     if (exitsComp) {
       exits = {};
       for (const [direction, targetId] of Object.entries(exitsComp.exits)) {

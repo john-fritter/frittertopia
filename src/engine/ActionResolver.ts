@@ -70,7 +70,7 @@ export class ActionResolver {
     this.parser.registerVerb("@help");
   }
 
-  resolve(intent: Intent, playerId: string): ActionResult {
+  async resolve(intent: Intent, playerId: string): Promise<ActionResult> {
     const sequence = this.world.getComponent(playerId, "Sequence") as
       | { deflectMessage: string }
       | undefined;
@@ -80,36 +80,36 @@ export class ActionResolver {
 
     switch (intent.verb) {
       case "move":
-        return this.handleMove(intent.target, playerId);
+        return await this.handleMove(intent.target, playerId);
       case "look":
-        return this.handleLook(intent.target, playerId);
+        return await this.handleLook(intent.target, playerId);
       case "say":
         return this.handleSay(intent.target, playerId);
       case "help":
         return this.handleHelp(intent.target);
       case "@destroy":
-        return this.adminGate(playerId, () =>
+        return await this.adminGate(playerId, () =>
           this.handleAdminDestroy(intent.target, playerId)
         );
       case "@inspect":
-        return this.adminGate(playerId, () =>
+        return await this.adminGate(playerId, () =>
           this.handleAdminInspect(intent.target, playerId)
         );
       case "@teleport":
-        return this.adminGate(playerId, () =>
+        return await this.adminGate(playerId, () =>
           this.handleAdminTeleport(intent.target, playerId)
         );
       case "@help":
-        return this.adminGate(playerId, () => this.handleAdminHelp());
+        return await this.adminGate(playerId, () => this.handleAdminHelp());
       default:
         return { toPlayer: "I don't understand that." };
     }
   }
 
-  private handleMove(
+  private async handleMove(
     direction: string | undefined,
     playerId: string
-  ): ActionResult {
+  ): Promise<ActionResult> {
     if (!direction) return { toPlayer: "Go where?" };
 
     const position = this.world.getComponent(playerId, "Position") as
@@ -136,7 +136,7 @@ export class ActionResolver {
     this.world.setComponent(playerId, "Position", { roomId: newRoomId });
 
     // Build the look output BEFORE marking visited (first visit gets long desc)
-    const lookOutput = this.composeLook(newRoomId, playerId);
+    const lookOutput = await this.composeLook(newRoomId, playerId);
 
     // Now mark the new room as visited
     this.markVisited(playerId, newRoomId);
@@ -155,10 +155,10 @@ export class ActionResolver {
     };
   }
 
-  private handleLook(
+  private async handleLook(
     target: string | undefined,
     playerId: string
-  ): ActionResult {
+  ): Promise<ActionResult> {
     const position = this.world.getComponent(playerId, "Position") as
       | { roomId: string }
       | undefined;
@@ -166,7 +166,7 @@ export class ActionResolver {
 
     if (!target) {
       // Explicit look always shows long description
-      return { toPlayer: this.composeLook(position.roomId, playerId, true) };
+      return { toPlayer: await this.composeLook(position.roomId, playerId, true) };
     }
 
     return { toPlayer: this.lookAtTarget(target, position.roomId) };
@@ -198,7 +198,7 @@ export class ActionResolver {
     };
   }
 
-  composeLook(roomId: string, playerId: string, forceLong = false): string {
+  async composeLook(roomId: string, playerId: string, forceLong = false): Promise<string> {
     const room = this.world.getComponent(roomId, "Room") as
       | { name: string }
       | undefined;
@@ -212,12 +212,10 @@ export class ActionResolver {
     const visitedRooms = this.getVisitedRooms(playerId);
     const hasVisited = visitedRooms.has(roomId);
 
-    // First visit or explicit look → full description; revisit → short
+    // First visit or explicit look → AI description; revisit → short
     let description: string;
     if (forceLong || !hasVisited) {
-      description = desc
-        ? this.fullDescription(desc)
-        : "You see nothing special.";
+      description = await this.world.description.describeRoom(roomId, playerId);
     } else {
       description = desc?.short ?? "You see nothing special.";
     }
@@ -370,14 +368,14 @@ export class ActionResolver {
     return this.world.getComponent(playerId, "Admin") !== undefined;
   }
 
-  private adminGate(
+  private async adminGate(
     playerId: string,
-    handler: () => ActionResult
-  ): ActionResult {
+    handler: () => ActionResult | Promise<ActionResult>
+  ): Promise<ActionResult> {
     if (!this.isAdmin(playerId)) {
       return { toPlayer: "You don't have permission to do that." };
     }
-    return handler();
+    return await handler();
   }
 
   private handleAdminDestroy(
@@ -450,10 +448,10 @@ export class ActionResolver {
     return { toPlayer: lines.join("\n") };
   }
 
-  private handleAdminTeleport(
+  private async handleAdminTeleport(
     target: string | undefined,
     playerId: string
-  ): ActionResult {
+  ): Promise<ActionResult> {
     if (!target) return { toPlayer: formatDim("Usage: @teleport <room-id>") };
 
     const roomId = this.world.getEntityByKey(target);
@@ -481,7 +479,7 @@ export class ActionResolver {
     this.world.setComponent(playerId, "Position", { roomId });
     this.markVisited(playerId, roomId);
 
-    const lookOutput = this.composeLook(roomId, playerId, true);
+    const lookOutput = await this.composeLook(roomId, playerId, true);
 
     const result: ActionResult = { toPlayer: lookOutput };
 
@@ -570,10 +568,6 @@ export class ActionResolver {
     return undefined;
   }
 
-  private fullDescription(desc: { short: string }): string {
-    return desc.short;
-  }
-
   private lookAtTarget(target: string, roomId: string): string {
     const lowerTarget = target.toLowerCase();
 
@@ -589,7 +583,7 @@ export class ActionResolver {
         | { short: string }
         | undefined;
       if (desc && desc.short.toLowerCase().includes(lowerTarget)) {
-        return this.fullDescription(desc);
+        return desc.short;
       }
     }
 
@@ -601,7 +595,7 @@ export class ActionResolver {
       const roomDesc = this.world.getComponent(roomId, "Description") as
         | { short: string }
         | undefined;
-      if (roomDesc) return this.fullDescription(roomDesc);
+      if (roomDesc) return roomDesc.short;
     }
 
     return "You don't see that here.";

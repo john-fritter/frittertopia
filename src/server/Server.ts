@@ -94,12 +94,12 @@ export class GameServer {
       this.sendToPlayer(playerId, formatSequence(text));
     });
 
-    this.world.onEvent("sequence_complete", (payload) => {
+    this.world.onEvent("sequence_complete", async (payload) => {
       const { playerId, roomId } = payload as {
         playerId: string;
         roomId: string;
       };
-      const lookOutput = this.resolver.composeLook(roomId, playerId, true);
+      const lookOutput = await this.resolver.composeLook(roomId, playerId, true);
       this.sendToPlayer(playerId, lookOutput);
 
       const player = this.world.getComponent(playerId, "Player") as
@@ -159,7 +159,7 @@ export class GameServer {
     return null;
   }
 
-  private handleNameInput(session: Session, name: string): void {
+  private async handleNameInput(session: Session, name: string): Promise<void> {
     const validationError = this.validateName(name);
     if (validationError) {
       this.send(session.ws, `${validationError}\nWhat is your name?`);
@@ -206,7 +206,7 @@ export class GameServer {
       const position = this.world.getComponent(existingId, "Position") as {
         roomId: string;
       };
-      const lookOutput = this.resolver.composeLook(
+      const lookOutput = await this.resolver.composeLook(
         position.roomId,
         existingId,
         true
@@ -251,7 +251,7 @@ export class GameServer {
         rooms: [startingRoom],
       });
 
-      const lookOutput = this.resolver.composeLook(
+      const lookOutput = await this.resolver.composeLook(
         startingRoom,
         playerId,
         true
@@ -281,11 +281,11 @@ export class GameServer {
     return true;
   }
 
-  private handleGameInput(session: Session, input: string): void {
+  private async handleGameInput(session: Session, input: string): Promise<void> {
     if (!session.playerId) return;
 
     const intent = this.parser.parse(input);
-    const result = this.resolver.resolve(intent, session.playerId);
+    const result = await this.resolver.resolve(intent, session.playerId);
 
     this.send(session.ws, result.toPlayer);
 
