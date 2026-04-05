@@ -312,6 +312,39 @@ describe("PromptBuilder", () => {
       expect(prompt).not.toContain("Exits:");
     });
   });
+
+  describe("buildTargetUserPrompt", () => {
+    it("includes room, brief, time, weather, and target", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
+      expect(prompt).toContain("Room: The Courtyard");
+      expect(prompt).toContain("Brief: A wide open courtyard surrounded by stone walls.");
+      expect(prompt).toContain("Time: day");
+      expect(prompt).toContain("Weather: clear");
+      expect(prompt).toContain("Target: altar");
+    });
+
+    it("includes entity data when entity is provided", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "broom", {
+        short: "a broom",
+        presence: "A broom leans against the wall, forgotten.",
+      });
+      expect(prompt).toContain("Entity data:");
+      expect(prompt).toContain("description: a broom");
+      expect(prompt).toContain("presence: A broom leans against the wall, forgotten.");
+    });
+
+    it("includes player name when entity has playerName", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "alice", {
+        playerName: "Alice",
+      });
+      expect(prompt).toContain("name: Alice");
+    });
+
+    it("omits entity data line when no entity provided", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
+      expect(prompt).not.toContain("Entity data:");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -503,5 +536,80 @@ describe("DescriptionService", () => {
     await expect(
       world.description.describeRoom(roomId, playerId)
     ).resolves.toEqual(expect.any(String));
+  });
+
+  describe("describeTarget", () => {
+    it("returns AI-generated text on success", async () => {
+      vi.spyOn(world.llm, "generate").mockResolvedValue({
+        ok: true,
+        text: "The altar is cold smooth stone.",
+      });
+
+      const result = await world.description.describeTarget(roomId, playerId, "altar");
+      expect(result).toBe("The altar is cold smooth stone.");
+    });
+
+    it("includes entity data in the prompt when provided", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "The broom rests silently." });
+
+      await world.description.describeTarget(roomId, playerId, "broom", {
+        short: "a broom",
+        presence: "A broom leans against the wall, forgotten.",
+      });
+
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).toContain("Entity data:");
+      expect(userPrompt).toContain("a broom");
+    });
+
+    it("fallback with entity match returns presence text", async () => {
+      vi.spyOn(world.llm, "generate").mockResolvedValue({
+        ok: false,
+        error: "API error",
+      });
+
+      const result = await world.description.describeTarget(roomId, playerId, "broom", {
+        presence: "A broom leans against the wall, forgotten.",
+        short: "a broom",
+      });
+
+      expect(result).toBe("A broom leans against the wall, forgotten.");
+    });
+
+    it("fallback with entity match but no presence returns short description", async () => {
+      vi.spyOn(world.llm, "generate").mockResolvedValue({
+        ok: false,
+        error: "API error",
+      });
+
+      const result = await world.description.describeTarget(roomId, playerId, "broom", {
+        short: "a broom",
+      });
+
+      expect(result).toBe("a broom");
+    });
+
+    it("fallback without entity match returns atmospheric text", async () => {
+      vi.spyOn(world.llm, "generate").mockResolvedValue({
+        ok: false,
+        error: "API error",
+      });
+
+      const result = await world.description.describeTarget(roomId, playerId, "dragon");
+      expect(result).toBe("You don't see anything notable.");
+    });
+
+    it("does not cache results", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "The altar." });
+
+      await world.description.describeTarget(roomId, playerId, "altar");
+      await world.description.describeTarget(roomId, playerId, "altar");
+
+      expect(generateMock).toHaveBeenCalledTimes(2);
+    });
   });
 });

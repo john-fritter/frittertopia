@@ -99,21 +99,20 @@ describe("ActionResolver", () => {
     expect(result.toRoom).toBeUndefined();
   });
 
-  it("look at a target routes through description service", async () => {
+  it("look at matched entity uses presence text as fallback (no LLM)", async () => {
+    // The chair in roomA has Presence: "A wooden chair sits in the corner."
     const result = await resolver.resolve(
       { verb: "look", target: "chair" },
       playerId
     );
-    // DescriptionService fallback (no LLM in tests)
-    expect(result.toPlayer).toBe("You don't see anything notable.");
+    expect(result.toPlayer).toBe("A wooden chair sits in the corner.");
   });
 
-  it("look at unknown target also routes through description service", async () => {
+  it("look at unknown target returns atmospheric fallback (no LLM)", async () => {
     const result = await resolver.resolve(
       { verb: "look", target: "dragon" },
       playerId
     );
-    // DescriptionService fallback (no LLM in tests)
     expect(result.toPlayer).toBe("You don't see anything notable.");
   });
 
@@ -253,5 +252,84 @@ describe("VisitedRooms behavior", () => {
     // roomB exit should show room name
     expect(plain).toContain("north");
     expect(plain).toContain("The Garden");
+  });
+});
+
+describe("Entity matching for targeted look", () => {
+  let world: World;
+  let resolver: ActionResolver;
+  let roomId: string;
+  let playerId: string;
+  let itemId: string;
+
+  beforeEach(() => {
+    world = new World();
+    registerComponents(world);
+
+    roomId = world.createEntity("room.test");
+    world.addComponent(roomId, "Room", { name: "The Test Room" });
+    world.addComponent(roomId, "Description", { short: "a test room" });
+    world.addComponent(roomId, "Exits", { exits: {} });
+
+    // Item: "a wild rosemary bush" with key "monastery.rosemary-bush"
+    itemId = world.createEntity("monastery.rosemary-bush");
+    world.addComponent(itemId, "Position", { roomId });
+    world.addComponent(itemId, "Description", { short: "a wild rosemary bush" });
+    world.addComponent(itemId, "Presence", { description: "A vast rosemary bush sprawls across the path." });
+
+    playerId = world.createEntity();
+    world.addComponent(playerId, "Player", { name: "Tester", sessionId: "s1" });
+    world.addComponent(playerId, "Position", { roomId });
+    world.addComponent(playerId, "VisitedRooms", { rooms: [roomId] });
+
+    resolver = new ActionResolver(world);
+  });
+
+  it("matches entity by Description.short substring", async () => {
+    const result = await resolver.resolve({ verb: "look", target: "rosemary" }, playerId);
+    // With no LLM, falls back to presence text of matched entity
+    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
+  });
+
+  it("matches entity by entity key leaf", async () => {
+    const result = await resolver.resolve({ verb: "look", target: "rosemary bush" }, playerId);
+    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
+  });
+
+  it("strips articles before matching", async () => {
+    const result = await resolver.resolve({ verb: "look", target: "the rosemary bush" }, playerId);
+    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
+  });
+
+  it("matching is case-insensitive", async () => {
+    const result = await resolver.resolve({ verb: "look", target: "ROSEMARY" }, playerId);
+    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
+  });
+
+  it("matches another player by name", async () => {
+    const otherId = world.createEntity();
+    world.addComponent(otherId, "Player", { name: "Alice", sessionId: "s2" });
+    world.addComponent(otherId, "Position", { roomId });
+
+    const result = await resolver.resolve({ verb: "look", target: "alice" }, playerId);
+    // Entity match found (Player), no presence → fallback uses playerName
+    expect(result.toPlayer).toBe("Alice");
+  });
+
+  it("no match returns atmospheric fallback", async () => {
+    const result = await resolver.resolve({ verb: "look", target: "dragon" }, playerId);
+    expect(result.toPlayer).toBe("You don't see anything notable.");
+  });
+
+  it("does not match entities in other rooms", async () => {
+    const otherRoom = world.createEntity("room.other");
+    world.addComponent(otherRoom, "Room", { name: "Other Room" });
+    const farItem = world.createEntity();
+    world.addComponent(farItem, "Position", { roomId: otherRoom });
+    world.addComponent(farItem, "Description", { short: "a golden crown" });
+    world.addComponent(farItem, "Presence", { description: "A crown sits on a pedestal." });
+
+    const result = await resolver.resolve({ verb: "look", target: "crown" }, playerId);
+    expect(result.toPlayer).toBe("You don't see anything notable.");
   });
 });

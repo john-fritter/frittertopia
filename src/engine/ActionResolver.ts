@@ -1,6 +1,7 @@
 import type { Intent, VerbHelpData } from "./Parser.js";
 import { Parser } from "./Parser.js";
 import type { World } from "./World.js";
+import type { MatchedEntity } from "./description/DescriptionService.js";
 import {
   formatRoom,
   formatSelfSay,
@@ -169,10 +170,12 @@ export class ActionResolver {
       return { toPlayer: await this.composeLook(position.roomId, playerId, true) };
     }
 
+    const entity = this.matchEntityInRoom(target, position.roomId);
     const description = await this.world.description.describeTarget(
       position.roomId,
       playerId,
-      target
+      target,
+      entity
     );
     return { toPlayer: description };
   }
@@ -571,6 +574,67 @@ export class ActionResolver {
     }
 
     return undefined;
+  }
+
+  private matchEntityInRoom(target: string, roomId: string): MatchedEntity | undefined {
+    const ARTICLES = new Set(["the", "a", "an"]);
+    const normalize = (s: string): string =>
+      s.toLowerCase().split(/\s+/).filter((w) => !ARTICLES.has(w)).join(" ");
+
+    const normalized = normalize(target);
+
+    let bestMatch: MatchedEntity | undefined;
+    let bestScore = 0;
+
+    const entitiesInRoom = this.world.getEntitiesWithComponent("Position");
+    for (const id of entitiesInRoom) {
+      const pos = this.world.getComponent(id, "Position") as { roomId: string };
+      if (pos.roomId !== roomId) continue;
+
+      const desc = this.world.getComponent(id, "Description") as
+        | { short: string }
+        | undefined;
+      const presence = this.world.getComponent(id, "Presence") as
+        | { description: string }
+        | undefined;
+      const player = this.world.getComponent(id, "Player") as
+        | { name: string; sessionId: string }
+        | undefined;
+      const key = this.world.entities.getKeyForEntity(id);
+
+      // Build candidate texts to match against
+      const texts: string[] = [];
+      if (desc) texts.push(normalize(desc.short));
+      if (presence) texts.push(normalize(presence.description));
+      if (player) texts.push(normalize(player.name));
+      if (key) {
+        // "monastery.rosemary-bush" → "rosemary bush"
+        const keyLeaf = key.split(".").pop()?.replace(/-/g, " ") ?? "";
+        texts.push(normalize(keyLeaf));
+      }
+
+      let score = 0;
+      for (const text of texts) {
+        if (text === normalized) {
+          score = Math.max(score, 3); // exact
+        } else if (text.includes(normalized)) {
+          score = Math.max(score, 2); // substring
+        } else if (normalized.split(/\s+/).some((w) => text.includes(w))) {
+          score = Math.max(score, 1); // word overlap
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = {
+          ...(desc && { short: desc.short }),
+          ...(presence && { presence: presence.description }),
+          ...(player && { playerName: player.name }),
+        };
+      }
+    }
+
+    return bestMatch;
   }
 
   private getVisitedRooms(playerId: string): Set<string> {

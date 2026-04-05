@@ -1,4 +1,5 @@
 import type { RoomContext } from "./ContextBuilder.js";
+import type { MatchedEntity } from "./DescriptionService.js";
 
 export class PromptBuilder {
   buildSystemPrompt(): string {
@@ -22,7 +23,7 @@ export class PromptBuilder {
     );
   }
 
-  buildTargetUserPrompt(context: RoomContext, target: string): string {
+  buildTargetUserPrompt(context: RoomContext, target: string, entity?: MatchedEntity): string {
     const lines = [
       `Room: ${context.roomName}`,
       `Brief: ${context.roomBrief}`,
@@ -30,6 +31,14 @@ export class PromptBuilder {
       `Weather: ${context.weather}`,
       `Target: ${target}`,
     ];
+
+    if (entity) {
+      const parts: string[] = [];
+      if (entity.short) parts.push(`description: ${entity.short}`);
+      if (entity.presence) parts.push(`presence: ${entity.presence}`);
+      if (entity.playerName) parts.push(`name: ${entity.playerName}`);
+      if (parts.length > 0) lines.push(`Entity data: ${parts.join(", ")}`);
+    }
 
     return lines.join("\n");
   }
