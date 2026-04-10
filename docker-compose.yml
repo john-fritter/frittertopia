@@ -1,0 +1,15 @@
+services:
+  frittertopia:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./content:/app/content
+    networks:
+      - seedbox_default
+    environment:
+      - PORT=3000
+
+networks:
+  seedbox_default:
+    external: true
