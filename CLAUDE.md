@@ -155,3 +155,63 @@ When you author a `RoomBrief`, bracketed `[name]` sections are how `look at <nam
 - Visibility-tier rendering wired into `composeLook` (see "Things that look done but aren't").
 - Weather as a real condition axis (`ContextBuilder` has a placeholder).
 - Reading `SkyDescriptions` and `TimeOfDay` from descriptions.
+<br>
+## Working with Cleo
+
+Cleo is the resident agent on fritter.lol — the server this code runs on. She's a separate AI (not Claude) with her own identity, memory, and Slack presence. She lives in a Docker container on the host with full sudo access and handles all on-server operational work: deployment, service management, testing, monitoring, and config changes.
+
+### Why this matters
+
+You (Claude) have hands on the repo. Cleo has hands on the server. John connects you by telling one or both of you what's happening. Neither of you auto-discovers the other's work — handoffs must be explicit.
+
+Cleo runs on budget models. She's good at execution and routine ops, not at hard design thinking or complex code. That's your job. When a task needs both design and deployment, you design it, write it, commit it, and hand the deployment to Cleo. She runs it, verifies it, and tells John how it went.
+
+### How to hand off to Cleo
+
+When you build something that needs on-server deployment, testing, or verification, create a handoff doc:
+
+**Location:** `handoffs/<YYYY-MM-DD>-<short-slug>.md`
+
+**Conventions:**
+- **Address Cleo directly** — second person, "you." She reads these herself.
+- **Be self-contained.** What the thing is, prerequisites, step-by-step commands, how to test, how to verify, what to do if something breaks.
+- **Flag uncertainty.** You can't test against the real server. Anything you're unsure about, mark "verify this" rather than stating as fact. Cleo will find the gaps.
+- **Reference env vars by name, never by value.** Secrets stay out of the repo.
+- **Give exact commands** where possible. Cleo is good at following precise instructions. She's less good at inferring what you meant.
+- **Note ownership.** If you add scripts, say so. Cleo owns operational scripts going forward and iterates on them freely.
+
+After writing a handoff doc, commit it. John will tell Cleo to pull and execute.
+
+### What Cleo handles on her own (no handoff needed)
+
+- Pulling and restarting the frittertopia container after a push
+- Checking logs (`docker logs`, `journalctl`)
+- Simple config changes (env vars, port changes)
+- Service health checks
+- Routine operational responses to alerts
+
+### What needs a handoff from you
+
+- New deployment procedures (first time setting up a service, changing how the container is built)
+- Database migrations or schema changes
+- Anything requiring new env vars or secrets
+- Changes to the Docker setup, Caddy routing, or deployment workflow
+- Verification steps that need specific test commands or expected output
+
+### Reverse handoffs: Cleo to Claude
+
+Cleo may discover issues on the server that need code changes — bugs, config problems, missing error handling. She writes a brief (a short problem report) and tells John. John brings it to you in a future session. When you see a brief from Cleo, treat it as reliable operational context — she's looking at the real server, not guessing.
+
+### What Cleo knows about this project
+
+Cleo has read this CLAUDE.md, the README, and her own FRITTERTOPIA.md (a project context file in her workspace). She knows the tech stack, the architecture at a high level, and the creative direction. She does *not* read the codebase regularly and does not have the full source in her context. If a handoff depends on her understanding specific code, explain it in the handoff doc rather than assuming she'll read the source.
+
+### Secrets and credentials
+
+- The `OPENROUTER_API_KEY` for LLM descriptions is stored in `.env` on the host (not in git). Cleo manages it on John's instruction.
+- Cleo has sudo on the host but does not have access to your Claude session or John's Claude Pro subscription.
+- Never put API keys, passwords, or tokens in the repo. Handoff docs reference env var names.
+
+### Communication
+
+All communication between you and Cleo goes through John in Slack. You don't have direct access to Cleo and she doesn't have direct access to you. John is the courier. Keep handoff docs and briefs clear and concise — John may be reading them on his phone.
