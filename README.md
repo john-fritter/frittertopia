@@ -48,7 +48,7 @@ The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes an
 
 ### Without an OPENROUTER_API_KEY
 
-The server still runs. Room descriptions fall back to a short atmospheric stub ("The shapes of the kitchen surround you, but the details won't quite resolve. The rest is fog."). Get a key from [openrouter.ai](https://openrouter.ai) for real descriptions. The default model is `google/gemini-2.0-flash-lite-001`; override with `OPENROUTER_MODEL`.
+The server still runs. Room descriptions fall back to a short atmospheric stub ("The shapes of the kitchen surround you, but the details won't quite resolve. The rest is fog."). Get a key from [openrouter.ai](https://openrouter.ai) for real descriptions. The default model is `anthropic/claude-3.5-haiku`; override with `OPENROUTER_MODEL`.
 
 ### Admins
 
@@ -179,6 +179,8 @@ entities:
 ```
 
 Bracketed sections like `[barrels]` are picked up by the LLM when the player does `look at barrels`. Add the reverse exit on the kitchen too. No engine changes needed.
+
+Parentheses can be used as an aside to the LLM storyteller to give stage instructions about how to describe things or under what conditions certain information should be revealed.
 
 **A new item in a room** — add a `Presence` entity to any YAML file in `content/`:
 
