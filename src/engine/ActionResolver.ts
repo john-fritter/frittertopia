@@ -24,6 +24,18 @@ import {
   makeBendLocalTime,
   type TimeBracket,
 } from "../game/solar.js";
+import {
+  setDebugPrecipState,
+  getDebugPrecipState,
+  setDebugTempC,
+  getDebugTempC,
+  setDebugPressureMb,
+  getDebugPressureMb,
+  computeTempBracket,
+  computePressureTrend,
+  celsiusToFahrenheit,
+  type PrecipState,
+} from "../game/weather.js";
 
 export interface ActionResult {
   toPlayer: string;
@@ -84,6 +96,9 @@ export class ActionResolver {
     this.parser.registerVerb("@help");
     this.parser.registerVerb("@players");
     this.parser.registerVerb("@time");
+    this.parser.registerVerb("@weather");
+    this.parser.registerVerb("@temperature");
+    this.parser.registerVerb("@pressure");
     this.parser.registerVerb("@sysinfo");
     this.parser.registerVerb("@prompt");
     this.parser.registerVerb("@llm");
@@ -127,6 +142,18 @@ export class ActionResolver {
       case "@time":
         return await this.adminGate(playerId, () =>
           this.handleAdminTime(intent.target)
+        );
+      case "@weather":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminWeather(intent.target)
+        );
+      case "@temperature":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminTemperature(intent.target)
+        );
+      case "@pressure":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminPressure(intent.target)
         );
       case "@sysinfo":
         return await this.adminGate(playerId, () => this.handleAdminSysinfo());
@@ -716,7 +743,7 @@ export class ActionResolver {
 
     const brackets = BRACKET_NAMES.join(", ");
     return {
-      toPlayer: formatDim(`Usage: @time [${brackets} | HH:MM | clear]`),
+      toPlayer: formatDim(`Usage: @time [${brackets} | HH:MM | reset]`),
     };
   }
 
@@ -732,6 +759,216 @@ export class ActionResolver {
       moonPhase: moon.phase,
       updatedAt: now.toISOString(),
     });
+  }
+
+  private syncWeatherState(): void {
+    const zoneIds = this.world.getEntitiesWithComponent("WeatherZone");
+    for (const zoneId of zoneIds) {
+      const state = this.world.getComponent(zoneId, "WeatherState") as
+        | {
+            tempC: number;
+            pressureMb: number;
+            precipState: PrecipState;
+            precipStateElapsedMs: number;
+            precipStateDurationMs: number;
+            tempNoise: number;
+            pressureNoise: number;
+            pressureHistory: { time: number; value: number }[];
+            snowDepth: number;
+          }
+        | undefined;
+      if (!state) continue;
+      const debugPrec = getDebugPrecipState();
+      this.world.setComponent(zoneId, "WeatherState", {
+        ...state,
+        tempC: getDebugTempC() ?? state.tempC,
+        pressureMb: getDebugPressureMb() ?? state.pressureMb,
+        precipState: debugPrec ?? state.precipState,
+        precipStateElapsedMs: debugPrec ? 0 : state.precipStateElapsedMs,
+      });
+    }
+    this.world.description.cache.invalidateAll();
+  }
+
+  private handleAdminWeather(target: string | undefined): ActionResult {
+    const PRECIP_STATES: PrecipState[] = [
+      "clear", "overcast", "rain", "storm", "snow", "fog", "sleet",
+    ];
+
+    if (!target) {
+      const override = getDebugPrecipState();
+      const zoneIds = this.world.getEntitiesWithComponent("WeatherZone");
+      if (zoneIds.length === 0) {
+        return { toPlayer: formatDim("No weather zones loaded.") };
+      }
+      const lines: string[] = [];
+      for (const zoneId of zoneIds) {
+        const zone = this.world.getComponent(zoneId, "WeatherZone") as
+          | { climate: string }
+          | undefined;
+        const state = this.world.getComponent(zoneId, "WeatherState") as
+          | { precipState: PrecipState }
+          | undefined;
+        const zoneName = zone?.climate ?? zoneId;
+        const precipStr = state?.precipState ?? "unknown";
+        lines.push(`  ${formatBold(zoneName)}: ${precipStr}`);
+      }
+      if (override) {
+        lines.push(formatDim(`(debug override: ${override})`));
+      } else {
+        lines.push(formatDim("(real simulation)"));
+      }
+      return { toPlayer: lines.join("\n") };
+    }
+
+    const arg = target.trim().toLowerCase();
+
+    if (arg === "clear" || arg === "reset") {
+      setDebugPrecipState(null);
+      this.syncWeatherState();
+      const zoneIds = this.world.getEntitiesWithComponent("WeatherZone");
+      const firstState = zoneIds.length > 0
+        ? (this.world.getComponent(zoneIds[0]!, "WeatherState") as { precipState: PrecipState } | undefined)
+        : undefined;
+      const current = firstState?.precipState ?? "unknown";
+      return { toPlayer: formatDim(`Weather override cleared — simulation restored (${current})`) };
+    }
+
+    if (PRECIP_STATES.includes(arg as PrecipState)) {
+      setDebugPrecipState(arg as PrecipState);
+      this.syncWeatherState();
+      return { toPlayer: formatDim(`Weather set: ${arg}`) };
+    }
+
+    return {
+      toPlayer: formatDim(`Usage: @weather [${PRECIP_STATES.join(" | ")} | reset]`),
+    };
+  }
+
+  private handleAdminTemperature(target: string | undefined): ActionResult {
+    const BRACKET_MIDPOINTS: Record<string, number> = {
+      frigid: -15,
+      cold: -5,
+      cool: 5,
+      mild: 15,
+      warm: 24,
+      hot: 32,
+    };
+
+    if (!target) {
+      const override = getDebugTempC();
+      const zoneIds = this.world.getEntitiesWithComponent("WeatherZone");
+      if (zoneIds.length === 0) {
+        return { toPlayer: formatDim("No weather zones loaded.") };
+      }
+      const lines: string[] = [];
+      for (const zoneId of zoneIds) {
+        const zone = this.world.getComponent(zoneId, "WeatherZone") as
+          | { climate: string }
+          | undefined;
+        const state = this.world.getComponent(zoneId, "WeatherState") as
+          | { tempC: number }
+          | undefined;
+        const zoneName = zone?.climate ?? zoneId;
+        if (state) {
+          const bracket = computeTempBracket(state.tempC);
+          const f = celsiusToFahrenheit(state.tempC).toFixed(1);
+          lines.push(`  ${formatBold(zoneName)}: ${state.tempC.toFixed(1)}°C / ${f}°F  (${bracket})`);
+        } else {
+          lines.push(`  ${formatBold(zoneName)}: no data`);
+        }
+      }
+      if (override !== null) {
+        lines.push(formatDim(`(debug override: ${override.toFixed(1)}°C)`));
+      } else {
+        lines.push(formatDim("(real simulation)"));
+      }
+      return { toPlayer: lines.join("\n") };
+    }
+
+    const arg = target.trim().toLowerCase();
+
+    if (arg === "clear" || arg === "reset") {
+      setDebugTempC(null);
+      this.syncWeatherState();
+      return { toPlayer: formatDim("Temperature override cleared — simulation restored") };
+    }
+
+    if (arg in BRACKET_MIDPOINTS) {
+      const tempC = BRACKET_MIDPOINTS[arg]!;
+      setDebugTempC(tempC);
+      this.syncWeatherState();
+      const f = celsiusToFahrenheit(tempC).toFixed(1);
+      return { toPlayer: formatDim(`Temperature set: ${arg}  (${tempC}°C / ${f}°F)`) };
+    }
+
+    const parsed = parseFloat(arg);
+    if (!isNaN(parsed) && /^-?\d+(\.\d+)?$/.test(arg)) {
+      setDebugTempC(parsed);
+      this.syncWeatherState();
+      const bracket = computeTempBracket(parsed);
+      const f = celsiusToFahrenheit(parsed).toFixed(1);
+      return { toPlayer: formatDim(`Temperature set: ${parsed}°C / ${f}°F  (${bracket})`) };
+    }
+
+    const brackets = Object.keys(BRACKET_MIDPOINTS).join(" | ");
+    return {
+      toPlayer: formatDim(`Usage: @temperature [${brackets} | <°C> | reset]`),
+    };
+  }
+
+  private handleAdminPressure(target: string | undefined): ActionResult {
+    if (!target) {
+      const override = getDebugPressureMb();
+      const zoneIds = this.world.getEntitiesWithComponent("WeatherZone");
+      if (zoneIds.length === 0) {
+        return { toPlayer: formatDim("No weather zones loaded.") };
+      }
+      const lines: string[] = [];
+      for (const zoneId of zoneIds) {
+        const zone = this.world.getComponent(zoneId, "WeatherZone") as
+          | { climate: string }
+          | undefined;
+        const state = this.world.getComponent(zoneId, "WeatherState") as
+          | { pressureMb: number; pressureHistory: { time: number; value: number }[] }
+          | undefined;
+        const zoneName = zone?.climate ?? zoneId;
+        if (state) {
+          const trend = computePressureTrend(state.pressureHistory);
+          lines.push(`  ${formatBold(zoneName)}: ${state.pressureMb.toFixed(1)} mb  (${trend})`);
+        } else {
+          lines.push(`  ${formatBold(zoneName)}: no data`);
+        }
+      }
+      if (override !== null) {
+        lines.push(formatDim(`(debug override: ${override.toFixed(1)} mb)`));
+      } else {
+        lines.push(formatDim("(real simulation)"));
+      }
+      return { toPlayer: lines.join("\n") };
+    }
+
+    const arg = target.trim().toLowerCase();
+
+    if (arg === "clear" || arg === "reset") {
+      setDebugPressureMb(null);
+      this.syncWeatherState();
+      return { toPlayer: formatDim("Pressure override cleared — simulation restored") };
+    }
+
+    const parsed = parseFloat(arg);
+    if (!isNaN(parsed) && /^\d+(\.\d+)?$/.test(arg)) {
+      if (parsed < 900 || parsed > 1100) {
+        return { toPlayer: formatDim("Pressure out of range. Use 900–1100 mb.") };
+      }
+      setDebugPressureMb(parsed);
+      this.syncWeatherState();
+      return { toPlayer: formatDim(`Pressure set: ${parsed} mb`) };
+    }
+
+    return {
+      toPlayer: formatDim("Usage: @pressure [<mb> | reset]  (typical range 960–1040)"),
+    };
   }
 
   private handleAdminSysinfo(): ActionResult {

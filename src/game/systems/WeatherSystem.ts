@@ -6,6 +6,9 @@ import {
   trimPressureHistory,
   nextWeatherState,
   initWeatherState,
+  getDebugPrecipState,
+  getDebugTempC,
+  getDebugPressureMb,
   type WeatherZoneParams,
   type NoiseState,
   type PrecipState,
@@ -52,15 +55,18 @@ export function createWeatherSystem(tickIntervalMs: number): SystemFn {
       if (!existing) {
         const init = initWeatherState(zone, now, rng);
         const noiseState: NoiseState = { tempNoise: init.tempNoise, pressureNoise: init.pressureNoise };
+        const baseTempC = computeTemperatureCelsius(now, zone, noiseState);
+        const basePressureMb = 1013 + init.pressureNoise;
+        const debugPrec = getDebugPrecipState();
         entities.setComponent(zoneId, "WeatherState", {
-          tempC: computeTemperatureCelsius(now, zone, noiseState),
-          pressureMb: 1013 + init.pressureNoise,
-          precipState: init.precipState,
+          tempC: getDebugTempC() ?? baseTempC,
+          pressureMb: getDebugPressureMb() ?? basePressureMb,
+          precipState: debugPrec ?? init.precipState,
           precipStateElapsedMs: 0,
           precipStateDurationMs: init.precipStateDurationMs,
           tempNoise: init.tempNoise,
           pressureNoise: init.pressureNoise,
-          pressureHistory: [{ time: now.getTime(), value: 1013 + init.pressureNoise }],
+          pressureHistory: [{ time: now.getTime(), value: basePressureMb }],
           snowDepth: 0,
         });
         continue;
@@ -91,12 +97,21 @@ export function createWeatherSystem(tickIntervalMs: number): SystemFn {
         rng
       );
 
+      const debugPrec = getDebugPrecipState();
+      const effectiveTempC = getDebugTempC() ?? newTempC;
+      const effectivePressureMb = getDebugPressureMb() ?? newPressureMb;
+      const effectivePrecipState = debugPrec ?? (transition ? transition.state : existing.precipState);
+      const effectiveElapsed = debugPrec ? 0 : (transition ? 0 : newElapsed);
+      const effectiveDuration = debugPrec
+        ? existing.precipStateDurationMs
+        : (transition ? transition.durationMs : existing.precipStateDurationMs);
+
       entities.setComponent(zoneId, "WeatherState", {
-        tempC: newTempC,
-        pressureMb: newPressureMb,
-        precipState: transition ? transition.state : existing.precipState,
-        precipStateElapsedMs: transition ? 0 : newElapsed,
-        precipStateDurationMs: transition ? transition.durationMs : existing.precipStateDurationMs,
+        tempC: effectiveTempC,
+        pressureMb: effectivePressureMb,
+        precipState: effectivePrecipState,
+        precipStateElapsedMs: effectiveElapsed,
+        precipStateDurationMs: effectiveDuration,
         tempNoise: newNoise.tempNoise,
         pressureNoise: newNoise.pressureNoise,
         pressureHistory: newHistory,
