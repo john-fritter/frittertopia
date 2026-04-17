@@ -1,15 +1,31 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
+import type Database from "better-sqlite3";
 import type { World } from "../engine/World.js";
 import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
 import { formatSystem, formatSequence, formatArrival } from "./format.js";
+import {
+  findAccountByUsername,
+  createAccount,
+  verifyPassword,
+} from "./auth.js";
+
+const MAX_AUTH_RETRIES = 3;
 
 interface Session {
   ws: WebSocket;
   sessionId: string;
-  playerId?: string;
-  state: "awaiting_name" | "playing";
+  playerId: string | undefined;
+  state:
+    | "awaiting_username"
+    | "awaiting_password"
+    | "awaiting_new_password"
+    | "awaiting_password_confirm"
+    | "playing";
+  pendingUsername: string | undefined;
+  pendingPassword: string | undefined;
+  retries: number;
 }
 
 export class GameServer {
@@ -23,6 +39,7 @@ export class GameServer {
 
   constructor(
     private world: World,
+    private db: Database.Database,
     private startingRoomKey = "starting.room",
     private sequenceTemplateKey = "sequence.fog-arrival"
   ) {
@@ -31,7 +48,10 @@ export class GameServer {
     const adminEnv = process.env["ADMIN_PLAYERS"];
     if (adminEnv) {
       this.adminNames = new Set(
-        adminEnv.split(",").map((n) => n.trim().toLowerCase()).filter((n) => n)
+        adminEnv
+          .split(",")
+          .map((n) => n.trim().toLowerCase())
+          .filter((n) => n)
       );
     } else {
       this.adminNames = null;
@@ -48,19 +68,27 @@ export class GameServer {
 
     this.wss.on("connection", (ws) => {
       const sessionId = uuidv4();
-      const session: Session = { ws, sessionId, state: "awaiting_name" };
+      const session: Session = {
+        ws,
+        sessionId,
+        playerId: undefined,
+        state: "awaiting_username",
+        pendingUsername: undefined,
+        pendingPassword: undefined,
+        retries: 0,
+      };
       this.sessions.set(sessionId, session);
 
-      this.send(ws, "What is your name?");
+      this.send(ws, "By what name are you known?");
 
       ws.on("message", (data) => {
         const input = data.toString().trim();
         if (!input) return;
 
-        if (session.state === "awaiting_name") {
-          this.handleNameInput(session, input);
+        if (session.state === "playing") {
+          void this.handleGameInput(session, input);
         } else {
-          this.handleGameInput(session, input);
+          void this.handleAuthInput(session, input);
         }
       });
 
@@ -106,18 +134,13 @@ export class GameServer {
         | { name: string; sessionId: string }
         | undefined;
       if (player) {
-        this.broadcastToRoom(
-          roomId,
-          formatArrival(player.name),
-          playerId
-        );
+        this.broadcastToRoom(roomId, formatArrival(player.name), playerId);
       }
     });
 
     this.world.onEvent("player_destroyed", (payload) => {
       const { playerId } = payload as { playerId: string };
 
-      // Find and disconnect the session for this player
       for (const [sessionId, session] of this.sessions) {
         if (session.playerId === playerId) {
           this.send(
@@ -126,7 +149,6 @@ export class GameServer {
           );
           session.ws.close();
 
-          // Clean up active players tracking
           const key = this.world.entities.getKeyForEntity(playerId);
           if (key) {
             this.activePlayers.delete(key);
@@ -149,31 +171,156 @@ export class GameServer {
     }
   }
 
-  private validateName(name: string): string | null {
+  private validateUsername(name: string): string | null {
     if (name.length < 2 || name.length > 20) {
-      return "Name must be 2\u201320 characters.";
+      return "Names must be 2\u201320 characters.";
     }
     if (!/^[a-zA-Z]+$/.test(name)) {
-      return "Name must contain only letters.";
+      return "Names must contain only letters.";
     }
     return null;
   }
 
-  private async handleNameInput(session: Session, name: string): Promise<void> {
-    const validationError = this.validateName(name);
+  private async handleAuthInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
+    switch (session.state) {
+      case "awaiting_username":
+        await this.handleUsernameInput(session, input);
+        break;
+      case "awaiting_password":
+        await this.handlePasswordInput(session, input);
+        break;
+      case "awaiting_new_password":
+        this.handleNewPasswordInput(session, input);
+        break;
+      case "awaiting_password_confirm":
+        await this.handlePasswordConfirmInput(session, input);
+        break;
+    }
+  }
+
+  private async handleUsernameInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
+    const validationError = this.validateUsername(input);
     if (validationError) {
-      this.send(session.ws, `${validationError}\nWhat is your name?`);
+      this.send(
+        session.ws,
+        `${validationError}\nBy what name are you known?`
+      );
       return;
     }
 
-    const playerKey = `player.${name.toLowerCase()}`;
-
-    // Check for duplicate session
+    const playerKey = `player.${input.toLowerCase()}`;
     if (this.activePlayers.has(playerKey)) {
       this.send(
         session.ws,
-        "That character is already being played by someone else.\nWhat is your name?"
+        "That character is already awake somewhere else.\nBy what name are you known?"
       );
+      return;
+    }
+
+    session.pendingUsername = input;
+    const account = findAccountByUsername(this.db, input);
+
+    if (account) {
+      session.state = "awaiting_password";
+      this.send(session.ws, "The name is known. Speak the word:");
+    } else {
+      session.state = "awaiting_new_password";
+      this.send(
+        session.ws,
+        "No one answers to that name. Choose a word to be known by:"
+      );
+    }
+  }
+
+  private async handlePasswordInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
+    const username = session.pendingUsername!;
+    const account = findAccountByUsername(this.db, username);
+
+    if (!account) {
+      // Account vanished mid-session — restart
+      session.state = "awaiting_username";
+      session.pendingUsername = undefined;
+      this.send(session.ws, "By what name are you known?");
+      return;
+    }
+
+    const correct = await verifyPassword(input, account.password_hash);
+    if (correct) {
+      await this.completeLogin(session, account.username);
+    } else {
+      session.retries++;
+      if (session.retries < MAX_AUTH_RETRIES) {
+        this.send(session.ws, "That name and word don't match. Try again?");
+      } else {
+        this.send(
+          session.ws,
+          "The fog does not part for you. Try again later."
+        );
+        session.ws.close();
+      }
+    }
+  }
+
+  private handleNewPasswordInput(session: Session, input: string): void {
+    if (!input) {
+      this.send(session.ws, "A word must be spoken. Choose again:");
+      return;
+    }
+    session.pendingPassword = input;
+    session.state = "awaiting_password_confirm";
+    this.send(session.ws, "Speak it once more, to be certain:");
+  }
+
+  private async handlePasswordConfirmInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
+    if (input !== session.pendingPassword) {
+      session.pendingPassword = undefined;
+      session.state = "awaiting_new_password";
+      this.send(session.ws, "The words did not match. Choose again:");
+      return;
+    }
+
+    const username = session.pendingUsername!;
+    const password = session.pendingPassword!;
+    session.pendingPassword = undefined;
+
+    try {
+      await createAccount(this.db, username, password);
+    } catch {
+      // Race: another session claimed the name between check and create
+      this.send(
+        session.ws,
+        "That name was claimed just now. By what name are you known?"
+      );
+      session.state = "awaiting_username";
+      session.pendingUsername = undefined;
+      return;
+    }
+
+    await this.completeLogin(session, username);
+  }
+
+  private async completeLogin(
+    session: Session,
+    username: string
+  ): Promise<void> {
+    const playerKey = `player.${username.toLowerCase()}`;
+
+    // Guard against race: another session logged in during async bcrypt
+    if (this.activePlayers.has(playerKey)) {
+      this.send(session.ws, "That character is already awake somewhere else.");
+      session.ws.close();
       return;
     }
 
@@ -199,9 +346,7 @@ export class GameServer {
 
       // If player still has an active sequence, let it continue — no room description
       const sequence = this.world.getComponent(existingId, "Sequence");
-      if (sequence) {
-        return;
-      }
+      if (sequence) return;
 
       const position = this.world.getComponent(existingId, "Position") as {
         roomId: string;
@@ -211,7 +356,10 @@ export class GameServer {
         existingId,
         true
       );
-      this.send(session.ws, `Welcome back, ${player.name}.\n\n${lookOutput}`);
+      this.send(
+        session.ws,
+        `Welcome back, ${player.name}.\n\n${lookOutput}`
+      );
 
       this.broadcastToRoom(
         position.roomId,
@@ -222,24 +370,20 @@ export class GameServer {
       // New player
       const playerId = this.world.createEntity(playerKey);
       this.world.addComponent(playerId, "Player", {
-        name,
+        name: username,
         sessionId: session.sessionId,
       });
 
-      this.grantAdminIfEligible(playerId, name);
+      this.grantAdminIfEligible(playerId, username);
 
       session.playerId = playerId;
       session.state = "playing";
       this.activePlayers.set(playerKey, session.sessionId);
 
-      // Try to attach fog arrival sequence from template
       if (this.attachSequenceFromTemplate(playerId)) {
-        // Sequence attached — no Position, no room description.
-        // The sequence system handles timed text and room placement on completion.
         return;
       }
 
-      // Fallback: no sequence template — place directly in starting room
       const startingRoom = this.findStartingRoom();
       if (!startingRoom) {
         this.send(session.ws, "Error: No starting room found.");
@@ -256,11 +400,11 @@ export class GameServer {
         playerId,
         true
       );
-      this.send(session.ws, `Welcome, ${name}.\n\n${lookOutput}`);
+      this.send(session.ws, `Welcome, ${username}.\n\n${lookOutput}`);
 
       this.broadcastToRoom(
         startingRoom,
-        formatSystem(`${name} appears from the fog.`),
+        formatSystem(`${username} appears from the fog.`),
         playerId
       );
     }
@@ -273,7 +417,6 @@ export class GameServer {
     const templateSeq = this.world.getComponent(templateId, "Sequence");
     if (!templateSeq) return false;
 
-    // Deep clone to avoid shared references between players
     const seqData = JSON.parse(JSON.stringify(templateSeq));
     seqData.currentBeat = 0;
     seqData.elapsed = 0;
@@ -281,7 +424,10 @@ export class GameServer {
     return true;
   }
 
-  private async handleGameInput(session: Session, input: string): Promise<void> {
+  private async handleGameInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
     if (!session.playerId) return;
 
     const intent = this.parser.parse(input);
@@ -308,12 +454,10 @@ export class GameServer {
 
   private grantAdminIfEligible(playerId: string, name: string): void {
     if (this.adminNames !== null) {
-      // Explicit admin list from env var
       if (this.adminNames.has(name.toLowerCase())) {
         this.world.setComponent(playerId, "Admin", { level: 1 });
       }
     } else {
-      // No ADMIN_PLAYERS set — first player gets admin
       if (!this.firstPlayerConnected) {
         this.firstPlayerConnected = true;
         this.world.setComponent(playerId, "Admin", { level: 1 });
@@ -326,9 +470,10 @@ export class GameServer {
       const player = this.world.getComponent(session.playerId, "Player") as
         | { name: string; sessionId: string }
         | undefined;
-      const position = this.world.getComponent(session.playerId, "Position") as
-        | { roomId: string }
-        | undefined;
+      const position = this.world.getComponent(
+        session.playerId,
+        "Position"
+      ) as { roomId: string } | undefined;
 
       if (player && position) {
         this.broadcastToRoom(
@@ -338,7 +483,6 @@ export class GameServer {
         );
       }
 
-      // Clear sessionId so player doesn't appear in room listings
       if (player) {
         this.world.setComponent(session.playerId, "Player", {
           name: player.name,
@@ -346,7 +490,6 @@ export class GameServer {
         });
       }
 
-      // Remove from active players tracking
       const key = this.world.entities.getKeyForEntity(session.playerId);
       if (key) {
         this.activePlayers.delete(key);
@@ -384,7 +527,7 @@ export class GameServer {
         name: string;
         sessionId: string;
       };
-      if (!player.sessionId) continue; // skip offline players
+      if (!player.sessionId) continue;
       const session = this.sessions.get(player.sessionId);
       if (session && session.ws.readyState === WebSocket.OPEN) {
         this.send(session.ws, text);

@@ -15,6 +15,7 @@ import { registerComponents } from "./game/components.js";
 import { createSequenceSystem } from "./game/systems/SequenceSystem.js";
 import { createTimeOfDaySystem } from "./game/systems/TimeOfDaySystem.js";
 import { GameServer } from "./server/Server.js";
+import { createAccountTable } from "./server/auth.js";
 
 const TICK_INTERVAL = 250;
 
@@ -60,6 +61,7 @@ if (process.argv.includes("--fresh")) {
 }
 
 const db = createDatabase(dbPath);
+createAccountTable(db);
 
 // Always load content from YAML — it's the authoritative source for rooms, items, sequences
 const contentDir = path.join(import.meta.dirname, "..", "content");
@@ -79,7 +81,7 @@ if (savedEntityCount > 0) {
 }
 
 const port = parseInt(process.env["PORT"] ?? "3000", 10);
-const server = new GameServer(world);
+const server = new GameServer(world, db);
 server.start(port);
 
 // Auto-save every 5 minutes
