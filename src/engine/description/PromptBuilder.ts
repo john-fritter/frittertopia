@@ -28,6 +28,7 @@ export class PromptBuilder {
       `Room: ${context.roomName}`,
       `Brief: ${context.roomBrief}`,
       `Time: ${context.timeOfDay}`,
+      `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
       `Weather: ${context.weather}`,
       `Target: ${target}`,
     ];
@@ -57,6 +58,7 @@ export class PromptBuilder {
       `Room: ${context.roomName}`,
       `Brief: ${context.roomBrief}`,
       `Time: ${context.timeOfDay}`,
+      `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
       `Weather: ${context.weather}`,
       `Visit: ${visitLabel}`,
       `Present: ${presentLine}`,
