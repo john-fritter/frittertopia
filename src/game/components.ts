@@ -88,4 +88,55 @@ export function registerComponents(world: World): void {
     })
   );
 
+  world.registerComponent(
+    "WeatherZone",
+    z.object({
+      climate: z.string(),
+      tempCurve: z.object({
+        winterMin: z.number(),
+        winterMax: z.number(),
+        summerMin: z.number(),
+        summerMax: z.number(),
+        diurnalRange: z.number(),
+      }),
+      pressureDrift: z.object({
+        speed: z.enum(["slow", "medium", "fast"]),
+        volatility: z.enum(["low", "medium", "high"]),
+      }),
+      precipitationBias: z.enum(["low", "medium", "high"]),
+      accumulation: z.object({ snowDepth: z.number() }).optional(),
+    })
+  );
+
+  world.registerComponent(
+    "WeatherState",
+    z.object({
+      tempC: z.number(),
+      pressureMb: z.number(),
+      precipState: z.enum([
+        "clear",
+        "overcast",
+        "rain",
+        "storm",
+        "snow",
+        "fog",
+        "sleet",
+      ]),
+      precipStateElapsedMs: z.number(),
+      precipStateDurationMs: z.number(),
+      tempNoise: z.number(),
+      pressureNoise: z.number(),
+      pressureHistory: z.array(
+        z.object({ time: z.number(), value: z.number() })
+      ),
+      snowDepth: z.number(),
+    })
+  );
+
+  world.registerComponent(
+    "WeatherZoneRef",
+    z.object({ zoneId: z.string() }),
+    ["zoneId"]
+  );
+
 }

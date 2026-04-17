@@ -1,6 +1,16 @@
 import type { RoomContext } from "./ContextBuilder.js";
 import type { MatchedEntity } from "./DescriptionService.js";
 
+function formatWeatherLine(context: RoomContext): string {
+  if (context.tempF === undefined) return `Weather: ${context.weather}`;
+  const parts: string[] = [context.weather];
+  parts.push(`${context.tempF}°F (${context.tempBracket ?? ""})`);
+  if (context.pressureMb !== undefined && context.pressureTrend !== undefined) {
+    parts.push(`${context.pressureMb} mb ${context.pressureTrend}`);
+  }
+  return `Weather: ${parts.join(", ")}`;
+}
+
 export class PromptBuilder {
   buildSystemPrompt(): string {
     return (
@@ -29,7 +39,7 @@ export class PromptBuilder {
       `Brief: ${context.roomBrief}`,
       `Time: ${context.timeOfDay}`,
       `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-      `Weather: ${context.weather}`,
+      formatWeatherLine(context),
       `Target: ${target}`,
     ];
 
@@ -59,7 +69,7 @@ export class PromptBuilder {
       `Brief: ${context.roomBrief}`,
       `Time: ${context.timeOfDay}`,
       `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-      `Weather: ${context.weather}`,
+      formatWeatherLine(context),
       `Visit: ${visitLabel}`,
       `Present: ${presentLine}`,
     ];

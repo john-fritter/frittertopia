@@ -14,6 +14,7 @@ import {
 import { registerComponents } from "./game/components.js";
 import { createSequenceSystem } from "./game/systems/SequenceSystem.js";
 import { createTimeOfDaySystem } from "./game/systems/TimeOfDaySystem.js";
+import { createWeatherSystem } from "./game/systems/WeatherSystem.js";
 import { GameServer } from "./server/Server.js";
 import { createAccountTable } from "./server/auth.js";
 
@@ -39,6 +40,7 @@ world.registerEvent(
 // Register systems
 world.addSystem(createSequenceSystem(TICK_INTERVAL));
 world.addSystem(createTimeOfDaySystem(TICK_INTERVAL));
+world.addSystem(createWeatherSystem(TICK_INTERVAL));
 
 // Create world.time singleton entity
 const worldTimeId = world.createEntity("world.time");

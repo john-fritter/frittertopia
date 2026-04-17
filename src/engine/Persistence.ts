@@ -20,6 +20,9 @@ export function createDatabase(filepath: string): Database.Database {
   return db;
 }
 
+// Components that hold transient runtime state and must not be persisted.
+const TRANSIENT_COMPONENTS = new Set(["WeatherState"]);
+
 export function saveWorld(db: Database.Database, world: World): void {
   const transaction = db.transaction(() => {
     db.exec("DELETE FROM components");
@@ -37,6 +40,7 @@ export function saveWorld(db: Database.Database, world: World): void {
       insertEntity.run(id, key);
 
       for (const [typeName, data] of world.entities.getComponentsForEntity(id)) {
+        if (TRANSIENT_COMPONENTS.has(typeName)) continue;
         const serialized = translateForSave(typeName, data, world);
         insertComponent.run(id, typeName, JSON.stringify(serialized));
       }

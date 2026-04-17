@@ -20,6 +20,8 @@ entities:
           The east wall has a low passage back into the kitchen — a dark rectangle in the stone, with light and cooking-smell spilling out. The threshold is worn smooth and there's always a little drift of soil tracked back and forth.
 
           Exits: East to the kitchen.
+      WeatherZoneRef:
+        zoneId: weather.zone.monastery
       Exits:
         exits:
           east: monastery.kitchen
