@@ -141,6 +141,36 @@ When you author a `RoomBrief`, bracketed `[name]` sections are how `look at <nam
 
 ## Creative direction (don't drift)
 
+### Embrace limitations, don't apologize for them
+
+The LLM is inconsistent. That's the point. The world is dreamlike, foggy, Lynchian — a setting where a shadow lingers a beat too long, where a potato might appear on a table if the moment calls for it. The LLM's tendency to invent texture and hallucinate detail is an *asset* here, not a problem to suppress.
+
+Don't fight this with over-constraining prompts. The system prompt is an art direction tool, not a correctness enforcer. Constrain the LLM when something is breaking gameplay (inventing exits that don't exist, contradicting hard facts about the world). Otherwise, let it be strange. The world is strange.
+
+### The AI storyteller — the design's big idea
+
+The engine's job is to resolve truth mechanically. The LLM's job is to interpret that truth into narrative. These two layers stay separate deliberately.
+
+**Structured game state → AI storyteller → what the player experiences.**
+
+Currently this only covers `look`. The roadmap extends it everywhere:
+
+- **Sequences**: replace preauthored beats with AI-generated narrative driven by flags and player state
+- **Combat and actions**: engine resolves what happened mechanically; AI describes it
+- **Object interactions**: a thermometer returns a temperature; a map reveals coordinates; binoculars show distance — the AI narrates what these mean in context
+- **Hidden reveals**: room/item briefs can contain stage directions the AI only surfaces under conditions — `(only visible in moonlight)`, `(reveal if player has examined the altar)`. The `[bracket]` syntax already does this for `look at`; the same principle extends to conditions
+- **Per-room stage directions**: tone, style, what to foreground. The `RoomBrief` carries instructions to the AI that shape how it tells the story of that place
+- **Player-unlocked storyteller behaviors**: finding or accomplishing certain things expands what the AI knows or changes how it speaks — progression isn't just mechanical, it changes the voice of the world
+- **NPCs**: either fully played by AI agents or voiced-only — not decided yet. But the world's characters will be interpreted, not just scripted
+
+The consistent thread: the world has structured truth underneath, and the AI is the interface between that truth and the player. When you add a system, think about what information it surfaces and how the AI storyteller would use it.
+
+### The world as a character
+
+The long arc is a world that responds to you — not through scripted events but through the AI having access to more truth as you discover it. Survival mechanics matter because they create real contrast: the monastery is warm and has food; the mountain doesn't. That contrast is something the AI can work with. Hidden things in the world, when found, don't just reward the player mechanically — they might change what the AI is allowed to say.
+
+### Tone and aesthetics
+
 - **Tone**: lonely but not sad; dreamlike but concrete. No irony, no tutorials, no fourth-wall breaks. Writing is the art direction.
 - **Death**: fair or interesting. Players reincarnate in fog and walk back to the monastery.
 - **Survival**: Minecraft-difficulty. Weather, hunger, cold, injury matter; the monastery is warm and has food, which means something because the mountain doesn't.

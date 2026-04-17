@@ -153,6 +153,26 @@ In parallel, every 250 ms the tick loop runs registered systems (`SequenceSystem
 
 ---
 
+## Design philosophy
+
+### Embrace the limitation
+
+The LLM is inconsistent. That's by design, not in spite of it. The world is dreamlike — Lynchian in the best sense. A shadow that lingers a beat too long. A potato on a table that wasn't there before. This isn't a bug to suppress; it's the aesthetic.
+
+The system prompt is an art direction tool, not a correctness enforcer. Constrain the LLM when it's breaking gameplay (inventing exits, contradicting hard facts). Otherwise, let it be strange. The world is strange.
+
+### The AI storyteller model
+
+Frittertopia's core architecture principle: **structured game systems produce raw mechanical truth → the AI storyteller interprets it into narrative**.
+
+Today, the AI is only wired to `look`. The roadmap extends it everywhere: sequences, combat, object interactions (a thermometer returns a temperature; the AI describes what the cold means), hidden reveals that only surface under the right conditions, per-room stage directions, NPC voice. The player interacts with structured systems; the AI translates the result into the world's language.
+
+This is why `RoomBrief` is fed to the LLM as ground truth and never shown raw — it's not documentation, it's direction. The `[bracket]` convention for look-at targets and parenthetical stage directions that tell the AI when to reveal something are the beginning of a content authoring language for directing the storyteller.
+
+The long-term goal is a world that responds to you — not through scripted events but through the AI having access to more truth as you progress. The world itself is a character.
+
+---
+
 ## How to add things
 
 **A new room** — drop a YAML file under `content/world/.../`:
