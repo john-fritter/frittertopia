@@ -9,15 +9,28 @@ export interface MatchedEntity {
   playerName?: string;
 }
 
+export interface StoredPrompt {
+  system: string;
+  user: string;
+  context: string;
+}
+
 export class DescriptionService {
   private readonly contextBuilder: ContextBuilder;
   private readonly promptBuilder: PromptBuilder;
   readonly cache: DescriptionCache;
 
+  lastPrompt: StoredPrompt | null = null;
+  debugMode = false;
+
   constructor(private world: World) {
     this.contextBuilder = new ContextBuilder(world);
     this.promptBuilder = new PromptBuilder();
     this.cache = new DescriptionCache();
+  }
+
+  setDebugMode(on: boolean): void {
+    this.debugMode = on;
   }
 
   async describeRoom(roomId: string, playerId: string): Promise<string> {
@@ -27,6 +40,12 @@ export class DescriptionService {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
     const systemPrompt = this.promptBuilder.buildSystemPrompt();
     const userPrompt = this.promptBuilder.buildUserPrompt(ctx);
+
+    this.lastPrompt = {
+      system: systemPrompt,
+      user: userPrompt,
+      context: `room: ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
+    };
 
     let result;
     try {
@@ -52,6 +71,12 @@ export class DescriptionService {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
     const systemPrompt = this.promptBuilder.buildTargetSystemPrompt();
     const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target, entity);
+
+    this.lastPrompt = {
+      system: systemPrompt,
+      user: userPrompt,
+      context: `target: ${target} in ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
+    };
 
     let result;
     try {

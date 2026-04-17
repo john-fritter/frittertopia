@@ -49,4 +49,9 @@ export class DescriptionCache {
       }
     }
   }
+
+  /** Remove all cached entries. Call when time or global conditions change. */
+  invalidateAll(): void {
+    this.cache.clear();
+  }
 }

@@ -166,6 +166,79 @@ function isValidSunTime(d: Date): boolean {
  * If suncalc can't compute a twilight stage (high-latitude summer/winter),
  * the missing boundaries are skipped and adjacent brackets merge.
  */
+/**
+ * Returns the midpoint UTC time for each bracket on the current (or given) date.
+ * Brackets that can't occur (e.g. no astronomical dusk) are omitted.
+ * "night" resolves to the post-dusk evening occurrence (~11pm), not pre-dawn.
+ */
+export function getBracketMidpoints(date?: Date): Partial<Record<TimeBracket, Date>> {
+  const now = date ?? getCurrentTime();
+  const localDate = localDateString(now);
+  const refDate = new Date(localDate + "T12:00:00Z");
+  const times = SunCalc.getTimes(refDate, LOCATION.latitude, LOCATION.longitude);
+  const midnight = localMidnightUtc(now);
+  const nextMidnight = new Date(midnight.getTime() + 24 * 60 * 60 * 1000);
+  const mid = (a: Date, b: Date): Date => new Date((a.getTime() + b.getTime()) / 2);
+
+  const result: Partial<Record<TimeBracket, Date>> = {};
+
+  // deep_night: midnight → astronomical dawn
+  const deepEnd = isValidSunTime(times.nightEnd) ? times.nightEnd : new Date(midnight.getTime() + 4 * 60 * 60 * 1000);
+  result.deep_night = mid(midnight, deepEnd);
+
+  // dawn: nauticalDawn → sunrise
+  if (isValidSunTime(times.nauticalDawn) && isValidSunTime(times.sunrise)) {
+    result.dawn = mid(times.nauticalDawn, times.sunrise);
+  }
+
+  // morning: sunrise → solar noon - 1hr
+  if (isValidSunTime(times.sunrise) && isValidSunTime(times.solarNoon)) {
+    result.morning = mid(times.sunrise, new Date(times.solarNoon.getTime() - 60 * 60 * 1000));
+  }
+
+  // midday: ± 1hr around solar noon
+  if (isValidSunTime(times.solarNoon)) {
+    result.midday = times.solarNoon;
+  }
+
+  // afternoon: solar noon + 1hr → sunset
+  if (isValidSunTime(times.solarNoon) && isValidSunTime(times.sunset)) {
+    const afterStart = new Date(times.solarNoon.getTime() + 60 * 60 * 1000);
+    if (afterStart.getTime() < times.sunset.getTime()) {
+      result.afternoon = mid(afterStart, times.sunset);
+    }
+  }
+
+  // dusk: sunset → nautical dusk
+  if (isValidSunTime(times.sunset) && isValidSunTime(times.nauticalDusk)) {
+    result.dusk = mid(times.sunset, times.nauticalDusk);
+  }
+
+  // evening: nautical dusk → astronomical dusk
+  if (isValidSunTime(times.nauticalDusk) && isValidSunTime(times.night)) {
+    result.evening = mid(times.nauticalDusk, times.night);
+  }
+
+  // night: astronomical dusk → midnight (late-evening occurrence)
+  if (isValidSunTime(times.night)) {
+    result.night = mid(times.night, nextMidnight);
+  } else if (isValidSunTime(times.nightEnd) && isValidSunTime(times.nauticalDawn)) {
+    // Fallback: pre-dawn occurrence
+    result.night = mid(times.nightEnd, times.nauticalDawn);
+  }
+
+  return result;
+}
+
+/**
+ * Build a Date representing HH:MM on today's date in the world's timezone (Bend, OR).
+ * Always correct regardless of the server's local timezone.
+ */
+export function makeBendLocalTime(hh: number, mm: number, date?: Date): Date {
+  const midnight = localMidnightUtc(date ?? new Date());
+  return new Date(midnight.getTime() + (hh * 60 + mm) * 60 * 1000);
+}
+
 export function getTimeBracket(date?: Date): TimeBracket {
   const now = date ?? getCurrentTime();
 
