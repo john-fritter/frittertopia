@@ -1,11 +1,38 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { z } from "zod/v4";
 import { WebSocket } from "ws";
+import Database from "better-sqlite3";
 import { World } from "../src/engine/World.js";
 import { Parser } from "../src/engine/Parser.js";
 import { registerComponents } from "../src/game/components.js";
 import { ActionResolver } from "../src/engine/ActionResolver.js";
 import { GameServer } from "../src/server/Server.js";
+import { createAccountTable } from "../src/server/auth.js";
+
+const TEST_PASSWORD = "openthegate";
+
+function setupDb(): Database.Database {
+  const db = new Database(":memory:");
+  createAccountTable(db);
+  return db;
+}
+
+// Complete new-player auth (username → new acct prompt → password → confirm → welcome msg)
+async function loginNew(
+  client: {
+    waitForMessage: () => Promise<string>;
+    send: (m: string) => void;
+  },
+  username: string
+): Promise<string> {
+  await client.waitForMessage();
+  client.send(username);
+  await client.waitForMessage();
+  client.send(TEST_PASSWORD);
+  await client.waitForMessage();
+  client.send(TEST_PASSWORD);
+  return client.waitForMessage();
+}
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -310,14 +337,12 @@ describe("Admin identification via ADMIN_PLAYERS", () => {
   it("grants admin to player matching ADMIN_PLAYERS (case-insensitive)", async () => {
     process.env["ADMIN_PLAYERS"] = "John,TestBot";
     world = setupWorld();
-    server = new GameServer(world);
+    server = new GameServer(world, setupDb());
     server.start(0);
     port = server.getPort()!;
 
     const client = await connectClient(port);
-    await client.waitForMessage(); // "What is your name?"
-    client.send("john"); // lowercase, env has "John"
-    await client.waitForMessage();
+    await loginNew(client, "john"); // lowercase, env has "John"
 
     const entityId = world.getEntityByKey("player.john")!;
     const admin = world.getComponent(entityId, "Admin");
@@ -329,14 +354,12 @@ describe("Admin identification via ADMIN_PLAYERS", () => {
   it("does not grant admin to non-matching player", async () => {
     process.env["ADMIN_PLAYERS"] = "John";
     world = setupWorld();
-    server = new GameServer(world);
+    server = new GameServer(world, setupDb());
     server.start(0);
     port = server.getPort()!;
 
     const client = await connectClient(port);
-    await client.waitForMessage();
-    client.send("Maren");
-    await client.waitForMessage();
+    await loginNew(client, "Maren");
 
     const entityId = world.getEntityByKey("player.maren")!;
     const admin = world.getComponent(entityId, "Admin");
@@ -348,23 +371,20 @@ describe("Admin identification via ADMIN_PLAYERS", () => {
   it("grants admin to first player when ADMIN_PLAYERS is not set", async () => {
     delete process.env["ADMIN_PLAYERS"];
     world = setupWorld();
-    server = new GameServer(world);
+    const db = setupDb();
+    server = new GameServer(world, db);
     server.start(0);
     port = server.getPort()!;
 
     const client1 = await connectClient(port);
-    await client1.waitForMessage();
-    client1.send("First");
-    await client1.waitForMessage();
+    await loginNew(client1, "First");
 
     const firstId = world.getEntityByKey("player.first")!;
     expect(world.getComponent(firstId, "Admin")).toBeDefined();
 
     // Second player should NOT get admin
     const client2 = await connectClient(port);
-    await client2.waitForMessage();
-    client2.send("Second");
-    await client2.waitForMessage();
+    await loginNew(client2, "Second");
 
     const secondId = world.getEntityByKey("player.second")!;
     expect(world.getComponent(secondId, "Admin")).toBeUndefined();

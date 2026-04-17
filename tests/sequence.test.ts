@@ -1,12 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { z } from "zod/v4";
 import { WebSocket } from "ws";
+import Database from "better-sqlite3";
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { createSequenceSystem } from "../src/game/systems/SequenceSystem.js";
 import { ActionResolver } from "../src/engine/ActionResolver.js";
 import { loadContentFromString } from "../src/engine/ContentLoader.js";
 import { GameServer } from "../src/server/Server.js";
+import { createAccountTable, createAccount } from "../src/server/auth.js";
+
+const TEST_PASSWORD = "openthegate";
+
+function setupDb(): Database.Database {
+  const db = new Database(":memory:");
+  createAccountTable(db);
+  return db;
+}
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -465,9 +475,12 @@ describe("GameServer sequence integration", () => {
     return w;
   }
 
+  let db: Database.Database;
+
   beforeEach(() => {
     world = setupWorldWithSequenceTemplate();
-    server = new GameServer(world);
+    db = setupDb();
+    server = new GameServer(world, db);
     server.start(0);
     port = server.getPort()!;
   });
@@ -476,22 +489,31 @@ describe("GameServer sequence integration", () => {
     server.stop();
   });
 
+  // Complete new-player auth and return after account is created (no welcome msg consumed)
+  async function loginNewNoWelcome(
+    client: ReturnType<typeof connectClient> extends Promise<infer T> ? T : never,
+    username: string
+  ): Promise<void> {
+    await client.waitForMessage(); // username prompt
+    client.send(username);
+    await client.waitForMessage(); // new account prompt
+    client.send(TEST_PASSWORD);
+    await client.waitForMessage(); // confirm prompt
+    client.send(TEST_PASSWORD);
+    // welcome/first beat comes next — caller consumes it
+  }
+
   it("new player gets sequence instead of room description", async () => {
     const client = await connectClient(port);
-    await client.waitForMessage(); // "What is your name?"
-    client.send("Maren");
+    await loginNewNoWelcome(client, "Maren");
 
-    // Should NOT get "Welcome, Maren" or room description immediately.
-    // Instead, after tick interval, should get first fog beat.
+    // Should NOT get "Welcome, Maren" — sequence fires first beat instead
     const firstBeat = stripAnsi(await client.waitForMessage());
     expect(firstBeat).toBe("Grey fog.");
 
-    // Player should have Sequence component
     const playerId = world.getEntityByKey("player.maren")!;
     expect(playerId).toBeDefined();
     expect(world.getComponent(playerId, "Sequence")).toBeDefined();
-
-    // Player should NOT have Position yet
     expect(world.getComponent(playerId, "Position")).toBeUndefined();
 
     await client.close();
@@ -499,8 +521,7 @@ describe("GameServer sequence integration", () => {
 
   it("new player receives all beats then room description", async () => {
     const client = await connectClient(port);
-    await client.waitForMessage(); // name prompt
-    client.send("Aldric");
+    await loginNewNoWelcome(client, "Aldric");
 
     const beat1 = stripAnsi(await client.waitForMessage());
     expect(beat1).toBe("Grey fog.");
@@ -508,20 +529,14 @@ describe("GameServer sequence integration", () => {
     const beat2 = stripAnsi(await client.waitForMessage());
     expect(beat2).toBe("Ground beneath you.");
 
-    // After all beats, should receive the room description
     const roomDesc = stripAnsi(await client.waitForMessage());
     expect(roomDesc).toContain("The Courtyard");
-    // DescriptionService fallback (no LLM in tests)
-    expect(roomDesc).toContain("the courtyard");
+    expect(roomDesc).toContain("the courtyard"); // DescriptionService fallback
 
-    // Sequence should be removed
     const playerId = world.getEntityByKey("player.aldric")!;
     expect(world.getComponent(playerId, "Sequence")).toBeUndefined();
 
-    // Player should now have Position
-    const pos = world.getComponent(playerId, "Position") as {
-      roomId: string;
-    };
+    const pos = world.getComponent(playerId, "Position") as { roomId: string };
     const startingRoom = world.getEntityByKey("starting.room")!;
     expect(pos.roomId).toBe(startingRoom);
 
@@ -530,13 +545,11 @@ describe("GameServer sequence integration", () => {
 
   it("input during sequence returns deflect message", async () => {
     const client = await connectClient(port);
-    await client.waitForMessage(); // name prompt
-    client.send("Maren");
+    await loginNewNoWelcome(client, "Maren");
 
     // Get first beat
     await client.waitForMessage();
 
-    // Try to do something during the sequence
     client.send("look");
     const deflect = stripAnsi(await client.waitForMessage());
     expect(deflect).toBe("The fog is too thick.");
@@ -545,25 +558,24 @@ describe("GameServer sequence integration", () => {
   });
 
   it("returning player skips sequence and sees room", async () => {
-    // Create an existing player entity (simulating a previous session)
+    // Pre-create account and player entity (simulating a previous session)
+    await createAccount(db, "Maren", TEST_PASSWORD);
     const startingRoom = world.getEntityByKey("starting.room")!;
     const playerId = world.createEntity("player.maren");
-    world.addComponent(playerId, "Player", {
-      name: "Maren",
-      sessionId: "",
-    });
+    world.addComponent(playerId, "Player", { name: "Maren", sessionId: "" });
     world.addComponent(playerId, "Position", { roomId: startingRoom });
     world.addComponent(playerId, "VisitedRooms", { rooms: [startingRoom] });
 
     const client = await connectClient(port);
-    await client.waitForMessage(); // name prompt
+    await client.waitForMessage(); // username prompt
     client.send("Maren");
+    await client.waitForMessage(); // "The name is known. Speak the word:"
+    client.send(TEST_PASSWORD);
 
     const response = stripAnsi(await client.waitForMessage());
     expect(response).toContain("Welcome back, Maren.");
     expect(response).toContain("The Courtyard");
 
-    // Should NOT have a Sequence component
     expect(world.getComponent(playerId, "Sequence")).toBeUndefined();
 
     await client.close();
@@ -571,8 +583,7 @@ describe("GameServer sequence integration", () => {
 
   it("player can interact normally after sequence completes", async () => {
     const client = await connectClient(port);
-    await client.waitForMessage(); // name prompt
-    client.send("Aldric");
+    await loginNewNoWelcome(client, "Aldric");
 
     // Consume all beats and room description
     await client.waitForMessage(); // beat 1

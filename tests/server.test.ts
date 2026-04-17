@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { z } from "zod/v4";
 import { WebSocket } from "ws";
+import Database from "better-sqlite3";
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { GameServer } from "../src/server/Server.js";
+import { createAccountTable } from "../src/server/auth.js";
+
+const TEST_PASSWORD = "openthegate";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -38,6 +42,12 @@ function setupWorld(): World {
   world.addComponent(roomB, "Exits", { exits: { north: roomA } });
 
   return world;
+}
+
+function setupDb(): Database.Database {
+  const db = new Database(":memory:");
+  createAccountTable(db);
+  return db;
 }
 
 interface Client {
@@ -92,14 +102,39 @@ function connectClient(port: number): Promise<Client> {
   });
 }
 
+// Complete the new-player auth flow and return the final welcome message.
+async function loginNew(client: Client, username: string): Promise<string> {
+  await client.waitForMessage(); // "By what name are you known?"
+  client.send(username);
+  await client.waitForMessage(); // "No one answers to that name..."
+  client.send(TEST_PASSWORD);
+  await client.waitForMessage(); // "Speak it once more..."
+  client.send(TEST_PASSWORD);
+  return client.waitForMessage(); // welcome message
+}
+
+// Complete the returning-player auth flow and return the final welcome message.
+async function loginReturning(
+  client: Client,
+  username: string
+): Promise<string> {
+  await client.waitForMessage(); // "By what name are you known?"
+  client.send(username);
+  await client.waitForMessage(); // "The name is known. Speak the word:"
+  client.send(TEST_PASSWORD);
+  return client.waitForMessage(); // welcome back message
+}
+
 describe("GameServer", () => {
   let world: World;
+  let db: Database.Database;
   let server: GameServer;
   let port: number;
 
   beforeEach(() => {
     world = setupWorld();
-    server = new GameServer(world);
+    db = setupDb();
+    server = new GameServer(world, db);
     server.start(0); // random port
     port = server.getPort()!;
   });
@@ -108,14 +143,14 @@ describe("GameServer", () => {
     server.stop();
   });
 
-  describe("name validation", () => {
+  describe("username validation", () => {
     it("rejects names shorter than 2 characters", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage(); // "What is your name?"
+      await client.waitForMessage(); // "By what name are you known?"
       client.send("A");
       const response = stripAnsi(await client.waitForMessage());
       expect(response).toContain("2\u201320 characters");
-      expect(response).toContain("What is your name?");
+      expect(response).toContain("By what name are you known?");
       await client.close();
     });
 
@@ -155,22 +190,30 @@ describe("GameServer", () => {
       await client.close();
     });
 
-    it("accepts valid names", async () => {
+    it("accepts valid names and offers account creation", async () => {
       const client = await connectClient(port);
       await client.waitForMessage();
       client.send("Maren");
       const response = stripAnsi(await client.waitForMessage());
-      expect(response).toContain("Welcome, Maren.");
+      expect(response).toContain("No one answers to that name");
       await client.close();
     });
   });
 
   describe("new player creation", () => {
+    it("creates account and player entity on first login", async () => {
+      const client = await connectClient(port);
+      const response = stripAnsi(await loginNew(client, "Aldric"));
+      expect(response).toContain("Welcome, Aldric.");
+
+      const entityId = world.getEntityByKey("player.aldric");
+      expect(entityId).toBeDefined();
+      await client.close();
+    });
+
     it("creates entity with key player.<lowercased-name>", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      await client.waitForMessage();
+      await loginNew(client, "Aldric");
 
       const entityId = world.getEntityByKey("player.aldric");
       expect(entityId).toBeDefined();
@@ -179,9 +222,7 @@ describe("GameServer", () => {
 
     it("gives new player correct starting components", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      await client.waitForMessage();
+      await loginNew(client, "Aldric");
 
       const entityId = world.getEntityByKey("player.aldric")!;
       const player = world.getComponent(entityId, "Player") as {
@@ -207,49 +248,34 @@ describe("GameServer", () => {
 
     it("shows room description on first connect", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      const response = stripAnsi(await client.waitForMessage());
+      const response = stripAnsi(await loginNew(client, "Aldric"));
       expect(response).toContain("Welcome, Aldric.");
       expect(response).toContain("The Courtyard");
-      // DescriptionService fallback (no LLM in tests)
-      expect(response).toContain("the courtyard");
+      expect(response).toContain("the courtyard"); // DescriptionService fallback text
       await client.close();
     });
   });
 
   describe("returning player", () => {
     it("reattaches to existing entity without creating a new one", async () => {
-      // First session
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Maren");
-      await client1.waitForMessage();
+      await loginNew(client1, "Maren");
 
       const entityId = world.getEntityByKey("player.maren")!;
       expect(entityId).toBeDefined();
 
-      // Move player to the garden
       const garden = world.getEntityByKey("room.garden")!;
       world.setComponent(entityId, "Position", { roomId: garden });
 
-      // Disconnect
       await client1.close();
-
-      // Allow disconnect handler to run
       await new Promise((r) => setTimeout(r, 50));
 
-      // Second session — same name
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
-      client2.send("Maren");
-      const response = stripAnsi(await client2.waitForMessage());
+      const response = stripAnsi(await loginReturning(client2, "Maren"));
 
-      // Should welcome back, not create new
       expect(response).toContain("Welcome back, Maren.");
       expect(response).toContain("The Garden");
 
-      // Same entity ID
       const entityId2 = world.getEntityByKey("player.maren")!;
       expect(entityId2).toBe(entityId);
 
@@ -258,9 +284,7 @@ describe("GameServer", () => {
 
     it("preserves position across sessions", async () => {
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Maren");
-      await client1.waitForMessage();
+      await loginNew(client1, "Maren");
 
       const entityId = world.getEntityByKey("player.maren")!;
       const garden = world.getEntityByKey("room.garden")!;
@@ -269,16 +293,13 @@ describe("GameServer", () => {
       await client1.close();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Verify position is still in the garden
       const pos = world.getComponent(entityId, "Position") as {
         roomId: string;
       };
       expect(pos.roomId).toBe(garden);
 
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
-      client2.send("Maren");
-      const response = stripAnsi(await client2.waitForMessage());
+      const response = stripAnsi(await loginReturning(client2, "Maren"));
       expect(response).toContain("The Garden");
 
       await client2.close();
@@ -286,19 +307,13 @@ describe("GameServer", () => {
 
     it("preserves original name casing", async () => {
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Maren");
-      await client1.waitForMessage();
+      await loginNew(client1, "Maren");
       await client1.close();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Reconnect with different casing
+      // Reconnect with different casing — account lookup is case-insensitive
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
-      client2.send("maren");
-      const response = stripAnsi(await client2.waitForMessage());
-
-      // Should show original casing
+      const response = stripAnsi(await loginReturning(client2, "maren"));
       expect(response).toContain("Welcome back, Maren.");
 
       await client2.close();
@@ -308,9 +323,7 @@ describe("GameServer", () => {
   describe("case insensitivity", () => {
     it("Maren and maren map to the same entity", async () => {
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Maren");
-      await client1.waitForMessage();
+      await loginNew(client1, "Maren");
 
       const entityId = world.getEntityByKey("player.maren")!;
       expect(entityId).toBeDefined();
@@ -319,9 +332,7 @@ describe("GameServer", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
-      client2.send("maren");
-      await client2.waitForMessage();
+      await loginReturning(client2, "maren");
 
       const entityId2 = world.getEntityByKey("player.maren")!;
       expect(entityId2).toBe(entityId);
@@ -333,16 +344,13 @@ describe("GameServer", () => {
   describe("duplicate session rejection", () => {
     it("rejects connection when character is already being played", async () => {
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Aldric");
-      await client1.waitForMessage();
+      await loginNew(client1, "Aldric");
 
-      // Second client tries same name while first is still connected
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
+      await client2.waitForMessage(); // prompt
       client2.send("Aldric");
       const response = stripAnsi(await client2.waitForMessage());
-      expect(response).toContain("already being played");
+      expect(response).toContain("already awake somewhere else");
 
       await client1.close();
       await client2.close();
@@ -350,30 +358,79 @@ describe("GameServer", () => {
 
     it("allows reconnection after first session disconnects", async () => {
       const client1 = await connectClient(port);
-      await client1.waitForMessage();
-      client1.send("Aldric");
-      await client1.waitForMessage();
+      await loginNew(client1, "Aldric");
 
       await client1.close();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Now the name should be available again
       const client2 = await connectClient(port);
-      await client2.waitForMessage();
-      client2.send("Aldric");
-      const response = stripAnsi(await client2.waitForMessage());
+      const response = stripAnsi(await loginReturning(client2, "Aldric"));
       expect(response).toContain("Welcome back, Aldric.");
 
       await client2.close();
     });
   });
 
+  describe("password auth", () => {
+    it("rejects wrong password and allows retry", async () => {
+      const client1 = await connectClient(port);
+      await loginNew(client1, "Maren");
+      await client1.close();
+      await new Promise((r) => setTimeout(r, 50));
+
+      const client2 = await connectClient(port);
+      await client2.waitForMessage(); // prompt
+      client2.send("Maren");
+      await client2.waitForMessage(); // "The name is known. Speak the word:"
+      client2.send("wrongpassword");
+      const response = stripAnsi(await client2.waitForMessage());
+      expect(response).toContain("don't match");
+
+      await client2.close();
+    });
+
+    it("closes connection after too many wrong attempts", async () => {
+      const client1 = await connectClient(port);
+      await loginNew(client1, "Maren");
+      await client1.close();
+      await new Promise((r) => setTimeout(r, 50));
+
+      const client2 = await connectClient(port);
+      await client2.waitForMessage();
+      client2.send("Maren");
+      await client2.waitForMessage(); // password prompt
+
+      // Three wrong attempts
+      client2.send("wrong");
+      await client2.waitForMessage();
+      client2.send("wrong");
+      await client2.waitForMessage();
+      client2.send("wrong");
+      const finalMsg = stripAnsi(await client2.waitForMessage());
+      expect(finalMsg).toContain("fog does not part");
+
+      await client2.close();
+    });
+
+    it("rejects mismatched password confirmation and re-prompts", async () => {
+      const client = await connectClient(port);
+      await client.waitForMessage();
+      client.send("NewPerson");
+      await client.waitForMessage(); // new account prompt
+      client.send("firstword");
+      await client.waitForMessage(); // confirm prompt
+      client.send("differentword");
+      const response = stripAnsi(await client.waitForMessage());
+      expect(response).toContain("did not match");
+
+      await client.close();
+    });
+  });
+
   describe("disconnect behavior", () => {
     it("entity stays in world after disconnect", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      await client.waitForMessage();
+      await loginNew(client, "Aldric");
 
       const entityId = world.getEntityByKey("player.aldric")!;
       expect(world.entities.hasEntity(entityId)).toBe(true);
@@ -381,22 +438,18 @@ describe("GameServer", () => {
       await client.close();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Entity should still exist
       expect(world.entities.hasEntity(entityId)).toBe(true);
       expect(world.getEntityByKey("player.aldric")).toBe(entityId);
     });
 
     it("player components persist after disconnect", async () => {
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      await client.waitForMessage();
+      await loginNew(client, "Aldric");
 
       const entityId = world.getEntityByKey("player.aldric")!;
       await client.close();
       await new Promise((r) => setTimeout(r, 50));
 
-      // All components should still be present
       const player = world.getComponent(entityId, "Player") as {
         name: string;
         sessionId: string;
@@ -412,7 +465,6 @@ describe("GameServer", () => {
     });
 
     it("disconnected player does not appear in room listings", async () => {
-      // Create an offline player entity in the starting room
       const startingRoom = world.getEntityByKey("starting.room")!;
       const offlinePlayer = world.createEntity("player.ghost");
       world.addComponent(offlinePlayer, "Player", {
@@ -424,13 +476,8 @@ describe("GameServer", () => {
         rooms: [startingRoom],
       });
 
-      // Connect a new player and check room listing
       const client = await connectClient(port);
-      await client.waitForMessage();
-      client.send("Aldric");
-      const response = stripAnsi(await client.waitForMessage());
-
-      // Ghost should NOT appear in the room
+      const response = stripAnsi(await loginNew(client, "Aldric"));
       expect(response).not.toContain("Ghost");
 
       await client.close();
