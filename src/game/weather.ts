@@ -358,3 +358,14 @@ export function initWeatherState(
     precipStateDurationMs: randomDurationMs(precipState, rng),
   };
 }
+
+let debugPrecipState: PrecipState | null = null;
+let debugTempC: number | null = null;
+let debugPressureMb: number | null = null;
+
+export function setDebugPrecipState(s: PrecipState | null): void { debugPrecipState = s; }
+export function getDebugPrecipState(): PrecipState | null { return debugPrecipState; }
+export function setDebugTempC(t: number | null): void { debugTempC = t; }
+export function getDebugTempC(): number | null { return debugTempC; }
+export function setDebugPressureMb(p: number | null): void { debugPressureMb = p; }
+export function getDebugPressureMb(): number | null { return debugPressureMb; }
