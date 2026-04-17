@@ -133,6 +133,16 @@ export function getMoonData(date?: Date): {
   };
 }
 
+/**
+ * Returns true if the moon is above the horizon at the world location.
+ * altitude > 0 means the moon is up.
+ */
+export function getMoonAboveHorizon(date?: Date): boolean {
+  const now = date ?? getCurrentTime();
+  const pos = SunCalc.getMoonPosition(now, LOCATION.latitude, LOCATION.longitude);
+  return pos.altitude > 0;
+}
+
 // --- Bracket computation ---
 
 function isValidSunTime(d: Date): boolean {

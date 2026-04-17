@@ -205,9 +205,11 @@ describe("ContextBuilder", () => {
     expect(ctx.isFirstVisit).toBe(true);
   });
 
-  it("stubs timeOfDay and weather with placeholder values", () => {
+  it("falls back to 'day' / 'new' when world.time entity is absent", () => {
     const ctx = new ContextBuilder(world).buildContext(roomId, playerId);
     expect(ctx.timeOfDay).toBe("day");
+    expect(ctx.moonPhase).toBe("new");
+    expect(typeof ctx.moonAboveHorizon).toBe("boolean");
     expect(ctx.weather).toBe("clear");
   });
 });
@@ -227,6 +229,8 @@ describe("PromptBuilder", () => {
     otherPlayers: [],
     isFirstVisit: false,
     timeOfDay: "day",
+    moonPhase: "full",
+    moonAboveHorizon: true,
     weather: "clear",
     exits: { east: "The Corridor", south: "The Kitchen" },
   };
@@ -293,9 +297,10 @@ describe("PromptBuilder", () => {
       expect(prompt).toContain("Present: empty");
     });
 
-    it("includes time and weather", () => {
+    it("includes time, moon, and weather", () => {
       const prompt = builder.buildUserPrompt(baseContext);
       expect(prompt).toContain("Time: day");
+      expect(prompt).toContain("Moon: full, above horizon");
       expect(prompt).toContain("Weather: clear");
     });
 
@@ -314,11 +319,12 @@ describe("PromptBuilder", () => {
   });
 
   describe("buildTargetUserPrompt", () => {
-    it("includes room, brief, time, weather, and target", () => {
+    it("includes room, brief, time, moon, weather, and target", () => {
       const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
       expect(prompt).toContain("Room: The Courtyard");
       expect(prompt).toContain("Brief: A wide open courtyard surrounded by stone walls.");
       expect(prompt).toContain("Time: day");
+      expect(prompt).toContain("Moon: full, above horizon");
       expect(prompt).toContain("Weather: clear");
       expect(prompt).toContain("Target: altar");
     });

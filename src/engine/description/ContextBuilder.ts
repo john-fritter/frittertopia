@@ -1,4 +1,5 @@
 import type { World } from "../World.js";
+import { getMoonAboveHorizon } from "../../game/solar.js";
 
 export interface RoomContext {
   roomName: string;
@@ -11,8 +12,12 @@ export interface RoomContext {
   /** Names of other players currently in the room. */
   otherPlayers: string[];
   isFirstVisit: boolean;
-  /** TODO: read from TimeOfDay singleton entity when wired up. */
+  /** Time-of-day bracket from world.time entity; falls back to "day". */
   timeOfDay: string;
+  /** Moon phase name from world.time entity; falls back to "new". */
+  moonPhase: string;
+  /** Whether the moon is above the horizon right now. */
+  moonAboveHorizon: boolean;
   /** TODO: read from weather system when implemented. */
   weather: string;
   /** Mechanical exits: direction → target room name. */
@@ -77,6 +82,21 @@ export class ContextBuilder {
       | undefined;
     const isFirstVisit = !visited?.rooms.includes(roomId);
 
+    let timeOfDay = "day";
+    let moonPhase = "new";
+
+    const timeEntityId = this.world.getEntityByKey("world.time");
+    if (timeEntityId) {
+      const tod = this.world.getComponent(timeEntityId, "TimeOfDay") as
+        | { bracket: string; moonPhase: string }
+        | undefined;
+      if (tod) {
+        timeOfDay = tod.bracket;
+        moonPhase = tod.moonPhase;
+      }
+    }
+    const moonAboveHorizon = getMoonAboveHorizon();
+
     const exitsComp = this.world.getComponent(roomId, "Exits") as
       | { exits: Record<string, string> }
       | undefined;
@@ -98,7 +118,9 @@ export class ContextBuilder {
       entitiesPresent,
       otherPlayers,
       isFirstVisit,
-      timeOfDay: "day",
+      timeOfDay,
+      moonPhase,
+      moonAboveHorizon,
       weather: "clear",
       exits,
     };
