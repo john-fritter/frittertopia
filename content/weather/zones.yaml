@@ -1,0 +1,15 @@
+entities:
+  - key: weather.zone.monastery
+    components:
+      WeatherZone:
+        climate: alpine
+        tempCurve:
+          winterMin: -12
+          winterMax: 4
+          summerMin: 8
+          summerMax: 22
+          diurnalRange: 12
+        pressureDrift:
+          speed: slow
+          volatility: high
+        precipitationBias: high

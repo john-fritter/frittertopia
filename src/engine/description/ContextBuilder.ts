@@ -1,5 +1,13 @@
 import type { World } from "../World.js";
 import { getMoonAboveHorizon } from "../../game/solar.js";
+import {
+  celsiusToFahrenheit,
+  computeTempBracket,
+  computePressureTrend,
+  type TempBracket,
+  type PressureTrend,
+  type PressurePoint,
+} from "../../game/weather.js";
 
 export interface RoomContext {
   roomName: string;
@@ -18,8 +26,18 @@ export interface RoomContext {
   moonPhase: string;
   /** Whether the moon is above the horizon right now. */
   moonAboveHorizon: boolean;
-  /** TODO: read from weather system when implemented. */
+  /** Precipitation state, or "clear" for indoor/weatherless rooms. */
   weather: string;
+  /** Raw temperature in Celsius — present only for rooms with a WeatherZoneRef. */
+  tempC?: number;
+  /** Raw temperature in Fahrenheit — present only for rooms with a WeatherZoneRef. */
+  tempF?: number;
+  /** Human-readable temperature bracket — present only for rooms with a WeatherZoneRef. */
+  tempBracket?: TempBracket;
+  /** Raw atmospheric pressure in hPa — present only for rooms with a WeatherZoneRef. */
+  pressureMb?: number;
+  /** Pressure trend label — present only for rooms with a WeatherZoneRef. */
+  pressureTrend?: PressureTrend;
   /** Mechanical exits: direction → target room name. */
   exits?: Record<string, string>;
 }
@@ -111,6 +129,38 @@ export class ContextBuilder {
       }
     }
 
+    // Weather — only for rooms that reference a weather zone
+    const weatherZoneRef = this.world.getComponent(roomId, "WeatherZoneRef") as
+      | { zoneId: string }
+      | undefined;
+
+    type WeatherFields = Pick<
+      RoomContext,
+      "weather" | "tempC" | "tempF" | "tempBracket" | "pressureMb" | "pressureTrend"
+    >;
+
+    let weatherFields: WeatherFields = { weather: "clear" };
+    if (weatherZoneRef) {
+      const ws = this.world.getComponent(weatherZoneRef.zoneId, "WeatherState") as
+        | {
+            tempC: number;
+            pressureMb: number;
+            precipState: string;
+            pressureHistory: PressurePoint[];
+          }
+        | undefined;
+      if (ws) {
+        weatherFields = {
+          weather: ws.precipState,
+          tempC: ws.tempC,
+          tempF: Math.round(celsiusToFahrenheit(ws.tempC)),
+          tempBracket: computeTempBracket(ws.tempC),
+          pressureMb: Math.round(ws.pressureMb),
+          pressureTrend: computePressureTrend(ws.pressureHistory),
+        };
+      }
+    }
+
     return {
       roomName,
       roomBrief,
@@ -121,7 +171,7 @@ export class ContextBuilder {
       timeOfDay,
       moonPhase,
       moonAboveHorizon,
-      weather: "clear",
+      ...weatherFields,
       exits,
     };
   }

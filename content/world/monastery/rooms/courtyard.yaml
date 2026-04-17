@@ -16,6 +16,8 @@ entities:
           The sky is the dominant feature. This is the only place in the monastery fully open to weather — rain pools in the low spots between flagstones, wind funnels through the doorways, snow piles against the walls in winter. On clear nights the stars feel very close. The altitude is real here.
 
           Exits: East to the corridor. South to the kitchen.
+      WeatherZoneRef:
+        zoneId: weather.zone.monastery
       Exits:
         exits:
           east: monastery.corridor

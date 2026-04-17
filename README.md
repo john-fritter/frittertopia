@@ -42,7 +42,7 @@ Other useful commands:
 | `npm run dev` | Run the server in dev mode (tsx, no build) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run reset` | Wipe `data/world.db` and start with a fresh world |
-| `npm test` | Run the vitest suite (15 test files) |
+| `npm test` | Run the vitest suite (16 test files) |
 
 The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes and on `SIGINT` / `SIGTERM`.
 
@@ -77,7 +77,7 @@ Plain ECS. Nothing in here knows what a monastery is.
 - **`Persistence.ts`** — SQLite full-snapshot save/load. Translates UUIDs ↔ keys for content cross-references so a save survives a restart.
 - **`LLMClient.ts`** — thin OpenRouter wrapper with a 10 s timeout. Returns `{ ok, text } | { ok: false, error }`; never throws.
 - **`description/`** — turns a room + player + world state into a prompt, calls the LLM, caches the result.
-  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, weather.
+  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, and weather. For rooms with a `WeatherZoneRef`, it reads the live `WeatherState` and exposes both raw numbers (`tempF`, `pressureMb`) and interpretation brackets (`tempBracket`, `pressureTrend`, `precipState`) for the LLM.
   - `PromptBuilder` — system + user prompts for room and target (look-at) descriptions.
   - `DescriptionService` — orchestrates the call, falls back gracefully on error.
   - `DescriptionCache` — `(playerId, roomId) → text`, 5-minute TTL.
@@ -97,9 +97,14 @@ This is where engine-agnostic primitives become "Frittertopia".
   - `Sequence` — a list of timed beats; while present, blocks player input and emits `sequence_beat`.
   - `TimeOfDay { bracket, moonFraction, moonPhase, updatedAt }` — singleton on the `world.time` entity.
   - `SkyDescriptions` — per-bracket sky/window/sound text (authored on rooms; not yet read by the renderer).
+  - `WeatherZone { climate, tempCurve, pressureDrift, precipitationBias }` — authored climate profile on a zone entity. `tempCurve` has seasonal min/max for winter and summer (°C) plus a diurnal swing range. `pressureDrift` controls how volatile pressure is. `precipitationBias` shifts the likelihood of precipitation states.
+  - `WeatherState { tempC, pressureMb, precipState, … }` — runtime simulation state: current temperature, pressure, precipitation state, noise terms, pressure history. Produced by `WeatherSystem`; **not persisted** (re-initialized from the climate profile on each server start).
+  - `WeatherZoneRef { zoneId }` — on outdoor room entities; points to the zone that governs their weather. Indoor rooms omit this and always show `clear` in LLM context.
 - **`systems/SequenceSystem.ts`** — advances any entity that has a `Sequence`, emits `sequence_beat`/`sequence_complete`, places the player when finished.
 - **`systems/TimeOfDaySystem.ts`** — every minute of wall-clock, recomputes the time bracket and moon phase from suncalc, writes them to `world.time`.
+- **`systems/WeatherSystem.ts`** — every minute of wall-clock, updates `WeatherState` on every entity that has a `WeatherZone`. On first tick it initializes the state from the climate profile and current season. Subsequent ticks advance the noise random walks, recompute temperature and pressure, and step the precipitation state machine when the current state's duration expires.
 - **`solar.ts`** — pure: `getTimeBracket()`, `getMoonData()`. World location is hard-coded to **Bend, Oregon** (44.06 N, -121.31 W). `setDebugTime()` lets tests pin the clock.
+- **`weather.ts`** — pure math, no ECS imports. `computeTemperatureCelsius` layers a seasonal cosine (peak ~Aug 1, thermal lag after the solstice), a diurnal cosine (peak 3 pm, trough 3 am), and a noise term. `updateNoiseTerms` applies a mean-reverting bounded random walk for both temperature and pressure noise. `nextWeatherState` drives the precip state machine; transitions are weighted by current pressure and the zone's `precipitationBias`, with a hard 90-minute cap on storm states. `computePrecipWeights` produces a sigmoid-based probability distribution over rain/snow/sleet at a given temperature, so precipitation type is probabilistic rather than a hard cutoff. `computePressureTrend` reads a 30-minute history window and returns a human-readable trend label.
 - **`description.ts`** — *currently unused at runtime.* A visibility-aware block renderer (`full | reduced | minimal | none`) and an `OUTDOOR / SHELTERED / INDOOR` exposure model. Tested in `description.test.ts` and `light.test.ts`. Wiring it into `composeLook` is on the road map; today the LLM path uses `RoomBrief` directly without visibility gating.
 
 ### 3. The server (`src/server/`)
@@ -111,19 +116,21 @@ This is where engine-agnostic primitives become "Frittertopia".
 
 YAML, recursively discovered at startup. Anything you drop in is loaded.
 
-- **`world/monastery/rooms/*.yaml`** — six rooms (courtyard, kitchen, corridor, chapel, dormitory, herb garden).
+- **`world/monastery/rooms/*.yaml`** — six rooms (courtyard, kitchen, corridor, chapel, dormitory, herb garden). The courtyard and herb garden have `WeatherZoneRef: weather.zone.monastery` and receive live weather context in LLM descriptions. Indoor rooms do not.
 - **`world/monastery/items.yaml`** — four `Presence` items (broom, candle, blanket, rosemary bush).
 - **`sequences/fog-arrival.yaml`** — the new-player intro, a `Sequence` template cloned onto each first-time arrival.
+- **`weather/zones.yaml`** — one zone so far: `weather.zone.monastery`, an alpine climate profile (cold winters, mild summers, high precipitation bias, high pressure volatility).
 
 The starting room's key must be `starting.room` (or pass another key to `GameServer`). The fog-arrival sequence is keyed `sequence.fog-arrival`.
 
 ### Tests (`tests/`)
 
-15 vitest files, one per module. The big ones to know about:
+16 vitest files, one per module. The big ones to know about:
 - `description-service.test.ts` mocks `LLMClient` to test prompt assembly, fallbacks, and caching.
 - `light.test.ts` covers the visibility model end-to-end (suncalc + `getVisibility` + `renderDescription`).
 - `persistence.test.ts` covers UUID↔key translation, orphan handling, player-position recovery.
 - `sequence.test.ts` verifies beat timing, deflection of input, and placement on completion.
+- `weather.test.ts` — 49 tests covering the weather math in isolation: temperature sinusoids, noise bounds, precipitation weights, pressure trend calculation, state machine transitions (including the storm hard cap), and the seeded PRNG.
 
 ---
 
@@ -149,7 +156,7 @@ ActionResult { toPlayer: "...polished stone, the rope newer..." }
 GameServer sends to the player's socket; broadcasts toRoom / toOtherRoom if set.
 ```
 
-In parallel, every 250 ms the tick loop runs registered systems (`SequenceSystem`, `TimeOfDaySystem`) and flushes the event queue, which is how sequence beats reach the right player's socket.
+In parallel, every 250 ms the tick loop runs registered systems (`SequenceSystem`, `TimeOfDaySystem`, `WeatherSystem`) and flushes the event queue, which is how sequence beats reach the right player's socket. `TimeOfDaySystem` and `WeatherSystem` both use an elapsed-time accumulator to throttle to a 60-second real-world update cadence.
 
 ---
 
@@ -202,6 +209,15 @@ Bracketed sections like `[barrels]` are picked up by the LLM when the player doe
 
 Parentheses can be used as an aside to the LLM storyteller to give stage instructions about how to describe things or under what conditions certain information should be revealed.
 
+If the room is open to the sky, give it weather context by adding a `WeatherZoneRef`:
+
+```yaml
+      WeatherZoneRef:
+        zoneId: weather.zone.monastery
+```
+
+The LLM will then receive current temperature, precipitation state, and pressure trend in its prompt — e.g. `Weather: snow, 28°F (cold), 992 mb falling fast`. Omit `WeatherZoneRef` for indoor rooms; they always receive `Weather: clear`.
+
 **A new item in a room** — add a `Presence` entity to any YAML file in `content/`:
 
 ```yaml
@@ -227,7 +243,7 @@ Parentheses can be used as an aside to the LLM storyteller to give stage instruc
 
 ## Persistence model
 
-Two SQLite tables: `entities(id, key)` and `components(entity_id, component_type, data)`. `saveWorld` is a single transaction that nukes both tables and re-inserts everything; `loadSavedState` merges those rows onto the YAML baseline:
+Two SQLite tables: `entities(id, key)` and `components(entity_id, component_type, data)`. `saveWorld` is a single transaction that nukes both tables and re-inserts everything (skipping components in `TRANSIENT_COMPONENTS`, currently just `WeatherState`); `loadSavedState` merges those rows onto the YAML baseline:
 
 - Content entities (anything that came from a YAML key) — DB wins per-component, only overwriting components actually saved.
 - Player entities (no matching YAML key) — recreated wholesale with their original UUID.
@@ -261,7 +277,7 @@ When in doubt about whether a feature belongs: does it make the world more inter
 ## Hard constraints worth knowing before you build
 
 - **Terminal-only UI.** Server-side ANSI over WebSocket. No JSON message protocol, no browser client, no React. Output is composed text at 88–90 columns.
-- **ECS discipline.** Components hold no logic. Systems hold no state (closures over tick-local variables are fine; persistent state goes on a singleton entity, see `world.time`).
+- **ECS discipline.** Components hold no logic. Systems hold no state (closures over tick-local variables are fine; persistent state goes on a singleton entity, see `world.time`). Transient runtime state that should not survive a restart belongs in a component listed in `TRANSIENT_COMPONENTS` in `Persistence.ts` — `WeatherState` is the current example.
 - **Content never requires engine changes.** New YAML loads automatically; new behavior = one new component + one new system.
 - **`ActionResult` is plain strings.** Intentionally flat to keep tests stable.
 - **Simplicity by default.** Pick the more complex option only when it meaningfully unlocks gameplay or content authoring.
