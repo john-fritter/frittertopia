@@ -268,6 +268,152 @@ describe("Admin commands (unit)", () => {
     expect(intent.verb).toBe("@destroy");
     expect(intent.target).toBe("someone");
   });
+
+  it("@help lists all 9 admin commands", async () => {
+    const result = await resolver.resolve({ verb: "@help" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("@players");
+    expect(plain).toContain("@time");
+    expect(plain).toContain("@sysinfo");
+    expect(plain).toContain("@prompt");
+    expect(plain).toContain("@llm");
+  });
+
+  it("@players lists players with online/offline status", async () => {
+    const result = await resolver.resolve({ verb: "@players" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("Players");
+    expect(plain).toContain("Admin");
+    expect(plain).toContain("Normal");
+    expect(plain).toContain("online");
+    expect(plain).toContain("offline");
+  });
+
+  it("@players shows room name for located players", async () => {
+    const result = await resolver.resolve({ verb: "@players" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("The Courtyard");
+  });
+
+  it("@sysinfo shows system stats", async () => {
+    const result = await resolver.resolve({ verb: "@sysinfo" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("ticks");
+    expect(plain).toContain("uptime");
+    expect(plain).toContain("entities");
+    expect(plain).toContain("online");
+    expect(plain).toContain("time");
+    expect(plain).toContain("llm debug");
+  });
+
+  it("@time with no arg shows current bracket", async () => {
+    const result = await resolver.resolve({ verb: "@time" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("Time:");
+  });
+
+  it("@time HH:MM sets debug time and returns bracket", async () => {
+    const { setDebugTime, getDebugTime } = await import("../src/game/solar.js");
+    try {
+      const result = await resolver.resolve(
+        { verb: "@time", target: "12:00" },
+        adminId
+      );
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("12:00");
+      // Returns some valid bracket name
+      expect(plain).toMatch(/dawn|morning|midday|afternoon|dusk|evening|night|deep_night/);
+      // Debug time is set
+      expect(getDebugTime()).not.toBeNull();
+    } finally {
+      setDebugTime(null);
+    }
+  });
+
+  it("@time clear resets debug time", async () => {
+    const { setDebugTime, getDebugTime } = await import("../src/game/solar.js");
+    setDebugTime(new Date("2026-01-01T12:00:00Z"));
+    try {
+      const result = await resolver.resolve(
+        { verb: "@time", target: "clear" },
+        adminId
+      );
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("cleared");
+      expect(getDebugTime()).toBeNull();
+    } finally {
+      setDebugTime(null);
+    }
+  });
+
+  it("@time with invalid input shows usage", async () => {
+    const result = await resolver.resolve(
+      { verb: "@time", target: "teatime" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("Usage:");
+  });
+
+  it("@prompt shows message when no prompt sent yet", async () => {
+    const result = await resolver.resolve({ verb: "@prompt" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("No LLM prompt");
+  });
+
+  it("@llm shows current debug mode state", async () => {
+    const result = await resolver.resolve({ verb: "@llm" }, adminId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("LLM debug mode");
+    expect(plain).toContain("off");
+  });
+
+  it("@llm on enables debug mode", async () => {
+    const result = await resolver.resolve(
+      { verb: "@llm", target: "on" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("on");
+    expect(world.description.debugMode).toBe(true);
+    // clean up
+    world.description.setDebugMode(false);
+  });
+
+  it("@llm off disables debug mode", async () => {
+    world.description.setDebugMode(true);
+    const result = await resolver.resolve(
+      { verb: "@llm", target: "off" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("off");
+    expect(world.description.debugMode).toBe(false);
+  });
+
+  it("@inspect renders multiline strings unescaped", async () => {
+    const roomId = world.getEntityByKey("starting.room")!;
+    world.addComponent(roomId, "RoomBrief", {
+      brief: "Line one.\nLine two.\nLine three.",
+    });
+    const result = await resolver.resolve(
+      { verb: "@inspect", target: "starting.room" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    // Should contain actual newlines rendered as separate lines, not \\n
+    expect(plain).toContain("Line one.");
+    expect(plain).toContain("Line two.");
+    expect(plain).not.toContain("\\n");
+  });
+
+  it("non-admin denied for all new admin commands", async () => {
+    const newCmds = ["@players", "@time", "@sysinfo", "@prompt", "@llm"];
+    for (const verb of newCmds) {
+      const result = await resolver.resolve({ verb }, normalId);
+      expect(result.toPlayer).toBe("You don't have permission to do that.");
+    }
+  });
 });
 
 // --- Integration tests (with server, WebSocket) ---

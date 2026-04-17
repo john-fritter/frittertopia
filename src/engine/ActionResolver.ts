@@ -15,6 +15,15 @@ import {
   type RoomData,
   type RoomExit,
 } from "../server/format.js";
+import {
+  setDebugTime,
+  getDebugTime,
+  getTimeBracket,
+  getMoonData,
+  getBracketMidpoints,
+  makeBendLocalTime,
+  type TimeBracket,
+} from "../game/solar.js";
 
 export interface ActionResult {
   toPlayer: string;
@@ -30,8 +39,12 @@ const CATEGORY_NAMES: Record<string, string> = {
   system: "System",
 };
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class ActionResolver {
   private parser: Parser;
+  private readonly startTime = Date.now();
 
   constructor(private world: World, parser?: Parser) {
     this.parser = parser ?? new Parser();
@@ -69,6 +82,11 @@ export class ActionResolver {
     this.parser.registerVerb("@inspect");
     this.parser.registerVerb("@teleport");
     this.parser.registerVerb("@help");
+    this.parser.registerVerb("@players");
+    this.parser.registerVerb("@time");
+    this.parser.registerVerb("@sysinfo");
+    this.parser.registerVerb("@prompt");
+    this.parser.registerVerb("@llm");
   }
 
   async resolve(intent: Intent, playerId: string): Promise<ActionResult> {
@@ -102,6 +120,22 @@ export class ActionResolver {
         );
       case "@help":
         return await this.adminGate(playerId, () => this.handleAdminHelp());
+      case "@players":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminPlayers()
+        );
+      case "@time":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminTime(intent.target)
+        );
+      case "@sysinfo":
+        return await this.adminGate(playerId, () => this.handleAdminSysinfo());
+      case "@prompt":
+        return await this.adminGate(playerId, () => this.handleAdminPrompt());
+      case "@llm":
+        return await this.adminGate(playerId, () =>
+          this.handleAdminLlm(intent.target)
+        );
       default:
         return { toPlayer: "I don't understand that." };
     }
@@ -177,7 +211,11 @@ export class ActionResolver {
       target,
       entity
     );
-    return { toPlayer: description };
+    let output = description;
+    if (this.world.description.debugMode && this.world.description.lastPrompt) {
+      output += "\n\n" + this.formatPromptBlock(this.world.description.lastPrompt);
+    }
+    return { toPlayer: output };
   }
 
   private handleSay(
@@ -282,7 +320,11 @@ export class ActionResolver {
     if (items.length > 0) roomData.items = items;
     if (players.length > 0) roomData.players = players;
 
-    return formatRoom(roomData);
+    let output = formatRoom(roomData);
+    if (this.world.description.debugMode && this.world.description.lastPrompt) {
+      output += "\n\n" + this.formatPromptBlock(this.world.description.lastPrompt);
+    }
+    return output;
   }
 
   private handleHelp(target: string | undefined): ActionResult {
@@ -449,11 +491,46 @@ export class ActionResolver {
       lines.push("");
       lines.push(formatBold(typeName));
       for (const [field, value] of Object.entries(data)) {
-        lines.push(`  ${formatCyan(field)}: ${JSON.stringify(value)}`);
+        this.renderInspectField(field, value, lines, "  ");
       }
     }
 
     return { toPlayer: lines.join("\n") };
+  }
+
+  private renderInspectField(
+    field: string,
+    value: unknown,
+    lines: string[],
+    indent: string
+  ): void {
+    if (typeof value === "string" && value.includes("\n")) {
+      lines.push(`${indent}${formatCyan(field)}:`);
+      for (const line of value.split("\n")) {
+        if (line.trim()) lines.push(`${indent}  ${line}`);
+      }
+    } else if (typeof value === "string" && UUID_RE.test(value)) {
+      const refKey = this.world.entities.getKeyForEntity(value);
+      const roomComp = refKey
+        ? (this.world.getComponent(value, "Room") as { name: string } | undefined)
+        : undefined;
+      const hint = [refKey, roomComp?.name].filter(Boolean).join(" / ");
+      lines.push(
+        `${indent}${formatCyan(field)}: ${JSON.stringify(value)}` +
+          (hint ? " " + formatDim(`(${hint})`) : "")
+      );
+    } else if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
+      lines.push(`${indent}${formatCyan(field)}:`);
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        this.renderInspectField(k, v, lines, `${indent}  `);
+      }
+    } else {
+      lines.push(`${indent}${formatCyan(field)}: ${JSON.stringify(value)}`);
+    }
   }
 
   private async handleAdminTeleport(
@@ -507,6 +584,237 @@ export class ActionResolver {
     return result;
   }
 
+  private handleAdminPlayers(): ActionResult {
+    const playerIds = this.world.getEntitiesWithComponent("Player");
+
+    let online = 0;
+    let offline = 0;
+    const rows: Array<{ name: string; status: string; room: string }> = [];
+
+    for (const id of playerIds) {
+      const player = this.world.getComponent(id, "Player") as {
+        name: string;
+        sessionId: string;
+      };
+      const isOnline = player.sessionId !== "";
+      if (isOnline) online++; else offline++;
+
+      const pos = this.world.getComponent(id, "Position") as
+        | { roomId: string }
+        | undefined;
+      let roomLabel = "—";
+      if (pos) {
+        const roomKey = this.world.entities.getKeyForEntity(pos.roomId);
+        const roomComp = this.world.getComponent(pos.roomId, "Room") as
+          | { name: string }
+          | undefined;
+        roomLabel = roomComp?.name ?? roomKey ?? pos.roomId;
+      }
+
+      rows.push({
+        name: player.name,
+        status: isOnline ? "online" : "offline",
+        room: roomLabel,
+      });
+    }
+
+    rows.sort((a, b) => {
+      if (a.status !== b.status) return a.status === "online" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    const lines: string[] = [];
+    const summary = `${online} online · ${offline} offline`;
+    lines.push(formatBold("Players") + formatDim(`  (${summary})`));
+    lines.push(formatDim("─".repeat(40)));
+
+    if (rows.length === 0) {
+      lines.push(formatDim("  No players."));
+    } else {
+      const nameW = Math.max(8, ...rows.map((r) => r.name.length)) + 2;
+      const statusW = 8;
+      for (const row of rows) {
+        const namePad = row.name.padEnd(nameW);
+        const statusPad = row.status.padEnd(statusW);
+        const statusFmt =
+          row.status === "online"
+            ? formatCyan(statusPad)
+            : formatDim(statusPad);
+        lines.push(`  ${formatBold(namePad)}${statusFmt}${row.room}`);
+      }
+    }
+
+    return { toPlayer: lines.join("\n") };
+  }
+
+  private handleAdminTime(target: string | undefined): ActionResult {
+    if (!target) {
+      const now = getDebugTime();
+      const bracket = getTimeBracket();
+      if (now) {
+        const timeStr = now.toLocaleTimeString("en-US", {
+          timeZone: "America/Los_Angeles",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        return {
+          toPlayer: formatDim(`Time: ${bracket}`) + ` ${formatDim(`(debug override — ${timeStr} Bend time)`)}`,
+        };
+      }
+      return { toPlayer: formatDim(`Time: ${bracket}  (real clock)`) };
+    }
+
+    const arg = target.trim().toLowerCase();
+
+    if (arg === "clear" || arg === "reset") {
+      setDebugTime(null);
+      this.syncWorldTime();
+      this.world.description.cache.invalidateAll();
+      const bracket = getTimeBracket();
+      return { toPlayer: formatDim(`Time cleared — real clock restored (${bracket})`) };
+    }
+
+    // Try bracket name
+    const BRACKET_NAMES: TimeBracket[] = [
+      "deep_night", "night", "dawn", "morning",
+      "midday", "afternoon", "dusk", "evening",
+    ];
+    if (BRACKET_NAMES.includes(arg as TimeBracket)) {
+      const midpoints = getBracketMidpoints();
+      const t = midpoints[arg as TimeBracket];
+      if (!t) {
+        return { toPlayer: formatDim(`Bracket '${arg}' doesn't occur today (astronomical conditions).`) };
+      }
+      setDebugTime(t);
+      this.syncWorldTime();
+      this.world.description.cache.invalidateAll();
+      const timeStr = t.toLocaleTimeString("en-US", {
+        timeZone: "America/Los_Angeles",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return { toPlayer: formatDim(`Time set: ${arg}  (${timeStr} Bend time)`) };
+    }
+
+    // Try HH:MM
+    const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(arg);
+    if (timeMatch) {
+      const hh = parseInt(timeMatch[1]!, 10);
+      const mm = parseInt(timeMatch[2]!, 10);
+      if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+        return { toPlayer: formatDim("Invalid time. Use HH:MM (00:00–23:59).") };
+      }
+      const t = makeBendLocalTime(hh, mm);
+      setDebugTime(t);
+      this.syncWorldTime();
+      this.world.description.cache.invalidateAll();
+      const bracket = getTimeBracket(t);
+      return { toPlayer: formatDim(`Time set: ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} Bend time  (${bracket})`) };
+    }
+
+    const brackets = BRACKET_NAMES.join(", ");
+    return {
+      toPlayer: formatDim(`Usage: @time [${brackets} | HH:MM | clear]`),
+    };
+  }
+
+  private syncWorldTime(): void {
+    const timeEntityId = this.world.getEntityByKey("world.time");
+    if (!timeEntityId) return;
+    const now = getDebugTime() ?? new Date();
+    const bracket = getTimeBracket(now);
+    const moon = getMoonData(now);
+    this.world.setComponent(timeEntityId, "TimeOfDay", {
+      bracket,
+      moonFraction: moon.fraction,
+      moonPhase: moon.phase,
+      updatedAt: now.toISOString(),
+    });
+  }
+
+  private handleAdminSysinfo(): ActionResult {
+    const uptimeMs = Date.now() - this.startTime;
+    const totalSec = Math.floor(uptimeMs / 1000);
+    const minutes = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    const uptimeStr =
+      minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+
+    const allIds = this.world.entities.getAllEntityIds();
+    const roomCount = this.world.getEntitiesWithComponent("Room").length;
+    const playerIds = this.world.getEntitiesWithComponent("Player");
+    const onlineCount = playerIds.filter((id) => {
+      const p = this.world.getComponent(id, "Player") as { sessionId: string };
+      return p.sessionId !== "";
+    }).length;
+
+    const bracket = getTimeBracket();
+    const isDebug = getDebugTime() !== null;
+    const bracketStr = bracket + (isDebug ? formatDim(" [debug]") : "");
+    const llmDebug = this.world.description.debugMode ? "on" : "off";
+
+    const COL = 16;
+    const row = (label: string, value: string): string =>
+      `  ${formatCyan(label.padEnd(COL))}${value}`;
+
+    const lines: string[] = [
+      formatBold("System"),
+      formatDim("─".repeat(26)),
+      row("ticks", String(this.world.getTickCount())),
+      row("uptime", uptimeStr),
+      row(
+        "entities",
+        `${allIds.length}  (${roomCount} rooms · ${playerIds.length} players)`
+      ),
+      row("online", `${onlineCount} / ${playerIds.length}`),
+      row("time", bracketStr),
+      row("llm debug", llmDebug),
+    ];
+
+    return { toPlayer: lines.join("\n") };
+  }
+
+  private handleAdminPrompt(): ActionResult {
+    const p = this.world.description.lastPrompt;
+    if (!p) {
+      return { toPlayer: formatDim("No LLM prompt has been sent yet this session.") };
+    }
+    return { toPlayer: this.formatPromptBlock(p) };
+  }
+
+  private handleAdminLlm(target: string | undefined): ActionResult {
+    const arg = target?.trim().toLowerCase();
+    if (arg === "on") {
+      this.world.description.setDebugMode(true);
+      return { toPlayer: formatDim("LLM debug on — prompts will appear with each description.") };
+    }
+    if (arg === "off") {
+      this.world.description.setDebugMode(false);
+      return { toPlayer: formatDim("LLM debug off.") };
+    }
+    const state = this.world.description.debugMode ? "on" : "off";
+    return { toPlayer: formatDim(`LLM debug mode: ${state}`) + (arg ? `  ${formatDim("(use @llm on / @llm off)")}` : "") };
+  }
+
+  private formatPromptBlock(p: { system: string; user: string; context: string }): string {
+    const bar = formatDim("─".repeat(50));
+    const lines = [
+      formatBold("Last LLM Prompt") + formatDim(`  [${p.context}]`),
+      bar,
+      formatBold("SYSTEM"),
+      "",
+      p.system,
+      "",
+      formatBold("USER"),
+      "",
+      p.user,
+      bar,
+    ];
+    return lines.join("\n");
+  }
+
   private handleAdminHelp(): ActionResult {
     const DESC_COL = 38;
     const lines: string[] = [];
@@ -515,9 +823,14 @@ export class ActionResolver {
     lines.push(formatDim("─".repeat(14)));
 
     const commands = [
+      { name: "@players", desc: "List all players with status and location" },
       { name: "@destroy <player>", desc: "Remove a player and their data" },
       { name: "@inspect <target>", desc: "Show all component data for an entity" },
       { name: "@teleport <room-id>", desc: "Move to any room" },
+      { name: "@time [bracket|HH:MM|clear]", desc: "Show or set the debug time" },
+      { name: "@sysinfo", desc: "Show ticks, uptime, entity counts" },
+      { name: "@prompt", desc: "Show the last LLM prompt sent" },
+      { name: "@llm [on|off]", desc: "Toggle inline LLM prompt display" },
       { name: "@help", desc: "Show this list" },
     ];
 
@@ -530,6 +843,9 @@ export class ActionResolver {
         `  ${formatCyan(cmd.name)} ${formatDim(dots)}   ${cmd.desc}`
       );
     }
+
+    lines.push("");
+    lines.push(formatDim("Bracket names: deep_night, night, dawn, morning, midday, afternoon, dusk, evening"));
 
     return { toPlayer: lines.join("\n") };
   }
