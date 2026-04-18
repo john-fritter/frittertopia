@@ -21,7 +21,9 @@ export function createDatabase(filepath: string): Database.Database {
 }
 
 // Components that hold transient runtime state and must not be persisted.
-const TRANSIENT_COMPONENTS = new Set(["WeatherState"]);
+// These are excluded from both save and load — the YAML baseline or the
+// runtime system is always the authoritative source.
+const TRANSIENT_COMPONENTS = new Set(["WeatherState", "WeatherZoneRef"]);
 
 export function saveWorld(db: Database.Database, world: World): void {
   const transaction = db.transaction(() => {
@@ -90,6 +92,7 @@ export function loadSavedState(
       // Content entity — merge DB state onto YAML baseline.
       // DB wins per-component: only overwrite components that were saved.
       for (const comp of comps) {
+        if (TRANSIENT_COMPONENTS.has(comp.component_type)) continue;
         const data = JSON.parse(comp.data) as Record<string, unknown>;
         const resolved = translateForLoad(comp.component_type, data, world);
         world.entities.setComponent(existingId, comp.component_type, resolved);
@@ -110,6 +113,7 @@ export function loadSavedState(
       // Player entity — create it
       world.createEntityWithId(row.id, row.key ?? undefined);
       for (const comp of comps) {
+        if (TRANSIENT_COMPONENTS.has(comp.component_type)) continue;
         const data = JSON.parse(comp.data) as Record<string, unknown>;
         const resolved = translateForLoad(comp.component_type, data, world);
         world.addComponent(row.id, comp.component_type, resolved);
