@@ -1,6 +1,5 @@
 import type { RoomContext } from "./ContextBuilder.js";
 import type { MatchedEntity } from "./DescriptionService.js";
-import type { Sense } from "./DescriptionService.js";
 
 function formatWeatherLine(context: RoomContext): string {
   if (context.tempF === undefined) return `Weather: ${context.weather}`;
@@ -13,75 +12,30 @@ function formatWeatherLine(context: RoomContext): string {
 }
 
 export class PromptBuilder {
-  buildSystemPrompt(sense: Sense = "look"): string {
-    if (sense === "listen") {
-      return (
-        "You are describing a room in a text-based game world through sound alone. " +
-        "Write an atmospheric, second-person present-tense description in 2-4 sentences focusing entirely on what can be heard — ambient sounds, resonance, silence, the texture of the quiet. " +
-        "Do not describe visual details. " +
-        "You may embellish sonic texture but never invent characters, events, or interactive elements not documented in the room brief."
-      );
-    }
-    if (sense === "smell") {
-      return (
-        "You are describing a room in a text-based game world through smell alone. " +
-        "Write an atmospheric, second-person present-tense description in 2-4 sentences focusing entirely on what can be smelled — ambient scents, materials, age, the character of the air. " +
-        "Do not describe visual details. " +
-        "You may embellish olfactory detail but never invent objects, characters, or interactive elements not documented in the room brief."
-      );
-    }
-    // look (default), touch, taste — room-level touch/taste are blocked in the verb layer,
-    // but define prompts for completeness
+  buildSystemPrompt(): string {
     return (
       "You are describing rooms in a text-based game world. " +
       "Write atmospheric, second-person present-tense descriptions in 2-4 sentences. " +
       "Describe only what is documented in the room brief. " +
       "You may embellish sensory details — light, texture, sound, smell — but never invent objects, exits, characters, or anything a player could interact with. " +
-      "If other entities are present, weave their presence into the description naturally."
+      "If other entities are present, weave their presence into the description naturally. " +
+      "If the player's command specifies a sense (listen, smell, etc.), focus the description through that sense."
     );
   }
 
-  buildTargetSystemPrompt(sense: Sense = "look"): string {
-    if (sense === "listen") {
-      return (
-        "You are describing a specific feature or detail in a text-based game world as it is heard — its sound, resonance, or acoustic presence. " +
-        "Write in second-person present-tense in 1-3 sentences, drawing from the room brief. " +
-        "If the target has no plausible sonic quality, respond naturally with a short message."
-      );
-    }
-    if (sense === "smell") {
-      return (
-        "You are describing a specific feature or detail in a text-based game world as it smells — its scent, odor, or aromatic character. " +
-        "Write in second-person present-tense in 1-3 sentences, drawing from the room brief. " +
-        "If the target has no plausible scent, respond naturally with a short message."
-      );
-    }
-    if (sense === "touch") {
-      return (
-        "You are describing a specific feature or detail in a text-based game world as it feels to the touch — texture, temperature, surface character, weight. " +
-        "Write in second-person present-tense in 1-3 sentences, drawing from the room brief. " +
-        "If touching it would be implausible, respond naturally with a short message."
-      );
-    }
-    if (sense === "taste") {
-      return (
-        "You are describing a specific feature or detail in a text-based game world as it tastes — flavour, texture in the mouth, aftertaste. " +
-        "Write in second-person present-tense in 1-3 sentences, drawing from the room brief. " +
-        "If tasting it would be implausible or inadvisable, respond naturally with a short message."
-      );
-    }
-    // look (default)
+  buildTargetSystemPrompt(): string {
     return (
-      "You are describing a specific feature or detail that a player is examining in a text-based game world. " +
+      "You are describing a specific feature or detail that a player is interacting with in a text-based game world. " +
       "Write an atmospheric, second-person present-tense description in 1-3 sentences. " +
-      "Focus on the specific thing the player is looking at, drawing from the room brief. " +
+      "Focus on the specific thing the player is engaging with, drawing from the room brief. " +
       "If the brief contains a bracketed section matching the target, use those details. " +
       "If the target is something plausibly present but not specifically detailed, describe it briefly using context from the brief. " +
-      "If the target is not something that could reasonably be in this room, respond with a short, natural message indicating there's nothing notable to see."
+      "If the player's command specifies a sense (listen, smell, touch, taste), describe the target through that sense. " +
+      "If the interaction is implausible, respond with a short, natural message."
     );
   }
 
-  buildTargetUserPrompt(context: RoomContext, target: string, entity?: MatchedEntity): string {
+  buildTargetUserPrompt(context: RoomContext, target: string, entity?: MatchedEntity, command?: string): string {
     const lines = [
       `Room: ${context.roomName}`,
       `Brief: ${context.roomBrief}`,
@@ -99,10 +53,12 @@ export class PromptBuilder {
       if (parts.length > 0) lines.push(`Entity data: ${parts.join(", ")}`);
     }
 
+    if (command) lines.push(`Command: ${command}`);
+
     return lines.join("\n");
   }
 
-  buildUserPrompt(context: RoomContext): string {
+  buildUserPrompt(context: RoomContext, command?: string): string {
     const visitLabel = context.isFirstVisit ? "first visit" : "returning";
 
     const presentParts: string[] = [
@@ -128,6 +84,8 @@ export class PromptBuilder {
         .join(", ");
       lines.push(`Exits: ${exitParts}`);
     }
+
+    if (command) lines.push(`Command: ${command}`);
 
     return lines.join("\n");
   }

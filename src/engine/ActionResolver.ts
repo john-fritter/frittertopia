@@ -1,7 +1,7 @@
 import type { Intent, VerbHelpData } from "./Parser.js";
 import { Parser } from "./Parser.js";
 import type { World } from "./World.js";
-import type { MatchedEntity, Sense } from "./description/DescriptionService.js";
+import type { MatchedEntity } from "./description/DescriptionService.js";
 import {
   formatRoom,
   formatSelfSay,
@@ -281,7 +281,7 @@ export class ActionResolver {
   private async handleSense(
     target: string | undefined,
     playerId: string,
-    sense: Sense
+    sense: "listen" | "smell" | "touch" | "taste"
   ): Promise<ActionResult> {
     if (!target && sense === "touch") return { toPlayer: "Touch what?" };
     if (!target && sense === "taste") return { toPlayer: "You're not going to taste the room." };

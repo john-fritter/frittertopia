@@ -8,12 +8,12 @@ interface CacheEntry {
 export class DescriptionCache {
   private cache = new Map<string, CacheEntry>();
 
-  private cacheKey(playerId: string, roomId: string, sense: string): string {
-    return `${playerId}:${roomId}:${sense}`;
+  private cacheKey(playerId: string, roomId: string): string {
+    return `${playerId}:${roomId}`;
   }
 
-  get(playerId: string, roomId: string, sense: string): string | null {
-    const key = this.cacheKey(playerId, roomId, sense);
+  get(playerId: string, roomId: string): string | null {
+    const key = this.cacheKey(playerId, roomId);
     const entry = this.cache.get(key);
     if (!entry) return null;
     if (Date.now() - entry.timestamp > TTL_MS) {
@@ -23,18 +23,18 @@ export class DescriptionCache {
     return entry.text;
   }
 
-  set(playerId: string, roomId: string, sense: string, text: string): void {
-    this.cache.set(this.cacheKey(playerId, roomId, sense), {
+  set(playerId: string, roomId: string, text: string): void {
+    this.cache.set(this.cacheKey(playerId, roomId), {
       text,
       timestamp: Date.now(),
     });
   }
 
-  /** Remove all cached entries for a room (any player, any sense). Call when room conditions change. */
+  /** Remove all cached entries for a room (any player). Call when room conditions change. */
   invalidate(roomId: string): void {
-    const segment = `:${roomId}:`;
+    const suffix = `:${roomId}`;
     for (const key of this.cache.keys()) {
-      if (key.includes(segment)) {
+      if (key.endsWith(suffix)) {
         this.cache.delete(key);
       }
     }

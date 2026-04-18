@@ -447,37 +447,37 @@ describe("Sensory verbs", () => {
 
   // --- sense is passed to the system prompt ---
 
-  it("listen to <target> uses a listen-framed system prompt", async () => {
+  it("listen to <target> includes 'listen' command in user prompt", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "You hear rustling." });
 
     await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
 
-    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt.toLowerCase()).toMatch(/heard|sound|acoustic|listen/);
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Command: listen");
   });
 
-  it("touch <target> uses a touch-framed system prompt", async () => {
+  it("touch <target> includes 'touch' command in user prompt", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Rough and resinous." });
 
     await resolver.resolve({ verb: "touch", target: "rosemary" }, playerId);
 
-    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt.toLowerCase()).toMatch(/touch|texture|feel/);
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Command: touch");
   });
 
-  it("taste <target> uses a taste-framed system prompt", async () => {
+  it("taste <target> includes 'taste' command in user prompt", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Piney and bitter." });
 
     await resolver.resolve({ verb: "taste", target: "rosemary" }, playerId);
 
-    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt.toLowerCase()).toMatch(/taste|flavou?r/);
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Command: taste");
   });
 
   // --- sniff alias for smell (via parser) ---

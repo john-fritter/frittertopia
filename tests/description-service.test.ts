@@ -352,57 +352,43 @@ describe("PromptBuilder", () => {
     });
   });
 
-  describe("buildSystemPrompt sense variants", () => {
-    it("default (look) instructs second-person present-tense", () => {
-      const prompt = builder.buildSystemPrompt();
-      expect(prompt).toMatch(/second-person/i);
+  describe("buildUserPrompt command line", () => {
+    it("omits Command line when no command is given", () => {
+      const prompt = builder.buildUserPrompt(baseContext);
+      expect(prompt).not.toContain("Command:");
     });
 
-    it("listen prompt references sound or hearing", () => {
-      const prompt = builder.buildSystemPrompt("listen");
-      expect(prompt.toLowerCase()).toMatch(/heard|sound|listen/);
+    it("includes Command line when command is given", () => {
+      const prompt = builder.buildUserPrompt(baseContext, "listen");
+      expect(prompt).toContain("Command: listen");
     });
 
-    it("listen prompt says not to describe visual details", () => {
-      const prompt = builder.buildSystemPrompt("listen");
-      expect(prompt.toLowerCase()).toContain("visual");
-    });
-
-    it("smell prompt references scent or smell", () => {
-      const prompt = builder.buildSystemPrompt("smell");
-      expect(prompt.toLowerCase()).toMatch(/smell|scent|olfactory/);
-    });
-
-    it("smell prompt says not to describe visual details", () => {
-      const prompt = builder.buildSystemPrompt("smell");
-      expect(prompt.toLowerCase()).toContain("visual");
+    it("command appears after exits in the prompt", () => {
+      const prompt = builder.buildUserPrompt(baseContext, "smell");
+      const exitIdx = prompt.indexOf("Exits:");
+      const cmdIdx = prompt.indexOf("Command: smell");
+      expect(exitIdx).toBeGreaterThan(-1);
+      expect(cmdIdx).toBeGreaterThan(exitIdx);
     });
   });
 
-  describe("buildTargetSystemPrompt sense variants", () => {
-    it("default (look) instructs examining a feature", () => {
-      const prompt = builder.buildTargetSystemPrompt();
-      expect(prompt.toLowerCase()).toMatch(/examining|looking/);
+  describe("buildTargetUserPrompt command line", () => {
+    it("omits Command line when no command is given", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
+      expect(prompt).not.toContain("Command:");
     });
 
-    it("listen target prompt references sound or hearing", () => {
-      const prompt = builder.buildTargetSystemPrompt("listen");
-      expect(prompt.toLowerCase()).toMatch(/heard|sound|acoustic/);
+    it("includes Command line when command is given", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "touch");
+      expect(prompt).toContain("Command: touch");
     });
 
-    it("smell target prompt references scent", () => {
-      const prompt = builder.buildTargetSystemPrompt("smell");
-      expect(prompt.toLowerCase()).toMatch(/smell|scent/);
-    });
-
-    it("touch target prompt references texture or feel", () => {
-      const prompt = builder.buildTargetSystemPrompt("touch");
-      expect(prompt.toLowerCase()).toMatch(/touch|texture|feel/);
-    });
-
-    it("taste target prompt references flavour or taste", () => {
-      const prompt = builder.buildTargetSystemPrompt("taste");
-      expect(prompt.toLowerCase()).toMatch(/taste|flavou?r/);
+    it("command appears after target in the prompt", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "taste");
+      const targetIdx = prompt.indexOf("Target: altar");
+      const cmdIdx = prompt.indexOf("Command: taste");
+      expect(targetIdx).toBeGreaterThan(-1);
+      expect(cmdIdx).toBeGreaterThan(targetIdx);
     });
   });
 });
@@ -420,88 +406,63 @@ describe("DescriptionCache", () => {
 
   it("returns null on a cache miss", () => {
     const cache = new DescriptionCache();
-    expect(cache.get("player1", "room1", "look")).toBeNull();
+    expect(cache.get("player1", "room1")).toBeNull();
   });
 
   it("returns the cached text on a hit", () => {
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "The hall is cold.");
-    expect(cache.get("player1", "room1", "look")).toBe("The hall is cold.");
+    cache.set("player1", "room1", "The hall is cold.");
+    expect(cache.get("player1", "room1")).toBe("The hall is cold.");
   });
 
   it("returns null after TTL expires", () => {
     vi.useFakeTimers();
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "Stone walls.");
+    cache.set("player1", "room1", "Stone walls.");
     vi.advanceTimersByTime(TTL_MS + 1);
-    expect(cache.get("player1", "room1", "look")).toBeNull();
+    expect(cache.get("player1", "room1")).toBeNull();
   });
 
   it("returns text when TTL has not expired", () => {
     vi.useFakeTimers();
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "Stone walls.");
+    cache.set("player1", "room1", "Stone walls.");
     vi.advanceTimersByTime(TTL_MS - 1);
-    expect(cache.get("player1", "room1", "look")).toBe("Stone walls.");
+    expect(cache.get("player1", "room1")).toBe("Stone walls.");
   });
 
   it("invalidate clears all entries for a given room", () => {
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "Text A.");
-    cache.set("player2", "room1", "look", "Text B.");
-    cache.set("player1", "room2", "look", "Text C.");
+    cache.set("player1", "room1", "Text A.");
+    cache.set("player2", "room1", "Text B.");
+    cache.set("player1", "room2", "Text C.");
 
     cache.invalidate("room1");
 
-    expect(cache.get("player1", "room1", "look")).toBeNull();
-    expect(cache.get("player2", "room1", "look")).toBeNull();
-    expect(cache.get("player1", "room2", "look")).toBe("Text C."); // untouched
-  });
-
-  it("invalidate clears all senses for a given room", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "You see stone.");
-    cache.set("player1", "room1", "listen", "You hear dripping.");
-    cache.set("player1", "room1", "smell", "You smell damp.");
-    cache.set("player1", "room2", "look", "Another room.");
-
-    cache.invalidate("room1");
-
-    expect(cache.get("player1", "room1", "look")).toBeNull();
-    expect(cache.get("player1", "room1", "listen")).toBeNull();
-    expect(cache.get("player1", "room1", "smell")).toBeNull();
-    expect(cache.get("player1", "room2", "look")).toBe("Another room."); // untouched
-  });
-
-  it("different senses cache separately for the same player and room", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "You see stone.");
-    cache.set("player1", "room1", "listen", "You hear dripping.");
-
-    expect(cache.get("player1", "room1", "look")).toBe("You see stone.");
-    expect(cache.get("player1", "room1", "listen")).toBe("You hear dripping.");
-    expect(cache.get("player1", "room1", "smell")).toBeNull();
+    expect(cache.get("player1", "room1")).toBeNull();
+    expect(cache.get("player2", "room1")).toBeNull();
+    expect(cache.get("player1", "room2")).toBe("Text C."); // untouched
   });
 
   it("invalidatePlayer clears all entries for a given player", () => {
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "Text A.");
-    cache.set("player1", "room2", "look", "Text B.");
-    cache.set("player2", "room1", "look", "Text C.");
+    cache.set("player1", "room1", "Text A.");
+    cache.set("player1", "room2", "Text B.");
+    cache.set("player2", "room1", "Text C.");
 
     cache.invalidatePlayer("player1");
 
-    expect(cache.get("player1", "room1", "look")).toBeNull();
-    expect(cache.get("player1", "room2", "look")).toBeNull();
-    expect(cache.get("player2", "room1", "look")).toBe("Text C."); // untouched
+    expect(cache.get("player1", "room1")).toBeNull();
+    expect(cache.get("player1", "room2")).toBeNull();
+    expect(cache.get("player2", "room1")).toBe("Text C."); // untouched
   });
 
   it("separate players get separate cache entries for the same room", () => {
     const cache = new DescriptionCache();
-    cache.set("player1", "room1", "look", "Alice sees it.");
-    cache.set("player2", "room1", "look", "Bob sees it.");
-    expect(cache.get("player1", "room1", "look")).toBe("Alice sees it.");
-    expect(cache.get("player2", "room1", "look")).toBe("Bob sees it.");
+    cache.set("player1", "room1", "Alice sees it.");
+    cache.set("player2", "room1", "Bob sees it.");
+    expect(cache.get("player1", "room1")).toBe("Alice sees it.");
+    expect(cache.get("player2", "room1")).toBe("Bob sees it.");
   });
 });
 
@@ -698,80 +659,59 @@ describe("DescriptionService", () => {
     });
   });
 
-  describe("sense parameter", () => {
-    it("describeRoom with 'listen' uses a listen-framed system prompt", async () => {
+  describe("command parameter", () => {
+    it("describeRoom with command includes it in the user prompt", async () => {
       const generateMock = vi
         .spyOn(world.llm, "generate")
         .mockResolvedValue({ ok: true, text: "You hear silence." });
 
       await world.description.describeRoom(roomId, playerId, "listen");
 
-      const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-      expect(systemPrompt.toLowerCase()).toMatch(/heard|sound|listen/);
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).toContain("Command: listen");
     });
 
-    it("describeRoom with 'smell' uses a smell-framed system prompt", async () => {
+    it("describeRoom with no command does not add a Command line", async () => {
       const generateMock = vi
         .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "Damp stone." });
+        .mockResolvedValue({ ok: true, text: "Candlelight." });
 
-      await world.description.describeRoom(roomId, playerId, "smell");
+      await world.description.describeRoom(roomId, playerId);
 
-      const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-      expect(systemPrompt.toLowerCase()).toMatch(/smell|scent|olfactory/);
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).not.toContain("Command:");
     });
 
-    it("describeTarget with 'touch' uses a touch-framed system prompt", async () => {
+    it("describeTarget with command includes it in the user prompt", async () => {
       const generateMock = vi
         .spyOn(world.llm, "generate")
         .mockResolvedValue({ ok: true, text: "Cold stone." });
 
       await world.description.describeTarget(roomId, playerId, "wall", undefined, "touch");
 
-      const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-      expect(systemPrompt.toLowerCase()).toMatch(/touch|texture|feel/);
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).toContain("Command: touch");
     });
 
-    it("describeTarget with 'taste' uses a taste-framed system prompt", async () => {
+    it("describeRoom with command skips the cache", async () => {
       const generateMock = vi
         .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "Bitter." });
+        .mockResolvedValue({ ok: true, text: "You hear dripping." });
 
-      await world.description.describeTarget(roomId, playerId, "air", undefined, "taste");
-
-      const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
-      expect(systemPrompt.toLowerCase()).toMatch(/taste|flavou?r/);
-    });
-
-    it("look and listen cache separately for the same player and room", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValueOnce({ ok: true, text: "You see stone." })
-        .mockResolvedValueOnce({ ok: true, text: "You hear dripping." });
-
-      const look1 = await world.description.describeRoom(roomId, playerId, "look");
-      const listen1 = await world.description.describeRoom(roomId, playerId, "listen");
-
-      // Both cached — second calls should not hit LLM
-      const look2 = await world.description.describeRoom(roomId, playerId, "look");
-      const listen2 = await world.description.describeRoom(roomId, playerId, "listen");
+      await world.description.describeRoom(roomId, playerId, "listen");
+      await world.description.describeRoom(roomId, playerId, "listen");
 
       expect(generateMock).toHaveBeenCalledTimes(2);
-      expect(look1).toBe("You see stone.");
-      expect(listen1).toBe("You hear dripping.");
-      expect(look2).toBe("You see stone.");
-      expect(listen2).toBe("You hear dripping.");
     });
 
-    it("describeRoom defaults to 'look' when no sense is given", async () => {
+    it("describeRoom without command still uses the cache", async () => {
       const generateMock = vi
         .spyOn(world.llm, "generate")
         .mockResolvedValue({ ok: true, text: "Stone chapel." });
 
       await world.description.describeRoom(roomId, playerId);
-      await world.description.describeRoom(roomId, playerId, "look");
+      await world.description.describeRoom(roomId, playerId);
 
-      // Both should share the same cache entry — only one LLM call
       expect(generateMock).toHaveBeenCalledTimes(1);
     });
   });
