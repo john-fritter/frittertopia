@@ -33,13 +33,16 @@ export class DescriptionService {
     this.debugMode = on;
   }
 
-  async describeRoom(roomId: string, playerId: string): Promise<string> {
-    const cached = this.cache.get(playerId, roomId);
-    if (cached !== null) return cached;
+  async describeRoom(roomId: string, playerId: string, command?: string): Promise<string> {
+    // Only cache default (look) calls; non-look senses skip the cache
+    if (!command) {
+      const cached = this.cache.get(playerId, roomId);
+      if (cached !== null) return cached;
+    }
 
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
     const systemPrompt = this.promptBuilder.buildSystemPrompt();
-    const userPrompt = this.promptBuilder.buildUserPrompt(ctx);
+    const userPrompt = this.promptBuilder.buildUserPrompt(ctx, command);
 
     this.lastPrompt = {
       system: systemPrompt,
@@ -55,7 +58,7 @@ export class DescriptionService {
     }
 
     if (result.ok) {
-      this.cache.set(playerId, roomId, result.text);
+      if (!command) this.cache.set(playerId, roomId, result.text);
       return result.text;
     }
 
@@ -66,11 +69,12 @@ export class DescriptionService {
     roomId: string,
     playerId: string,
     target: string,
-    entity?: MatchedEntity
+    entity?: MatchedEntity,
+    command?: string
   ): Promise<string> {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
     const systemPrompt = this.promptBuilder.buildTargetSystemPrompt();
-    const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target, entity);
+    const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target, entity, command);
 
     this.lastPrompt = {
       system: systemPrompt,

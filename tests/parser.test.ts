@@ -66,4 +66,26 @@ describe("Parser", () => {
     // "look at" with nothing after should keep "at" as the target
     expect(parser.parse("look at")).toEqual({ verb: "look", target: "at" });
   });
+
+  it("parses bare sensory verbs with no target", () => {
+    expect(parser.parse("listen")).toEqual({ verb: "listen" });
+    expect(parser.parse("smell")).toEqual({ verb: "smell" });
+    expect(parser.parse("touch")).toEqual({ verb: "touch" });
+    expect(parser.parse("taste")).toEqual({ verb: "taste" });
+  });
+
+  it("parses sensory verbs with a direct target", () => {
+    expect(parser.parse("smell herbs")).toEqual({ verb: "smell", target: "herbs" });
+    expect(parser.parse("touch altar")).toEqual({ verb: "touch", target: "altar" });
+    expect(parser.parse("taste bread")).toEqual({ verb: "taste", target: "bread" });
+  });
+
+  it("strips 'to' from 'listen to <target>'", () => {
+    expect(parser.parse("listen to the bell")).toEqual({ verb: "listen", target: "the bell" });
+    expect(parser.parse("listen to wind")).toEqual({ verb: "listen", target: "wind" });
+  });
+
+  it("does not strip 'to' when it is the whole target for listen", () => {
+    expect(parser.parse("listen to")).toEqual({ verb: "listen", target: "to" });
+  });
 });

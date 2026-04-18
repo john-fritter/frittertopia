@@ -43,10 +43,11 @@ export interface ActionResult {
   toOtherRoom?: { roomId: string; text: string };
 }
 
-const CATEGORY_ORDER = ["movement", "interaction", "communication", "system"];
+const CATEGORY_ORDER = ["movement", "interaction", "senses", "communication", "system"];
 const CATEGORY_NAMES: Record<string, string> = {
   movement: "Movement",
   interaction: "Interaction",
+  senses: "Senses",
   communication: "Communication",
   system: "System",
 };
@@ -75,6 +76,30 @@ export class ActionResolver {
       description: "Look around the room or examine something specific",
       usage: "look, look at <target>, examine <target>, l, x",
       category: "interaction",
+    });
+    this.parser.registerVerb("listen", {
+      aliases: [],
+      description: "Listen to the room or a specific target",
+      usage: "listen, listen to <target>",
+      category: "senses",
+    });
+    this.parser.registerVerb("smell", {
+      aliases: ["sniff"],
+      description: "Smell the room or a specific target",
+      usage: "smell, smell <target>",
+      category: "senses",
+    });
+    this.parser.registerVerb("touch", {
+      aliases: ["feel"],
+      description: "Touch a specific target",
+      usage: "touch <target>",
+      category: "senses",
+    });
+    this.parser.registerVerb("taste", {
+      aliases: [],
+      description: "Taste a specific target",
+      usage: "taste <target>",
+      category: "senses",
     });
     this.parser.registerVerb("say", {
       aliases: ["'"],
@@ -117,6 +142,14 @@ export class ActionResolver {
         return await this.handleMove(intent.target, playerId);
       case "look":
         return await this.handleLook(intent.target, playerId);
+      case "listen":
+        return await this.handleSense(intent.target, playerId, "listen");
+      case "smell":
+        return await this.handleSense(intent.target, playerId, "smell");
+      case "touch":
+        return await this.handleSense(intent.target, playerId, "touch");
+      case "taste":
+        return await this.handleSense(intent.target, playerId, "taste");
       case "say":
         return this.handleSay(intent.target, playerId);
       case "help":
@@ -243,6 +276,31 @@ export class ActionResolver {
       output += "\n\n" + this.formatPromptBlock(this.world.description.lastPrompt);
     }
     return { toPlayer: output };
+  }
+
+  private async handleSense(
+    target: string | undefined,
+    playerId: string,
+    sense: "listen" | "smell" | "touch" | "taste"
+  ): Promise<ActionResult> {
+    if (!target && sense === "touch") return { toPlayer: "Touch what?" };
+    if (!target && sense === "taste") return { toPlayer: "You're not going to taste the room." };
+
+    const position = this.world.getComponent(playerId, "Position") as
+      | { roomId: string }
+      | undefined;
+    if (!position) return { toPlayer: "You aren't anywhere." };
+
+    const roomId = position.roomId;
+
+    if (!target) {
+      const text = await this.world.description.describeRoom(roomId, playerId, sense);
+      return { toPlayer: text };
+    }
+
+    const entity = this.matchEntityInRoom(target, roomId);
+    const text = await this.world.description.describeTarget(roomId, playerId, target, entity, sense);
+    return { toPlayer: text };
   }
 
   private handleSay(

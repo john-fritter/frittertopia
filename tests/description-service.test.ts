@@ -351,6 +351,46 @@ describe("PromptBuilder", () => {
       expect(prompt).not.toContain("Entity data:");
     });
   });
+
+  describe("buildUserPrompt command line", () => {
+    it("omits Command line when no command is given", () => {
+      const prompt = builder.buildUserPrompt(baseContext);
+      expect(prompt).not.toContain("Command:");
+    });
+
+    it("includes Command line when command is given", () => {
+      const prompt = builder.buildUserPrompt(baseContext, "listen");
+      expect(prompt).toContain("Command: listen");
+    });
+
+    it("command appears after exits in the prompt", () => {
+      const prompt = builder.buildUserPrompt(baseContext, "smell");
+      const exitIdx = prompt.indexOf("Exits:");
+      const cmdIdx = prompt.indexOf("Command: smell");
+      expect(exitIdx).toBeGreaterThan(-1);
+      expect(cmdIdx).toBeGreaterThan(exitIdx);
+    });
+  });
+
+  describe("buildTargetUserPrompt command line", () => {
+    it("omits Command line when no command is given", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
+      expect(prompt).not.toContain("Command:");
+    });
+
+    it("includes Command line when command is given", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "touch");
+      expect(prompt).toContain("Command: touch");
+    });
+
+    it("command appears after target in the prompt", () => {
+      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "taste");
+      const targetIdx = prompt.indexOf("Target: altar");
+      const cmdIdx = prompt.indexOf("Command: taste");
+      expect(targetIdx).toBeGreaterThan(-1);
+      expect(cmdIdx).toBeGreaterThan(targetIdx);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -616,6 +656,63 @@ describe("DescriptionService", () => {
       await world.description.describeTarget(roomId, playerId, "altar");
 
       expect(generateMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("command parameter", () => {
+    it("describeRoom with command includes it in the user prompt", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "You hear silence." });
+
+      await world.description.describeRoom(roomId, playerId, "listen");
+
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).toContain("Command: listen");
+    });
+
+    it("describeRoom with no command does not add a Command line", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "Candlelight." });
+
+      await world.description.describeRoom(roomId, playerId);
+
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).not.toContain("Command:");
+    });
+
+    it("describeTarget with command includes it in the user prompt", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "Cold stone." });
+
+      await world.description.describeTarget(roomId, playerId, "wall", undefined, "touch");
+
+      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+      expect(userPrompt).toContain("Command: touch");
+    });
+
+    it("describeRoom with command skips the cache", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "You hear dripping." });
+
+      await world.description.describeRoom(roomId, playerId, "listen");
+      await world.description.describeRoom(roomId, playerId, "listen");
+
+      expect(generateMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("describeRoom without command still uses the cache", async () => {
+      const generateMock = vi
+        .spyOn(world.llm, "generate")
+        .mockResolvedValue({ ok: true, text: "Stone chapel." });
+
+      await world.description.describeRoom(roomId, playerId);
+      await world.description.describeRoom(roomId, playerId);
+
+      expect(generateMock).toHaveBeenCalledTimes(1);
     });
   });
 });
