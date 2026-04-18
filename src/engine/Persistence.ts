@@ -21,7 +21,9 @@ export function createDatabase(filepath: string): Database.Database {
 }
 
 // Components that hold transient runtime state and must not be persisted.
-const TRANSIENT_COMPONENTS = new Set(["WeatherState"]);
+// These are excluded from both save and load — the YAML baseline or the
+// runtime system is always the authoritative source.
+const TRANSIENT_COMPONENTS = new Set(["WeatherState", "WeatherZoneRef"]);
 
 export function saveWorld(db: Database.Database, world: World): void {
   const transaction = db.transaction(() => {
@@ -90,6 +92,7 @@ export function loadSavedState(
       // Content entity — merge DB state onto YAML baseline.
       // DB wins per-component: only overwrite components that were saved.
       for (const comp of comps) {
+        if (TRANSIENT_COMPONENTS.has(comp.component_type)) continue;
         const data = JSON.parse(comp.data) as Record<string, unknown>;
         const resolved = translateForLoad(comp.component_type, data, world);
         world.entities.setComponent(existingId, comp.component_type, resolved);
@@ -110,6 +113,7 @@ export function loadSavedState(
       // Player entity — create it
       world.createEntityWithId(row.id, row.key ?? undefined);
       for (const comp of comps) {
+        if (TRANSIENT_COMPONENTS.has(comp.component_type)) continue;
         const data = JSON.parse(comp.data) as Record<string, unknown>;
         const resolved = translateForLoad(comp.component_type, data, world);
         world.addComponent(row.id, comp.component_type, resolved);
@@ -175,60 +179,84 @@ export function loadWorld(db: Database.Database, world: World): void {
   loadSavedState(db, world);
 }
 
-/** On save: translate UUIDs to entity keys for cross-references that point at content entities. */
+/** On save: translate UUIDs to entity keys for all ref-annotated fields. */
 function translateForSave(
   typeName: string,
   data: Record<string, unknown>,
   world: World
 ): Record<string, unknown> {
-  if (typeName === "Position") {
-    const roomId = data.roomId as string;
-    const key = world.entities.getKeyForEntity(roomId);
-    return { ...data, roomId: key ?? roomId };
-  }
-  if (typeName === "VisitedRooms") {
-    const rooms = data.rooms as string[];
-    return {
-      ...data,
-      rooms: rooms.map((id) => world.entities.getKeyForEntity(id) ?? id),
-    };
-  }
-  if (typeName === "Exits") {
-    const exits = data.exits as Record<string, string>;
-    const translated: Record<string, string> = {};
-    for (const [dir, id] of Object.entries(exits)) {
-      translated[dir] = world.entities.getKeyForEntity(id) ?? id;
+  const refs = world.componentRegistry.getRefs(typeName);
+  if (refs.length === 0) return data;
+
+  const result = { ...data };
+  for (const refPath of refs) {
+    if (refPath.endsWith(".*")) {
+      const fieldName = refPath.slice(0, -2);
+      const record = result[fieldName];
+      if (record && typeof record === "object" && !Array.isArray(record)) {
+        const translated: Record<string, string> = {};
+        for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
+          if (typeof v === "string") {
+            translated[k] = world.entities.getKeyForEntity(v) ?? v;
+          }
+        }
+        result[fieldName] = translated;
+      }
+    } else if (refPath.endsWith("[]")) {
+      const fieldName = refPath.slice(0, -2);
+      const arr = result[fieldName];
+      if (Array.isArray(arr)) {
+        result[fieldName] = arr.map((v) =>
+          typeof v === "string" ? (world.entities.getKeyForEntity(v) ?? v) : v
+        );
+      }
+    } else {
+      const v = result[refPath];
+      if (typeof v === "string") {
+        result[refPath] = world.entities.getKeyForEntity(v) ?? v;
+      }
     }
-    return { ...data, exits: translated };
   }
-  return data;
+  return result;
 }
 
-/** On load: translate entity keys back to current UUIDs. */
+/** On load: translate entity keys back to current UUIDs for all ref-annotated fields. */
 function translateForLoad(
   typeName: string,
   data: Record<string, unknown>,
   world: World
 ): Record<string, unknown> {
-  if (typeName === "Position") {
-    const roomRef = data.roomId as string;
-    const uuid = world.entities.getEntityByKey(roomRef);
-    return { ...data, roomId: uuid ?? roomRef };
-  }
-  if (typeName === "VisitedRooms") {
-    const rooms = data.rooms as string[];
-    return {
-      ...data,
-      rooms: rooms.map((ref) => world.entities.getEntityByKey(ref) ?? ref),
-    };
-  }
-  if (typeName === "Exits") {
-    const exits = data.exits as Record<string, string>;
-    const translated: Record<string, string> = {};
-    for (const [dir, ref] of Object.entries(exits)) {
-      translated[dir] = world.entities.getEntityByKey(ref) ?? ref;
+  const refs = world.componentRegistry.getRefs(typeName);
+  if (refs.length === 0) return data;
+
+  const result = { ...data };
+  for (const refPath of refs) {
+    if (refPath.endsWith(".*")) {
+      const fieldName = refPath.slice(0, -2);
+      const record = result[fieldName];
+      if (record && typeof record === "object" && !Array.isArray(record)) {
+        const translated: Record<string, string> = {};
+        for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
+          if (typeof v === "string") {
+            translated[k] = world.entities.getEntityByKey(v) ?? v;
+          }
+        }
+        result[fieldName] = translated;
+      }
+    } else if (refPath.endsWith("[]")) {
+      const fieldName = refPath.slice(0, -2);
+      const arr = result[fieldName];
+      if (Array.isArray(arr)) {
+        result[fieldName] = arr.map((v) =>
+          typeof v === "string" ? (world.entities.getEntityByKey(v) ?? v) : v
+        );
+      }
+    } else {
+      const v = result[refPath];
+      if (typeof v === "string") {
+        result[refPath] = world.entities.getEntityByKey(v) ?? v;
+      }
     }
-    return { ...data, exits: translated };
   }
-  return data;
+  return result;
 }

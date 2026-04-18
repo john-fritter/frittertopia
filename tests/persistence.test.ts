@@ -28,7 +28,8 @@ function makeWorld(): World {
   );
   world.registerComponent(
     "VisitedRooms",
-    z.object({ rooms: z.array(z.string()) })
+    z.object({ rooms: z.array(z.string()) }),
+    ["rooms[]"]
   );
   world.registerComponent(
     "Exits",
@@ -432,6 +433,58 @@ describe("Persistence — save everything, merge on load", () => {
     const pos = world2.getComponent(broom2, "Position") as { roomId: string };
     const courtyard2 = world2.getEntityByKey("starting.room")!;
     expect(pos.roomId).toBe(courtyard2);
+  });
+
+  it("WeatherZoneRef survives restart — excluded from persistence, YAML value preserved", () => {
+    // WeatherZoneRef is in TRANSIENT_COMPONENTS: never saved, never loaded.
+    // This means even a DB with stale UUID data (from before the fix) cannot
+    // overwrite the correctly-resolved YAML value.
+    const world1 = makeWorld();
+    world1.registerComponent("WeatherZone", z.object({ climate: z.string() }));
+    world1.registerComponent(
+      "WeatherZoneRef",
+      z.object({ zoneId: z.string() }),
+      ["zoneId"]
+    );
+    populateContent(world1);
+
+    const zone1 = world1.createEntity("weather.zone.monastery");
+    world1.addComponent(zone1, "WeatherZone", { climate: "alpine" });
+
+    const courtyard1 = world1.getEntityByKey("starting.room")!;
+    world1.addComponent(courtyard1, "WeatherZoneRef", { zoneId: zone1 });
+
+    saveWorld(db, world1);
+
+    // WeatherZoneRef must NOT be in the DB (it's transient)
+    const refRow = db
+      .prepare("SELECT data FROM components WHERE entity_id = ? AND component_type = ?")
+      .get(courtyard1, "WeatherZoneRef");
+    expect(refRow).toBeUndefined();
+
+    // Simulate restart: fresh entities with new UUIDs
+    const world2 = makeWorld();
+    world2.registerComponent("WeatherZone", z.object({ climate: z.string() }));
+    world2.registerComponent(
+      "WeatherZoneRef",
+      z.object({ zoneId: z.string() }),
+      ["zoneId"]
+    );
+    populateContent(world2);
+
+    const zone2 = world2.createEntity("weather.zone.monastery");
+    world2.addComponent(zone2, "WeatherZone", { climate: "alpine" });
+
+    const courtyard2 = world2.getEntityByKey("starting.room")!;
+    world2.addComponent(courtyard2, "WeatherZoneRef", { zoneId: zone2 });
+
+    loadSavedState(db, world2);
+
+    // YAML-set zoneId survives load — points to the new zone UUID
+    const ref = world2.getComponent(courtyard2, "WeatherZoneRef") as { zoneId: string };
+    expect(ref.zoneId).toBe(zone2);
+    expect(ref.zoneId).not.toBe(zone1); // different UUID after simulated restart
+    expect(world2.entities.hasEntity(ref.zoneId)).toBe(true);
   });
 
   it("World convenience method loadSavedState() works", () => {
