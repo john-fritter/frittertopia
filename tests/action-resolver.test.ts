@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { ActionResolver } from "../src/engine/ActionResolver.js";
+import { Parser } from "../src/engine/Parser.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -331,5 +332,173 @@ describe("Entity matching for targeted look", () => {
 
     const result = await resolver.resolve({ verb: "look", target: "crown" }, playerId);
     expect(result.toPlayer).toBe("You don't see anything notable.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sensory verbs — listen, smell, touch, taste
+// ---------------------------------------------------------------------------
+
+describe("Sensory verbs", () => {
+  let world: World;
+  let resolver: ActionResolver;
+  let roomId: string;
+  let playerId: string;
+
+  beforeEach(() => {
+    world = new World();
+    registerComponents(world);
+
+    roomId = world.createEntity("room.sensory");
+    world.addComponent(roomId, "Room", { name: "The Herb Garden" });
+    world.addComponent(roomId, "Description", { short: "an herb garden" });
+    world.addComponent(roomId, "RoomBrief", { brief: "Rosemary and sage crowd the narrow beds." });
+
+    const herb = world.createEntity("garden.rosemary");
+    world.addComponent(herb, "Position", { roomId });
+    world.addComponent(herb, "Description", { short: "a rosemary sprig" });
+    world.addComponent(herb, "Presence", { description: "A sprig of rosemary rests on the bench." });
+
+    playerId = world.createEntity();
+    world.addComponent(playerId, "Player", { name: "Tester", sessionId: "s1" });
+    world.addComponent(playerId, "Position", { roomId });
+    world.addComponent(playerId, "VisitedRooms", { rooms: [roomId] });
+
+    resolver = new ActionResolver(world);
+  });
+
+  // --- bare listen ---
+
+  it("bare listen returns a room-level description without error", async () => {
+    const result = await resolver.resolve({ verb: "listen" }, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+    expect(result.toPlayer).not.toBe("Touch what?");
+    expect(result.toPlayer).not.toContain("You're not going to taste");
+  });
+
+  // --- bare smell ---
+
+  it("bare smell returns a room-level description without error", async () => {
+    const result = await resolver.resolve({ verb: "smell" }, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  // --- bare touch — deterministic refusal, no LLM ---
+
+  it("bare touch returns 'Touch what?' and does not call the LLM", async () => {
+    const generateMock = vi.spyOn(world.llm, "generate");
+    const result = await resolver.resolve({ verb: "touch" }, playerId);
+    expect(result.toPlayer).toBe("Touch what?");
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  // --- bare taste — deterministic refusal, no LLM ---
+
+  it("bare taste returns the room-taste refusal and does not call the LLM", async () => {
+    const generateMock = vi.spyOn(world.llm, "generate");
+    const result = await resolver.resolve({ verb: "taste" }, playerId);
+    expect(result.toPlayer).toBe("You're not going to taste the room.");
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  // --- targeted verbs with entity match ---
+
+  it("listen to <target> with entity match falls back to presence text on LLM failure", async () => {
+    const result = await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
+    // No LLM key in tests — falls back to presence or short
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  it("smell <target> with entity match falls back to presence text on LLM failure", async () => {
+    const result = await resolver.resolve({ verb: "smell", target: "rosemary" }, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  it("touch <target> with entity match falls back to presence text on LLM failure", async () => {
+    const result = await resolver.resolve({ verb: "touch", target: "rosemary" }, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  it("taste <target> with entity match falls back to presence text on LLM failure", async () => {
+    const result = await resolver.resolve({ verb: "taste", target: "rosemary" }, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  it("listen to <target> no match returns atmospheric fallback", async () => {
+    const result = await resolver.resolve({ verb: "listen", target: "dragon" }, playerId);
+    expect(result.toPlayer).toBe("You don't see anything notable.");
+  });
+
+  // --- Parser 'to' stripping for listen ---
+
+  it("'listen to rosemary' strips the 'to' preposition and matches entity", async () => {
+    // Parsed as verb=listen, target=rosemary (not "to rosemary")
+    // Falls back to presence text since no LLM
+    const result = await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
+    // Should NOT return the no-match fallback
+    expect(result.toPlayer).not.toBe("You don't see anything notable.");
+  });
+
+  // --- sense is passed to the system prompt ---
+
+  it("listen to <target> uses a listen-framed system prompt", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "You hear rustling." });
+
+    await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
+
+    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt.toLowerCase()).toMatch(/heard|sound|acoustic|listen/);
+  });
+
+  it("touch <target> uses a touch-framed system prompt", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Rough and resinous." });
+
+    await resolver.resolve({ verb: "touch", target: "rosemary" }, playerId);
+
+    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt.toLowerCase()).toMatch(/touch|texture|feel/);
+  });
+
+  it("taste <target> uses a taste-framed system prompt", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Piney and bitter." });
+
+    await resolver.resolve({ verb: "taste", target: "rosemary" }, playerId);
+
+    const systemPrompt = generateMock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt.toLowerCase()).toMatch(/taste|flavou?r/);
+  });
+
+  // --- sniff alias for smell (via parser) ---
+
+  it("'sniff' alias routes to smell via the parser", async () => {
+    const parser = new Parser();
+    const r = new ActionResolver(world, parser);
+    const intent = parser.parse("sniff");
+    const result = await r.resolve(intent, playerId);
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+    expect(result.toPlayer).not.toBe("I don't understand that.");
+  });
+
+  // --- feel alias for touch (via parser) ---
+
+  it("'feel' alias routes to touch, bare gives 'Touch what?'", async () => {
+    const parser = new Parser();
+    const r = new ActionResolver(world, parser);
+    const intent = parser.parse("feel");
+    const result = await r.resolve(intent, playerId);
+    expect(result.toPlayer).toBe("Touch what?");
   });
 });

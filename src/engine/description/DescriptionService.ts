@@ -3,6 +3,8 @@ import { ContextBuilder } from "./ContextBuilder.js";
 import { DescriptionCache } from "./DescriptionCache.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 
+export type Sense = "look" | "listen" | "smell" | "touch" | "taste";
+
 export interface MatchedEntity {
   short?: string;
   presence?: string;
@@ -33,12 +35,12 @@ export class DescriptionService {
     this.debugMode = on;
   }
 
-  async describeRoom(roomId: string, playerId: string): Promise<string> {
-    const cached = this.cache.get(playerId, roomId);
+  async describeRoom(roomId: string, playerId: string, sense: Sense = "look"): Promise<string> {
+    const cached = this.cache.get(playerId, roomId, sense);
     if (cached !== null) return cached;
 
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const systemPrompt = this.promptBuilder.buildSystemPrompt();
+    const systemPrompt = this.promptBuilder.buildSystemPrompt(sense);
     const userPrompt = this.promptBuilder.buildUserPrompt(ctx);
 
     this.lastPrompt = {
@@ -55,7 +57,7 @@ export class DescriptionService {
     }
 
     if (result.ok) {
-      this.cache.set(playerId, roomId, result.text);
+      this.cache.set(playerId, roomId, sense, result.text);
       return result.text;
     }
 
@@ -66,10 +68,11 @@ export class DescriptionService {
     roomId: string,
     playerId: string,
     target: string,
-    entity?: MatchedEntity
+    entity?: MatchedEntity,
+    sense: Sense = "look"
   ): Promise<string> {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const systemPrompt = this.promptBuilder.buildTargetSystemPrompt();
+    const systemPrompt = this.promptBuilder.buildTargetSystemPrompt(sense);
     const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target, entity);
 
     this.lastPrompt = {

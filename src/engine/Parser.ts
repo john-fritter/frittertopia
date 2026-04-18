@@ -103,6 +103,10 @@ export class Parser {
       if (verb === "look" && rest.startsWith("at ")) {
         return { verb, target: rest.slice(3) };
       }
+      // "listen to <target>" → strip the "to" prefix
+      if (verb === "listen" && rest.startsWith("to ")) {
+        return { verb, target: rest.slice(3) };
+      }
       return { verb, target: rest };
     }
 
