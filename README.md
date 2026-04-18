@@ -48,7 +48,7 @@ The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes an
 
 ### Without an OPENROUTER_API_KEY
 
-The server still runs. Room descriptions fall back to a short atmospheric stub ("The shapes of the kitchen surround you, but the details won't quite resolve. The rest is fog."). Get a key from [openrouter.ai](https://openrouter.ai) for real descriptions. The default model is `anthropic/claude-3.5-haiku`; override with `OPENROUTER_MODEL`.
+The server still runs. Room descriptions fall back to a short atmospheric stub ("The shapes of the kitchen surround you, but the details won't quite resolve. The rest is fog."). Get a key from [openrouter.ai](https://openrouter.ai) for real descriptions. The default model is `anthropic/claude-haiku-4.5`; override with `OPENROUTER_MODEL`.
 
 ### Admins
 
