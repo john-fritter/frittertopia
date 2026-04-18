@@ -140,6 +140,17 @@ function resolveRefs(
         }
         resolved[fieldName] = resolvedRecord;
       }
+    } else if (refPath.endsWith("[]")) {
+      // Array pattern: "fieldName[]"
+      const fieldName = refPath.slice(0, -2);
+      const arr = resolved[fieldName];
+      if (Array.isArray(arr)) {
+        resolved[fieldName] = arr.map((value) =>
+          typeof value === "string"
+            ? resolveKey(value, world, entityLabel, source)
+            : value
+        );
+      }
     } else {
       // Direct field: "fieldName"
       const value = resolved[refPath];

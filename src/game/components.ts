@@ -40,7 +40,8 @@ export function registerComponents(world: World): void {
 
   world.registerComponent(
     "VisitedRooms",
-    z.object({ rooms: z.array(z.string()) })
+    z.object({ rooms: z.array(z.string()) }),
+    ["rooms[]"]
   );
 
   world.registerComponent("Admin", z.object({ level: z.number().default(1) }));
