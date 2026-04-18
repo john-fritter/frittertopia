@@ -269,11 +269,14 @@ describe("Admin commands (unit)", () => {
     expect(intent.target).toBe("someone");
   });
 
-  it("@help lists all 9 admin commands", async () => {
+  it("@help lists all admin commands", async () => {
     const result = await resolver.resolve({ verb: "@help" }, adminId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("@players");
     expect(plain).toContain("@time");
+    expect(plain).toContain("@weather");
+    expect(plain).toContain("@temperature");
+    expect(plain).toContain("@pressure");
     expect(plain).toContain("@sysinfo");
     expect(plain).toContain("@prompt");
     expect(plain).toContain("@llm");
@@ -310,6 +313,7 @@ describe("Admin commands (unit)", () => {
     const result = await resolver.resolve({ verb: "@time" }, adminId);
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("Time:");
+    expect(plain).toMatch(/\d{2}:\d{2}/);
   });
 
   it("@time HH:MM sets debug time and returns bracket", async () => {
@@ -353,6 +357,40 @@ describe("Admin commands (unit)", () => {
     );
     const plain = stripAnsi(result.toPlayer);
     expect(plain).toContain("Usage:");
+  });
+
+  it("@time help shows bracket list", async () => {
+    const result = await resolver.resolve(
+      { verb: "@time", target: "help" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("@time");
+    expect(plain).toContain("deep_night");
+    expect(plain).toContain("HH:MM");
+    expect(plain).toContain("reset");
+  });
+
+  it("@weather help shows states", async () => {
+    const result = await resolver.resolve(
+      { verb: "@weather", target: "help" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("@weather");
+    expect(plain).toContain("clear");
+    expect(plain).toContain("storm");
+    expect(plain).toContain("reset");
+  });
+
+  it("@players help shows usage", async () => {
+    const result = await resolver.resolve(
+      { verb: "@players", target: "help" },
+      adminId
+    );
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("@players");
+    expect(plain).toContain("online");
   });
 
   it("@prompt shows message when no prompt sent yet", async () => {

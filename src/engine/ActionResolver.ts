@@ -18,6 +18,7 @@ import {
 import {
   setDebugTime,
   getDebugTime,
+  getCurrentTime,
   getTimeBracket,
   getMoonData,
   getBracketMidpoints,
@@ -167,10 +168,10 @@ export class ActionResolver {
           this.handleAdminTeleport(intent.target, playerId)
         );
       case "@help":
-        return await this.adminGate(playerId, () => this.handleAdminHelp());
+        return await this.adminGate(playerId, () => this.handleAdminHelp(intent.target));
       case "@players":
         return await this.adminGate(playerId, () =>
-          this.handleAdminPlayers()
+          this.handleAdminPlayers(intent.target)
         );
       case "@time":
         return await this.adminGate(playerId, () =>
@@ -189,9 +190,9 @@ export class ActionResolver {
           this.handleAdminPressure(intent.target)
         );
       case "@sysinfo":
-        return await this.adminGate(playerId, () => this.handleAdminSysinfo());
+        return await this.adminGate(playerId, () => this.handleAdminSysinfo(intent.target));
       case "@prompt":
-        return await this.adminGate(playerId, () => this.handleAdminPrompt());
+        return await this.adminGate(playerId, () => this.handleAdminPrompt(intent.target));
       case "@llm":
         return await this.adminGate(playerId, () =>
           this.handleAdminLlm(intent.target)
@@ -519,6 +520,16 @@ export class ActionResolver {
   ): ActionResult {
     if (!target) return { toPlayer: formatDim("Usage: @destroy <player>") };
 
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@destroy — Remove a player entity from the world."),
+        "",
+        formatDim("  @destroy <player>    Destroy the named player and disconnect them"),
+        "",
+        formatDim("  Cannot destroy yourself. Player name is case-insensitive."),
+      ].join("\n") };
+    }
+
     // Find player by name (case-insensitive)
     const playerIds = this.world.getEntitiesWithComponent("Player");
     let targetId: string | undefined;
@@ -558,6 +569,17 @@ export class ActionResolver {
     playerId: string
   ): ActionResult {
     if (!target) return { toPlayer: formatDim("Usage: @inspect <target>") };
+
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@inspect — Show all components and fields for any entity."),
+        "",
+        formatDim("  @inspect <player>      Inspect by player name"),
+        formatDim("  @inspect <entity-key>  Inspect by entity string key (e.g. starting.room)"),
+        "",
+        formatDim("  Also matches entities by keyword in your current room."),
+      ].join("\n") };
+    }
 
     const entityId = this.resolveTarget(target, playerId);
     if (!entityId) {
@@ -624,6 +646,17 @@ export class ActionResolver {
   ): Promise<ActionResult> {
     if (!target) return { toPlayer: formatDim("Usage: @teleport <room-id>") };
 
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@teleport — Move instantly to any room."),
+        "",
+        formatDim("  @teleport <room-key>    Teleport to a room by its entity key"),
+        "",
+        formatDim("  Sends vanish/appear messages to old and new rooms."),
+        formatDim("  Example: @teleport monastery.kitchen"),
+      ].join("\n") };
+    }
+
     const roomId = this.world.getEntityByKey(target);
     if (!roomId) {
       return { toPlayer: formatDim(`No room found: ${target}`) };
@@ -669,7 +702,17 @@ export class ActionResolver {
     return result;
   }
 
-  private handleAdminPlayers(): ActionResult {
+  private handleAdminPlayers(target: string | undefined): ActionResult {
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@players — List all player entities with status and location."),
+        "",
+        formatDim("  @players    Show all players, sorted online-first then alphabetically"),
+        "",
+        formatDim("  Shows: name, online/offline status, current room name"),
+      ].join("\n") };
+    }
+
     const playerIds = this.world.getEntitiesWithComponent("Player");
 
     let online = 0;
@@ -734,20 +777,35 @@ export class ActionResolver {
 
   private handleAdminTime(target: string | undefined): ActionResult {
     if (!target) {
-      const now = getDebugTime();
+      const now = getCurrentTime();
       const bracket = getTimeBracket();
-      if (now) {
-        const timeStr = now.toLocaleTimeString("en-US", {
-          timeZone: "America/Los_Angeles",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
+      const timeStr = now.toLocaleTimeString("en-US", {
+        timeZone: "America/Los_Angeles",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      if (getDebugTime()) {
         return {
-          toPlayer: formatDim(`Time: ${bracket}`) + ` ${formatDim(`(debug override — ${timeStr} Bend time)`)}`,
+          toPlayer:
+            formatDim(`Time: ${bracket}`) +
+            `  ${formatDim(`(${timeStr} Bend time — debug override)`)}`,
         };
       }
-      return { toPlayer: formatDim(`Time: ${bracket}  (real clock)`) };
+      return { toPlayer: formatDim(`Time: ${bracket}  (${timeStr} Bend time)`) };
+    }
+
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@time — Show or set the game world debug time."),
+        "",
+        formatDim("  @time              Show current bracket and Bend clock time"),
+        formatDim("  @time <bracket>    Jump to the midpoint of a time bracket"),
+        formatDim("  @time HH:MM        Set a specific time (00:00–23:59)"),
+        formatDim("  @time reset        Clear debug override, restore real clock"),
+        "",
+        formatDim("  Brackets: deep_night, night, dawn, morning, midday, afternoon, dusk, evening"),
+      ].join("\n") };
     }
 
     const arg = target.trim().toLowerCase();
@@ -879,6 +937,18 @@ export class ActionResolver {
       return { toPlayer: lines.join("\n") };
     }
 
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@weather — Show or override precipitation state."),
+        "",
+        formatDim("  @weather              Show current state for all weather zones"),
+        formatDim("  @weather <state>      Set precipitation override"),
+        formatDim("  @weather reset        Clear override, restore simulation"),
+        "",
+        formatDim("  States: clear, overcast, rain, storm, snow, fog, sleet"),
+      ].join("\n") };
+    }
+
     const arg = target.trim().toLowerCase();
 
     if (arg === "clear" || arg === "reset") {
@@ -944,6 +1014,19 @@ export class ActionResolver {
       return { toPlayer: lines.join("\n") };
     }
 
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@temperature — Show or override temperature."),
+        "",
+        formatDim("  @temperature              Show current temp for all weather zones"),
+        formatDim("  @temperature <bracket>    Set temperature by bracket name"),
+        formatDim("  @temperature <°C>         Set temperature as a numeric value"),
+        formatDim("  @temperature reset        Clear override, restore simulation"),
+        "",
+        formatDim("  Brackets: frigid, cold, cool, mild, warm, hot"),
+      ].join("\n") };
+    }
+
     const arg = target.trim().toLowerCase();
 
     if (arg === "clear" || arg === "reset") {
@@ -1006,6 +1089,18 @@ export class ActionResolver {
       return { toPlayer: lines.join("\n") };
     }
 
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@pressure — Show or override barometric pressure."),
+        "",
+        formatDim("  @pressure           Show current pressure for all weather zones"),
+        formatDim("  @pressure <mb>      Set pressure in millibars (900–1100)"),
+        formatDim("  @pressure reset     Clear override, restore simulation"),
+        "",
+        formatDim("  Typical range: 960–1040 mb"),
+      ].join("\n") };
+    }
+
     const arg = target.trim().toLowerCase();
 
     if (arg === "clear" || arg === "reset") {
@@ -1029,7 +1124,15 @@ export class ActionResolver {
     };
   }
 
-  private handleAdminSysinfo(): ActionResult {
+  private handleAdminSysinfo(target: string | undefined): ActionResult {
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@sysinfo — Show server and world statistics."),
+        "",
+        formatDim("  @sysinfo    Show ticks, uptime, entity counts, time, and LLM debug state"),
+      ].join("\n") };
+    }
+
     const uptimeMs = Date.now() - this.startTime;
     const totalSec = Math.floor(uptimeMs / 1000);
     const minutes = Math.floor(totalSec / 60);
@@ -1071,7 +1174,17 @@ export class ActionResolver {
     return { toPlayer: lines.join("\n") };
   }
 
-  private handleAdminPrompt(): ActionResult {
+  private handleAdminPrompt(target: string | undefined): ActionResult {
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@prompt — Show the most recent LLM prompt sent this session."),
+        "",
+        formatDim("  @prompt    Display the last system + user prompt sent to the LLM"),
+        "",
+        formatDim("  Resets each server restart. Use @llm on to see prompts inline."),
+      ].join("\n") };
+    }
+
     const p = this.world.description.lastPrompt;
     if (!p) {
       return { toPlayer: formatDim("No LLM prompt has been sent yet this session.") };
@@ -1080,6 +1193,16 @@ export class ActionResolver {
   }
 
   private handleAdminLlm(target: string | undefined): ActionResult {
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@llm — Toggle inline LLM prompt display."),
+        "",
+        formatDim("  @llm        Show current debug mode state"),
+        formatDim("  @llm on     Enable LLM debug mode (prompts shown with descriptions)"),
+        formatDim("  @llm off    Disable LLM debug mode"),
+      ].join("\n") };
+    }
+
     const arg = target?.trim().toLowerCase();
     if (arg === "on") {
       this.world.description.setDebugMode(true);
@@ -1110,7 +1233,17 @@ export class ActionResolver {
     return lines.join("\n");
   }
 
-  private handleAdminHelp(): ActionResult {
+  private handleAdminHelp(target: string | undefined): ActionResult {
+    if (target === "help") {
+      return { toPlayer: [
+        formatBold("@help — Show all admin commands."),
+        "",
+        formatDim("  @help    Display the full admin command reference"),
+        "",
+        formatDim("  Type @<command> help for details on any command."),
+      ].join("\n") };
+    }
+
     const DESC_COL = 38;
     const lines: string[] = [];
 
@@ -1122,7 +1255,10 @@ export class ActionResolver {
       { name: "@destroy <player>", desc: "Remove a player and their data" },
       { name: "@inspect <target>", desc: "Show all component data for an entity" },
       { name: "@teleport <room-id>", desc: "Move to any room" },
-      { name: "@time [bracket|HH:MM|clear]", desc: "Show or set the debug time" },
+      { name: "@time [bracket|HH:MM|reset]", desc: "Show or set the debug time" },
+      { name: "@weather [state|reset]", desc: "Show or override precipitation state" },
+      { name: "@temperature [bracket|°C|reset]", desc: "Show or override temperature" },
+      { name: "@pressure [mb|reset]", desc: "Show or override barometric pressure" },
       { name: "@sysinfo", desc: "Show ticks, uptime, entity counts" },
       { name: "@prompt", desc: "Show the last LLM prompt sent" },
       { name: "@llm [on|off]", desc: "Toggle inline LLM prompt display" },
@@ -1140,7 +1276,7 @@ export class ActionResolver {
     }
 
     lines.push("");
-    lines.push(formatDim("Bracket names: deep_night, night, dawn, morning, midday, afternoon, dusk, evening"));
+    lines.push(formatDim("Type @<command> help for more detail."));
 
     return { toPlayer: lines.join("\n") };
   }
