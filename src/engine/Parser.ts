@@ -30,7 +30,7 @@ const ALL_DIRECTIONS = new Set([
 
 export class Parser {
   private aliases = new Map<string, string>();
-  private verbMetadata = new Map<string, { description: string; usage: string; category: string; aliases: string[] }>();
+  private verbMetadata = new Map<string, { description: string; usage: string; category: string; aliases: string[]; isAdmin?: boolean }>();
 
   constructor() {
     // Default aliases
@@ -48,13 +48,22 @@ export class Parser {
     description?: string;
     usage?: string;
     category?: string;
+    isAdmin?: boolean;
   }): void {
     if (options?.aliases) {
       for (const a of options.aliases) {
         this.aliases.set(a, verb);
       }
     }
-    if (options?.description !== undefined && options?.usage !== undefined && options?.category !== undefined) {
+    if (options?.isAdmin === true && options.description !== undefined && options.usage !== undefined) {
+      this.verbMetadata.set(verb, {
+        description: options.description,
+        usage: options.usage,
+        category: "",
+        aliases: [],
+        isAdmin: true,
+      });
+    } else if (options?.description !== undefined && options?.usage !== undefined && options?.category !== undefined) {
       this.verbMetadata.set(verb, {
         description: options.description,
         usage: options.usage,
@@ -67,7 +76,16 @@ export class Parser {
   getHelpData(): VerbHelpData[] {
     const result: VerbHelpData[] = [];
     for (const [verb, meta] of this.verbMetadata) {
+      if (meta.isAdmin) continue;
       result.push({ verb, ...meta });
+    }
+    return result;
+  }
+
+  getAdminVerbList(): Array<{ verb: string; usage: string; description: string }> {
+    const result: Array<{ verb: string; usage: string; description: string }> = [];
+    for (const [verb, meta] of this.verbMetadata) {
+      if (meta.isAdmin) result.push({ verb, usage: meta.usage, description: meta.description });
     }
     return result;
   }

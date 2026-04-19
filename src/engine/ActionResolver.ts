@@ -88,18 +88,18 @@ export class ActionResolver {
       usage: "help, help <command>, help <category>",
       category: "system",
     });
-    this.parser.registerVerb("@destroy");
-    this.parser.registerVerb("@inspect");
-    this.parser.registerVerb("@teleport");
-    this.parser.registerVerb("@help");
-    this.parser.registerVerb("@players");
-    this.parser.registerVerb("@time");
-    this.parser.registerVerb("@weather");
-    this.parser.registerVerb("@temperature");
-    this.parser.registerVerb("@pressure");
-    this.parser.registerVerb("@sysinfo");
-    this.parser.registerVerb("@prompt");
-    this.parser.registerVerb("@llm");
+    this.parser.registerVerb("@players",     { isAdmin: true, description: "List all players with status and location", usage: "@players" });
+    this.parser.registerVerb("@destroy",     { isAdmin: true, description: "Remove a player and their data",             usage: "@destroy <player>" });
+    this.parser.registerVerb("@inspect",     { isAdmin: true, description: "Show all component data for an entity",      usage: "@inspect <target>" });
+    this.parser.registerVerb("@teleport",    { isAdmin: true, description: "Move to any room",                           usage: "@teleport <room-id>" });
+    this.parser.registerVerb("@time",        { isAdmin: true, description: "Show or set the debug time",                 usage: "@time [bracket|HH:MM|reset]" });
+    this.parser.registerVerb("@weather",     { isAdmin: true, description: "Show or override precipitation state",       usage: "@weather [state|reset]" });
+    this.parser.registerVerb("@temperature", { isAdmin: true, description: "Show or override temperature",               usage: "@temperature [bracket|\u00b0C|reset]" });
+    this.parser.registerVerb("@pressure",    { isAdmin: true, description: "Show or override barometric pressure",       usage: "@pressure [mb|reset]" });
+    this.parser.registerVerb("@sysinfo",     { isAdmin: true, description: "Show ticks, uptime, entity counts",          usage: "@sysinfo" });
+    this.parser.registerVerb("@prompt",      { isAdmin: true, description: "Show the last LLM prompt sent",              usage: "@prompt" });
+    this.parser.registerVerb("@llm",         { isAdmin: true, description: "Toggle inline LLM prompt display",           usage: "@llm [on|off]" });
+    this.parser.registerVerb("@help",        { isAdmin: true, description: "Show this list",                             usage: "@help" });
   }
 
   async resolve(intent: Intent, playerId: string): Promise<ActionResult> {
@@ -142,7 +142,7 @@ export class ActionResolver {
           handleAdminTeleport(this.world, intent.target, playerId)
         );
       case "@help":
-        return await this.adminGate(playerId, () => handleAdminHelp(intent.target));
+        return await this.adminGate(playerId, () => handleAdminHelp(this.parser, intent.target));
       case "@players":
         return await this.adminGate(playerId, () =>
           handleAdminPlayers(this.world, intent.target)
