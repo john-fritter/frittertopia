@@ -2,18 +2,21 @@ import type { World } from "../World.js";
 import type { ActionResult } from "../ActionResolver.js";
 import type { Parser, VerbHelpData } from "../Parser.js";
 import {
-  formatRoom,
+  formatRoomView,
+  formatWhere,
   formatSelfSay,
   formatSay,
   formatArrival,
   formatDeparture,
-  formatSystem,
   formatBold,
   formatCyan,
   formatDim,
-  type RoomData,
-  type RoomExit,
+  abbreviateDirection,
+  sortDirections,
+  type RoomFooter,
+  type WhereBody,
 } from "../../server/format.js";
+import { computeTempBracket } from "../../game/weather.js";
 import { getVisitedRooms, markVisited } from "./helpers/entityMatching.js";
 
 export const CATEGORY_ORDER = ["movement", "interaction", "senses", "communication", "system"];
@@ -109,7 +112,8 @@ export async function handleLook(
   }
 
   const description = await world.description.describe(position.roomId, playerId, rawInput);
-  let output = description;
+  const footer = buildFooter(world, position.roomId);
+  let output = formatRoomView({ prose: description, footer });
   if (world.description.debugMode && world.description.lastPrompt) {
     output += "\n\n" + formatPromptBlock(world.description.lastPrompt);
   }
@@ -132,7 +136,79 @@ export async function handleSense(
   if (!position) return { toPlayer: "You aren't anywhere." };
 
   const text = await world.description.describe(position.roomId, playerId, rawInput);
-  return { toPlayer: text };
+  const footer = buildFooter(world, position.roomId);
+  return { toPlayer: formatRoomView({ prose: text, footer }) };
+}
+
+export function handleWhere(world: World, playerId: string): ActionResult {
+  const position = world.getComponent(playerId, "Position") as
+    | { roomId: string }
+    | undefined;
+  if (!position) return { toPlayer: "You aren't anywhere." };
+
+  const roomId = position.roomId;
+  const room = world.getComponent(roomId, "Room") as { name: string } | undefined;
+  const desc = world.getComponent(roomId, "Description") as
+    | { short: string }
+    | undefined;
+  const exitsComp = world.getComponent(roomId, "Exits") as
+    | { exits: Record<string, string> }
+    | undefined;
+
+  const visitedRooms = getVisitedRooms(world, playerId);
+
+  const exits: Array<{ direction: string; roomName?: string }> = [];
+  if (exitsComp) {
+    for (const [direction, targetRoomId] of Object.entries(exitsComp.exits)) {
+      const entry: { direction: string; roomName?: string } = { direction };
+      if (visitedRooms.has(targetRoomId)) {
+        const targetRoom = world.getComponent(targetRoomId, "Room") as
+          | { name: string }
+          | undefined;
+        if (targetRoom) entry.roomName = targetRoom.name;
+      }
+      exits.push(entry);
+    }
+  }
+
+  const players: string[] = [];
+  const items: string[] = [];
+
+  for (const id of world.getEntitiesWithComponent("Position")) {
+    if (id === playerId) continue;
+    if (id === roomId) continue;
+    const pos = world.getComponent(id, "Position") as { roomId: string };
+    if (pos.roomId !== roomId) continue;
+
+    const otherPlayer = world.getComponent(id, "Player") as
+      | { name: string; sessionId: string }
+      | undefined;
+    if (otherPlayer && otherPlayer.sessionId) {
+      players.push(otherPlayer.name);
+      continue;
+    }
+
+    const presence = world.getComponent(id, "Presence") as
+      | { description: string }
+      | undefined;
+    if (presence) {
+      const entDesc = world.getComponent(id, "Description") as
+        | { short: string }
+        | undefined;
+      items.push(entDesc?.short ?? presence.description);
+    }
+  }
+
+  const body: WhereBody = {
+    roomName: room?.name ?? "Unknown Room",
+    shortDescription: desc?.short ?? "You see nothing special.",
+    exits,
+    players,
+    items,
+    footer: buildFooter(world, roomId),
+  };
+
+  return { toPlayer: formatWhere(body) };
 }
 
 export function handleSay(
@@ -199,14 +275,8 @@ export async function composeLook(
   forceLong = false,
   rawInput = "look"
 ): Promise<string> {
-  const room = world.getComponent(roomId, "Room") as
-    | { name: string }
-    | undefined;
   const desc = world.getComponent(roomId, "Description") as
     | { short: string }
-    | undefined;
-  const exits = world.getComponent(roomId, "Exits") as
-    | { exits: Record<string, string> }
     | undefined;
 
   const visitedRooms = getVisitedRooms(world, playerId);
@@ -220,63 +290,56 @@ export async function composeLook(
     description = desc?.short ?? "You see nothing special.";
   }
 
-  // Build exits with room names for visited rooms only
-  const exitList: RoomExit[] = [];
-  if (exits) {
-    for (const [direction, targetRoomId] of Object.entries(exits.exits)) {
-      const exit: RoomExit = { direction };
-      if (visitedRooms.has(targetRoomId)) {
-        const targetRoom = world.getComponent(targetRoomId, "Room") as
-          | { name: string }
-          | undefined;
-        if (targetRoom) {
-          exit.roomName = targetRoom.name;
-        }
-      }
-      exitList.push(exit);
-    }
-  }
-
-  // Collect items and players in the room
-  const items: string[] = [];
-  const players: string[] = [];
-
-  const entitiesInRoom = world.getEntitiesWithComponent("Position");
-  for (const id of entitiesInRoom) {
-    if (id === playerId) continue;
-    if (id === roomId) continue;
-    const pos = world.getComponent(id, "Position") as { roomId: string };
-    if (pos.roomId !== roomId) continue;
-
-    const presence = world.getComponent(id, "Presence") as
-      | { description: string }
-      | undefined;
-    if (presence) {
-      items.push(presence.description);
-      continue;
-    }
-
-    const otherPlayer = world.getComponent(id, "Player") as
-      | { name: string; sessionId: string }
-      | undefined;
-    if (otherPlayer && otherPlayer.sessionId) {
-      players.push(otherPlayer.name);
-    }
-  }
-
-  const roomData: RoomData = {
-    name: room?.name ?? "Unknown Room",
-    description,
-    exits: exitList,
-  };
-  if (items.length > 0) roomData.items = items;
-  if (players.length > 0) roomData.players = players;
-
-  let output = formatRoom(roomData);
+  const footer = buildFooter(world, roomId);
+  let output = formatRoomView({ prose: description, footer });
   if (world.description.debugMode && world.description.lastPrompt) {
     output += "\n\n" + formatPromptBlock(world.description.lastPrompt);
   }
   return output;
+}
+
+export function buildFooter(world: World, roomId: string): RoomFooter {
+  const room = world.getComponent(roomId, "Room") as
+    | { name: string }
+    | undefined;
+  const exitsComp = world.getComponent(roomId, "Exits") as
+    | { exits: Record<string, string> }
+    | undefined;
+
+  const rawDirs = exitsComp ? Object.keys(exitsComp.exits) : [];
+  const directions = sortDirections(rawDirs.map(abbreviateDirection));
+
+  let timeBracket = "day";
+  const timeEntityId = world.getEntityByKey("world.time");
+  if (timeEntityId) {
+    const tod = world.getComponent(timeEntityId, "TimeOfDay") as
+      | { bracket: string }
+      | undefined;
+    if (tod) timeBracket = tod.bracket;
+  }
+
+  let weather = "indoor";
+  let tempBracket = "warm";
+  const weatherZoneRef = world.getComponent(roomId, "WeatherZoneRef") as
+    | { zoneId: string }
+    | undefined;
+  if (weatherZoneRef) {
+    const ws = world.getComponent(weatherZoneRef.zoneId, "WeatherState") as
+      | { tempC: number; precipState: string }
+      | undefined;
+    if (ws) {
+      weather = ws.precipState;
+      tempBracket = computeTempBracket(ws.tempC);
+    }
+  }
+
+  return {
+    roomName: room?.name ?? "Unknown Room",
+    directions,
+    timeBracket,
+    tempBracket,
+    weather,
+  };
 }
 
 export function formatHelpOverview(helpData: VerbHelpData[]): string {
