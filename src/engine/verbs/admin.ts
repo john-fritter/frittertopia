@@ -1,5 +1,6 @@
 import type { World } from "../World.js";
 import type { ActionResult } from "../ActionResolver.js";
+import type { Parser } from "../Parser.js";
 import {
   formatBold,
   formatCyan,
@@ -761,7 +762,7 @@ export function handleAdminLlm(
   return { toPlayer: formatDim(`LLM debug mode: ${state}`) + (arg ? `  ${formatDim("(use @llm on / @llm off)")}` : "") };
 }
 
-export function handleAdminHelp(target: string | undefined): ActionResult {
+export function handleAdminHelp(parser: Parser, target: string | undefined): ActionResult {
   if (target === "help") {
     return { toPlayer: [
       formatBold("@help — Show all admin commands."),
@@ -778,28 +779,14 @@ export function handleAdminHelp(target: string | undefined): ActionResult {
   lines.push(formatBold("Admin Commands"));
   lines.push(formatDim("─".repeat(14)));
 
-  const commands = [
-    { name: "@players", desc: "List all players with status and location" },
-    { name: "@destroy <player>", desc: "Remove a player and their data" },
-    { name: "@inspect <target>", desc: "Show all component data for an entity" },
-    { name: "@teleport <room-id>", desc: "Move to any room" },
-    { name: "@time [bracket|HH:MM|reset]", desc: "Show or set the debug time" },
-    { name: "@weather [state|reset]", desc: "Show or override precipitation state" },
-    { name: "@temperature [bracket|°C|reset]", desc: "Show or override temperature" },
-    { name: "@pressure [mb|reset]", desc: "Show or override barometric pressure" },
-    { name: "@sysinfo", desc: "Show ticks, uptime, entity counts" },
-    { name: "@prompt", desc: "Show the last LLM prompt sent" },
-    { name: "@llm [on|off]", desc: "Toggle inline LLM prompt display" },
-    { name: "@help", desc: "Show this list" },
-  ];
-
   lines.push("");
-  for (const cmd of commands) {
-    const visiblePrefix = cmd.name.length + 3;
+  for (const cmd of parser.getAdminVerbList()) {
+    const name = cmd.usage;
+    const visiblePrefix = name.length + 3;
     const dotsNeeded = Math.max(3, DESC_COL - visiblePrefix - 3);
     const dots = ".".repeat(dotsNeeded);
     lines.push(
-      `  ${formatCyan(cmd.name)} ${formatDim(dots)}   ${cmd.desc}`
+      `  ${formatCyan(name)} ${formatDim(dots)}   ${cmd.description}`
     );
   }
 
