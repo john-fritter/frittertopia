@@ -4,6 +4,7 @@ import type Database from "better-sqlite3";
 import type { World } from "../engine/World.js";
 import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
+import { composeLook } from "../engine/verbs/gameplay.js";
 import { formatSystem, formatSequence, formatArrival } from "./format.js";
 import {
   findAccountByUsername,
@@ -127,7 +128,7 @@ export class GameServer {
         playerId: string;
         roomId: string;
       };
-      const lookOutput = await this.resolver.composeLook(roomId, playerId, true);
+      const lookOutput = await composeLook(this.world, roomId, playerId, true);
       this.sendToPlayer(playerId, lookOutput);
 
       const player = this.world.getComponent(playerId, "Player") as
@@ -351,7 +352,8 @@ export class GameServer {
       const position = this.world.getComponent(existingId, "Position") as {
         roomId: string;
       };
-      const lookOutput = await this.resolver.composeLook(
+      const lookOutput = await composeLook(
+        this.world,
         position.roomId,
         existingId,
         true
@@ -395,7 +397,8 @@ export class GameServer {
         rooms: [startingRoom],
       });
 
-      const lookOutput = await this.resolver.composeLook(
+      const lookOutput = await composeLook(
+        this.world,
         startingRoom,
         playerId,
         true
