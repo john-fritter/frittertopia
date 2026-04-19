@@ -32,11 +32,11 @@ function assembleWorldState(ctx: RoomContext): WorldStatePayload {
     moonPhase: ctx.moonPhase,
     moonAboveHorizon: ctx.moonAboveHorizon,
     weather: ctx.weather,
-    tempF: ctx.tempF,
-    tempBracket: ctx.tempBracket,
-    pressureMb: ctx.pressureMb,
-    pressureTrend: ctx.pressureTrend,
-    exits: ctx.exits,
+    ...(ctx.tempF !== undefined && { tempF: ctx.tempF }),
+    ...(ctx.tempBracket !== undefined && { tempBracket: ctx.tempBracket }),
+    ...(ctx.pressureMb !== undefined && { pressureMb: ctx.pressureMb }),
+    ...(ctx.pressureTrend !== undefined && { pressureTrend: ctx.pressureTrend }),
+    ...(ctx.exits !== undefined && { exits: ctx.exits }),
   };
 }
 
