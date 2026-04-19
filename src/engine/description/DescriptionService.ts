@@ -1,13 +1,6 @@
 import type { World } from "../World.js";
 import { ContextBuilder } from "./ContextBuilder.js";
-import { DescriptionCache } from "./DescriptionCache.js";
-import { PromptBuilder } from "./PromptBuilder.js";
-
-export interface MatchedEntity {
-  short?: string;
-  presence?: string;
-  playerName?: string;
-}
+import { buildDescriptionPrompt } from "./PromptBuilder.js";
 
 export interface StoredPrompt {
   system: string;
@@ -17,93 +10,40 @@ export interface StoredPrompt {
 
 export class DescriptionService {
   private readonly contextBuilder: ContextBuilder;
-  private readonly promptBuilder: PromptBuilder;
-  readonly cache: DescriptionCache;
 
   lastPrompt: StoredPrompt | null = null;
   debugMode = false;
 
   constructor(private world: World) {
     this.contextBuilder = new ContextBuilder(world);
-    this.promptBuilder = new PromptBuilder();
-    this.cache = new DescriptionCache();
   }
 
   setDebugMode(on: boolean): void {
     this.debugMode = on;
   }
 
-  async describeRoom(roomId: string, playerId: string, command?: string): Promise<string> {
-    // Only cache default (look) calls; non-look senses skip the cache
-    if (!command) {
-      const cached = this.cache.get(playerId, roomId);
-      if (cached !== null) return cached;
-    }
-
+  async describe(roomId: string, playerId: string, rawInput: string): Promise<string> {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const systemPrompt = this.promptBuilder.buildSystemPrompt();
-    const userPrompt = this.promptBuilder.buildUserPrompt(ctx, command);
+    const { system, user } = buildDescriptionPrompt(ctx, rawInput);
 
     this.lastPrompt = {
-      system: systemPrompt,
-      user: userPrompt,
+      system,
+      user,
       context: `room: ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
     };
 
     let result;
     try {
-      result = await this.world.llm.generate(systemPrompt, userPrompt);
+      result = await this.world.llm.generate(system, user);
     } catch {
       return this.fallback(ctx);
     }
 
-    if (result.ok) {
-      if (!command) this.cache.set(playerId, roomId, result.text);
-      return result.text;
-    }
-
+    if (result.ok) return result.text;
     return this.fallback(ctx);
   }
 
-  async describeTarget(
-    roomId: string,
-    playerId: string,
-    target: string,
-    entity?: MatchedEntity,
-    command?: string
-  ): Promise<string> {
-    const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const systemPrompt = this.promptBuilder.buildTargetSystemPrompt();
-    const userPrompt = this.promptBuilder.buildTargetUserPrompt(ctx, target, entity, command);
-
-    this.lastPrompt = {
-      system: systemPrompt,
-      user: userPrompt,
-      context: `target: ${target} in ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
-    };
-
-    let result;
-    try {
-      result = await this.world.llm.generate(systemPrompt, userPrompt);
-    } catch {
-      return this.targetFallback(entity);
-    }
-
-    if (result.ok) {
-      return result.text;
-    }
-
-    return this.targetFallback(entity);
-  }
-
-  private targetFallback(entity?: MatchedEntity): string {
-    if (entity) {
-      return entity.presence ?? entity.short ?? entity.playerName ?? "You don't see anything notable.";
-    }
-    return "You don't see anything notable.";
-  }
-
-  private fallback(ctx: { roomName: string; roomShort: string }): string {
+  private fallback(ctx: { roomName: string }): string {
     const name = ctx.roomName.toLowerCase();
     return `The shapes of ${name} surround you, but the details won't quite resolve. The rest is fog.`;
   }

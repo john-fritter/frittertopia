@@ -100,21 +100,28 @@ describe("ActionResolver", () => {
     expect(result.toRoom).toBeUndefined();
   });
 
-  it("look at matched entity uses presence text as fallback (no LLM)", async () => {
-    // The chair in roomA has Presence: "A wooden chair sits in the corner."
+  it("look at target returns a string (LLM fallback — no API key in tests)", async () => {
+    // No entity matching; raw input goes to describe(); LLM fails → atmospheric fallback
     const result = await resolver.resolve(
       { verb: "look", target: "chair" },
       playerId
     );
-    expect(result.toPlayer).toBe("A wooden chair sits in the corner.");
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
   });
 
-  it("look at unknown target returns atmospheric fallback (no LLM)", async () => {
+  it("look at unknown target also returns atmospheric fallback (no LLM)", async () => {
     const result = await resolver.resolve(
       { verb: "look", target: "dragon" },
       playerId
     );
-    expect(result.toPlayer).toBe("You don't see anything notable.");
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
+  });
+
+  it("non-whitelisted verb does not reach the storyteller", async () => {
+    const result = await resolver.resolve({ verb: "kick", target: "the tree" }, playerId);
+    expect(result.toPlayer).toBe("I don't understand that.");
   });
 
   it("say produces correct output for speaker and others", async () => {
@@ -256,12 +263,11 @@ describe("VisitedRooms behavior", () => {
   });
 });
 
-describe("Entity matching for targeted look", () => {
+describe("Targeted look — raw input passed to storyteller", () => {
   let world: World;
   let resolver: ActionResolver;
   let roomId: string;
   let playerId: string;
-  let itemId: string;
 
   beforeEach(() => {
     world = new World();
@@ -270,13 +276,13 @@ describe("Entity matching for targeted look", () => {
     roomId = world.createEntity("room.test");
     world.addComponent(roomId, "Room", { name: "The Test Room" });
     world.addComponent(roomId, "Description", { short: "a test room" });
+    world.addComponent(roomId, "RoomBrief", { brief: "A plain room for testing." });
     world.addComponent(roomId, "Exits", { exits: {} });
 
-    // Item: "a wild rosemary bush" with key "monastery.rosemary-bush"
-    itemId = world.createEntity("monastery.rosemary-bush");
-    world.addComponent(itemId, "Position", { roomId });
-    world.addComponent(itemId, "Description", { short: "a wild rosemary bush" });
-    world.addComponent(itemId, "Presence", { description: "A vast rosemary bush sprawls across the path." });
+    const herb = world.createEntity("monastery.rosemary-bush");
+    world.addComponent(herb, "Position", { roomId });
+    world.addComponent(herb, "Description", { short: "a wild rosemary bush" });
+    world.addComponent(herb, "Presence", { description: "A vast rosemary bush sprawls across the path." });
 
     playerId = world.createEntity();
     world.addComponent(playerId, "Player", { name: "Tester", sessionId: "s1" });
@@ -286,52 +292,46 @@ describe("Entity matching for targeted look", () => {
     resolver = new ActionResolver(world);
   });
 
-  it("matches entity by Description.short substring", async () => {
-    const result = await resolver.resolve({ verb: "look", target: "rosemary" }, playerId);
-    // With no LLM, falls back to presence text of matched entity
-    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
+  it("look at <target> calls describe with raw input and returns a string", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "The rosemary is fragrant." });
+
+    const result = await resolver.resolve({ verb: "look", target: "rosemary", rawInput: "look at rosemary" }, playerId);
+
+    expect(result.toPlayer).toBe("The rosemary is fragrant.");
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Player input: look at rosemary");
+    expect(userPrompt).not.toContain("Target:");
+    expect(userPrompt).not.toContain("Command:");
   });
 
-  it("matches entity by entity key leaf", async () => {
-    const result = await resolver.resolve({ verb: "look", target: "rosemary bush" }, playerId);
-    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
-  });
-
-  it("strips articles before matching", async () => {
-    const result = await resolver.resolve({ verb: "look", target: "the rosemary bush" }, playerId);
-    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
-  });
-
-  it("matching is case-insensitive", async () => {
-    const result = await resolver.resolve({ verb: "look", target: "ROSEMARY" }, playerId);
-    expect(result.toPlayer).toBe("A vast rosemary bush sprawls across the path.");
-  });
-
-  it("matches another player by name", async () => {
-    const otherId = world.createEntity();
-    world.addComponent(otherId, "Player", { name: "Alice", sessionId: "s2" });
-    world.addComponent(otherId, "Position", { roomId });
-
-    const result = await resolver.resolve({ verb: "look", target: "alice" }, playerId);
-    // Entity match found (Player), no presence → fallback uses playerName
-    expect(result.toPlayer).toBe("Alice");
-  });
-
-  it("no match returns atmospheric fallback", async () => {
+  it("look at <unknown> falls back to atmospheric text (no LLM)", async () => {
     const result = await resolver.resolve({ verb: "look", target: "dragon" }, playerId);
-    expect(result.toPlayer).toBe("You don't see anything notable.");
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
   });
 
-  it("does not match entities in other rooms", async () => {
-    const otherRoom = world.createEntity("room.other");
-    world.addComponent(otherRoom, "Room", { name: "Other Room" });
-    const farItem = world.createEntity();
-    world.addComponent(farItem, "Position", { roomId: otherRoom });
-    world.addComponent(farItem, "Description", { short: "a golden crown" });
-    world.addComponent(farItem, "Presence", { description: "A crown sits on a pedestal." });
+  it("look at <target> with LLM success returns the LLM text", async () => {
+    vi.spyOn(world.llm, "generate").mockResolvedValue({
+      ok: true,
+      text: "Old stone, cold to the touch.",
+    });
 
-    const result = await resolver.resolve({ verb: "look", target: "crown" }, playerId);
-    expect(result.toPlayer).toBe("You don't see anything notable.");
+    const result = await resolver.resolve({ verb: "look", target: "wall" }, playerId);
+    expect(result.toPlayer).toBe("Old stone, cold to the touch.");
+  });
+
+  it("entity presence is in room context so LLM can use it", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "You see the bush." });
+
+    await resolver.resolve({ verb: "look", target: "rosemary" }, playerId);
+
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    // Rosemary presence text is in the Present: field of the context
+    expect(userPrompt).toContain("rosemary");
   });
 });
 
@@ -430,54 +430,66 @@ describe("Sensory verbs", () => {
     expect(result.toPlayer.length).toBeGreaterThan(0);
   });
 
-  it("listen to <target> no match returns atmospheric fallback", async () => {
+  it("listen to <target> no match returns a string (LLM fallback)", async () => {
     const result = await resolver.resolve({ verb: "listen", target: "dragon" }, playerId);
-    expect(result.toPlayer).toBe("You don't see anything notable.");
+    expect(typeof result.toPlayer).toBe("string");
+    expect(result.toPlayer.length).toBeGreaterThan(0);
   });
 
   // --- Parser 'to' stripping for listen ---
 
-  it("'listen to rosemary' strips the 'to' preposition and matches entity", async () => {
-    // Parsed as verb=listen, target=rosemary (not "to rosemary")
-    // Falls back to presence text since no LLM
-    const result = await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
-    // Should NOT return the no-match fallback
-    expect(result.toPlayer).not.toBe("You don't see anything notable.");
-  });
-
-  // --- sense is passed to the system prompt ---
-
-  it("listen to <target> includes 'listen' command in user prompt", async () => {
+  it("'listen to rosemary' uses raw input when available", async () => {
+    const parser = new Parser();
+    const r = new ActionResolver(world, parser);
+    const intent = parser.parse("listen to rosemary");
+    // rawInput is preserved as "listen to rosemary"; verb routes to handleSense
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "You hear rustling." });
 
-    await resolver.resolve({ verb: "listen", target: "rosemary" }, playerId);
+    const result = await r.resolve(intent, playerId);
 
+    expect(result.toPlayer).toBe("You hear rustling.");
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Command: listen");
+    expect(userPrompt).toContain("Player input: listen to rosemary");
   });
 
-  it("touch <target> includes 'touch' command in user prompt", async () => {
+  // --- raw input is passed to the storyteller (not a Command: field) ---
+
+  it("listen to <target> passes raw input to user prompt, not a Command: field", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "You hear rustling." });
+
+    await resolver.resolve({ verb: "listen", target: "rosemary", rawInput: "listen to rosemary" }, playerId);
+
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Player input: listen to rosemary");
+    expect(userPrompt).not.toContain("Command:");
+  });
+
+  it("touch <target> passes raw input to user prompt", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Rough and resinous." });
 
-    await resolver.resolve({ verb: "touch", target: "rosemary" }, playerId);
+    await resolver.resolve({ verb: "touch", target: "rosemary", rawInput: "touch rosemary" }, playerId);
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Command: touch");
+    expect(userPrompt).toContain("Player input: touch rosemary");
+    expect(userPrompt).not.toContain("Command:");
   });
 
-  it("taste <target> includes 'taste' command in user prompt", async () => {
+  it("taste <target> passes raw input to user prompt", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Piney and bitter." });
 
-    await resolver.resolve({ verb: "taste", target: "rosemary" }, playerId);
+    await resolver.resolve({ verb: "taste", target: "rosemary", rawInput: "taste rosemary" }, playerId);
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Command: taste");
+    expect(userPrompt).toContain("Player input: taste rosemary");
+    expect(userPrompt).not.toContain("Command:");
   });
 
   // --- sniff alias for smell (via parser) ---
