@@ -43,6 +43,12 @@ export interface ActionResult {
   toOtherRoom?: { roomId: string; text: string };
 }
 
+interface MatchedEntity {
+  short?: string;
+  presence?: string;
+  playerName?: string;
+}
+
 const CATEGORY_ORDER = ["movement", "interaction", "senses", "communication", "system"];
 const CATEGORY_NAMES: Record<string, string> = {
   movement: "Movement",
