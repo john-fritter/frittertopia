@@ -1,7 +1,6 @@
 import type { Intent, VerbHelpData } from "./Parser.js";
 import { Parser } from "./Parser.js";
 import type { World } from "./World.js";
-import type { MatchedEntity } from "./description/DescriptionService.js";
 import {
   formatRoom,
   formatSelfSay,
@@ -138,19 +137,21 @@ export class ActionResolver {
       return { toPlayer: formatSystem(sequence.deflectMessage) };
     }
 
+    const rawInput = intent.rawInput ?? (intent.target ? `${intent.verb} ${intent.target}` : intent.verb);
+
     switch (intent.verb) {
       case "move":
         return await this.handleMove(intent.target, playerId);
       case "look":
-        return await this.handleLook(intent.target, playerId);
+        return await this.handleLook(rawInput, intent.target, playerId);
       case "listen":
-        return await this.handleSense(intent.target, playerId, "listen");
+        return await this.handleSense(rawInput, intent.target, playerId, "listen");
       case "smell":
-        return await this.handleSense(intent.target, playerId, "smell");
+        return await this.handleSense(rawInput, intent.target, playerId, "smell");
       case "touch":
-        return await this.handleSense(intent.target, playerId, "touch");
+        return await this.handleSense(rawInput, intent.target, playerId, "touch");
       case "taste":
-        return await this.handleSense(intent.target, playerId, "taste");
+        return await this.handleSense(rawInput, intent.target, playerId, "taste");
       case "say":
         return this.handleSay(intent.target, playerId);
       case "help":
@@ -252,6 +253,7 @@ export class ActionResolver {
   }
 
   private async handleLook(
+    rawInput: string,
     target: string | undefined,
     playerId: string
   ): Promise<ActionResult> {
@@ -261,17 +263,11 @@ export class ActionResolver {
     if (!position) return { toPlayer: "You aren't anywhere." };
 
     if (!target) {
-      // Explicit look always shows long description
-      return { toPlayer: await this.composeLook(position.roomId, playerId, true) };
+      // Explicit bare look always shows long description
+      return { toPlayer: await this.composeLook(position.roomId, playerId, true, rawInput) };
     }
 
-    const entity = this.matchEntityInRoom(target, position.roomId);
-    const description = await this.world.description.describeTarget(
-      position.roomId,
-      playerId,
-      target,
-      entity
-    );
+    const description = await this.world.description.describe(position.roomId, playerId, rawInput);
     let output = description;
     if (this.world.description.debugMode && this.world.description.lastPrompt) {
       output += "\n\n" + this.formatPromptBlock(this.world.description.lastPrompt);
@@ -280,6 +276,7 @@ export class ActionResolver {
   }
 
   private async handleSense(
+    rawInput: string,
     target: string | undefined,
     playerId: string,
     sense: "listen" | "smell" | "touch" | "taste"
@@ -292,15 +289,7 @@ export class ActionResolver {
       | undefined;
     if (!position) return { toPlayer: "You aren't anywhere." };
 
-    const roomId = position.roomId;
-
-    if (!target) {
-      const text = await this.world.description.describeRoom(roomId, playerId, sense);
-      return { toPlayer: text };
-    }
-
-    const entity = this.matchEntityInRoom(target, roomId);
-    const text = await this.world.description.describeTarget(roomId, playerId, target, entity, sense);
+    const text = await this.world.description.describe(position.roomId, playerId, rawInput);
     return { toPlayer: text };
   }
 
@@ -330,7 +319,7 @@ export class ActionResolver {
     };
   }
 
-  async composeLook(roomId: string, playerId: string, forceLong = false): Promise<string> {
+  async composeLook(roomId: string, playerId: string, forceLong = false, rawInput = "look"): Promise<string> {
     const room = this.world.getComponent(roomId, "Room") as
       | { name: string }
       | undefined;
@@ -347,7 +336,7 @@ export class ActionResolver {
     // First visit or explicit look → AI description; revisit → short
     let description: string;
     if (forceLong || !hasVisited) {
-      description = await this.world.description.describeRoom(roomId, playerId);
+      description = await this.world.description.describe(roomId, playerId, rawInput);
     } else {
       description = desc?.short ?? "You see nothing special.";
     }
@@ -813,7 +802,6 @@ export class ActionResolver {
     if (arg === "clear" || arg === "reset") {
       setDebugTime(null);
       this.syncWorldTime();
-      this.world.description.cache.invalidateAll();
       const bracket = getTimeBracket();
       return { toPlayer: formatDim(`Time cleared — real clock restored (${bracket})`) };
     }
@@ -831,7 +819,6 @@ export class ActionResolver {
       }
       setDebugTime(t);
       this.syncWorldTime();
-      this.world.description.cache.invalidateAll();
       const timeStr = t.toLocaleTimeString("en-US", {
         timeZone: "America/Los_Angeles",
         hour: "2-digit",
@@ -852,7 +839,6 @@ export class ActionResolver {
       const t = makeBendLocalTime(hh, mm);
       setDebugTime(t);
       this.syncWorldTime();
-      this.world.description.cache.invalidateAll();
       const bracket = getTimeBracket(t);
       return { toPlayer: formatDim(`Time set: ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} Bend time  (${bracket})`) };
     }
@@ -903,7 +889,6 @@ export class ActionResolver {
         precipStateElapsedMs: debugPrec ? 0 : state.precipStateElapsedMs,
       });
     }
-    this.world.description.cache.invalidateAll();
   }
 
   private handleAdminWeather(target: string | undefined): ActionResult {

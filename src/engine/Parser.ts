@@ -2,6 +2,8 @@ export interface Intent {
   verb: string;
   target?: string;
   modifiers?: string[];
+  /** The original trimmed input before alias resolution or preposition stripping. */
+  rawInput?: string;
 }
 
 export interface VerbHelpData {
@@ -72,7 +74,7 @@ export class Parser {
 
   parse(input: string): Intent {
     const trimmed = input.trim().toLowerCase();
-    if (trimmed === "") return { verb: "" };
+    if (trimmed === "") return { verb: "", rawInput: "" };
 
     const parts = trimmed.split(/\s+/);
     const firstWord = parts[0]!;
@@ -81,7 +83,7 @@ export class Parser {
     // Bare direction word -> move
     if (ALL_DIRECTIONS.has(firstWord) && rest === undefined) {
       const direction = DIRECTION_FULL[firstWord] ?? firstWord;
-      return { verb: "move", target: direction };
+      return { verb: "move", target: direction, rawInput: trimmed };
     }
 
     // Resolve aliases
@@ -90,26 +92,26 @@ export class Parser {
     // "move north" or "go north" -> normalize direction in target
     if (verb === "move" && rest) {
       const direction = DIRECTION_FULL[rest] ?? rest;
-      return { verb: "move", target: direction };
+      return { verb: "move", target: direction, rawInput: trimmed };
     }
 
     // "say" captures everything after as target
     if (verb === "say") {
-      return rest ? { verb: "say", target: rest } : { verb: "say" };
+      return rest ? { verb: "say", target: rest, rawInput: trimmed } : { verb: "say", rawInput: trimmed };
     }
 
     if (rest) {
       // "look at <target>" → strip the "at" prefix
       if (verb === "look" && rest.startsWith("at ")) {
-        return { verb, target: rest.slice(3) };
+        return { verb, target: rest.slice(3), rawInput: trimmed };
       }
       // "listen to <target>" → strip the "to" prefix
       if (verb === "listen" && rest.startsWith("to ")) {
-        return { verb, target: rest.slice(3) };
+        return { verb, target: rest.slice(3), rawInput: trimmed };
       }
-      return { verb, target: rest };
+      return { verb, target: rest, rawInput: trimmed };
     }
 
-    return { verb };
+    return { verb, rawInput: trimmed };
   }
 }

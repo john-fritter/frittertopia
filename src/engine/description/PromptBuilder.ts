@@ -1,92 +1,100 @@
 import type { RoomContext } from "./ContextBuilder.js";
-import type { MatchedEntity } from "./DescriptionService.js";
 
-function formatWeatherLine(context: RoomContext): string {
-  if (context.tempF === undefined) return `Weather: ${context.weather}`;
-  const parts: string[] = [context.weather];
-  parts.push(`${context.tempF}°F (${context.tempBracket ?? ""})`);
-  if (context.pressureMb !== undefined && context.pressureTrend !== undefined) {
-    parts.push(`${context.pressureMb} mb ${context.pressureTrend}`);
+// ---------------------------------------------------------------------------
+// Shared context-assembly helper
+// Each prompt kind calls this to produce a structured world/sim state payload.
+// ---------------------------------------------------------------------------
+
+interface WorldStatePayload {
+  roomName: string;
+  roomBrief: string;
+  entitiesPresent: Array<{ name: string; description: string }>;
+  otherPlayers: string[];
+  timeOfDay: string;
+  moonPhase: string;
+  moonAboveHorizon: boolean;
+  weather: string;
+  tempF?: number;
+  tempBracket?: string;
+  pressureMb?: number;
+  pressureTrend?: string;
+  exits?: Record<string, string>;
+  // recentOutput?: string;  // seam: last N tokens of prior output (short-term memory)
+}
+
+function assembleWorldState(ctx: RoomContext): WorldStatePayload {
+  return {
+    roomName: ctx.roomName,
+    roomBrief: ctx.roomBrief,
+    entitiesPresent: ctx.entitiesPresent,
+    otherPlayers: ctx.otherPlayers,
+    timeOfDay: ctx.timeOfDay,
+    moonPhase: ctx.moonPhase,
+    moonAboveHorizon: ctx.moonAboveHorizon,
+    weather: ctx.weather,
+    tempF: ctx.tempF,
+    tempBracket: ctx.tempBracket,
+    pressureMb: ctx.pressureMb,
+    pressureTrend: ctx.pressureTrend,
+    exits: ctx.exits,
+  };
+}
+
+function formatWeatherLine(state: WorldStatePayload): string {
+  if (state.tempF === undefined) return `Weather: ${state.weather}`;
+  const parts: string[] = [state.weather];
+  parts.push(`${state.tempF}°F (${state.tempBracket ?? ""})`);
+  if (state.pressureMb !== undefined && state.pressureTrend !== undefined) {
+    parts.push(`${state.pressureMb} mb ${state.pressureTrend}`);
   }
   return `Weather: ${parts.join(", ")}`;
 }
 
-export class PromptBuilder {
-  buildSystemPrompt(): string {
-    return (
-      "You are describing rooms in a text-based game world. " +
-      "Write atmospheric, second-person present-tense descriptions in 2-4 sentences. " +
-      "Describe only what is documented in the room brief. " +
-      "You may embellish sensory details — light, texture, sound, smell — but never invent objects, exits, characters, or anything a player could interact with. " +
-      "If other entities are present, weave their presence into the description naturally. " +
-      "If the player's command specifies a sense (listen, smell, etc.), focus the description through that sense."
-    );
+// ---------------------------------------------------------------------------
+// Description kind
+// ---------------------------------------------------------------------------
+
+const DESCRIPTION_SYSTEM = (
+  "You are the narrator of a text adventure in the literary tradition of " +
+  "atmospheric, sparse MUDs. Write second-person present-tense responses of " +
+  "1–3 sentences: concrete, alive to texture, never precious. Use the room " +
+  "context as ground truth. Respond to whatever the player typed — if what " +
+  "they describe is absent, implausible, or strange, answer naturally and in " +
+  "character. Never refuse, apologize, or mention game mechanics."
+);
+
+export function buildDescriptionPrompt(
+  ctx: RoomContext,
+  rawInput: string,
+  // recentOutput?: string,  // seam: wire up when short-term memory feature lands
+): { system: string; user: string } {
+  const state = assembleWorldState(ctx);
+
+  const presentParts: string[] = [
+    ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
+    ...state.otherPlayers.map((name) => `${name} (player)`),
+  ];
+  const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
+
+  const lines = [
+    `Room: ${state.roomName}`,
+    `Brief: ${state.roomBrief}`,
+    `Time: ${state.timeOfDay}`,
+    `Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`,
+    formatWeatherLine(state),
+    `Present: ${presentLine}`,
+  ];
+
+  if (state.exits && Object.keys(state.exits).length > 0) {
+    const exitParts = Object.entries(state.exits)
+      .map(([dir, name]) => `${dir} → ${name}`)
+      .join(", ");
+    lines.push(`Exits: ${exitParts}`);
   }
 
-  buildTargetSystemPrompt(): string {
-    return (
-      "You are describing a specific feature or detail that a player is interacting with in a text-based game world. " +
-      "Write an atmospheric, second-person present-tense description in 1-3 sentences. " +
-      "Focus on the specific thing the player is engaging with, drawing from the room brief. " +
-      "If the brief contains a bracketed section matching the target, use those details. " +
-      "If the target is something plausibly present but not specifically detailed, describe it briefly using context from the brief. " +
-      "If the player's command specifies a sense (listen, smell, touch, taste), describe the target through that sense. " +
-      "If the interaction is implausible, respond with a short, natural message."
-    );
-  }
+  // recentOutput seam: lines.push(`Recent: ${recentOutput}`);
 
-  buildTargetUserPrompt(context: RoomContext, target: string, entity?: MatchedEntity, command?: string): string {
-    const lines = [
-      `Room: ${context.roomName}`,
-      `Brief: ${context.roomBrief}`,
-      `Time: ${context.timeOfDay}`,
-      `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-      formatWeatherLine(context),
-      `Target: ${target}`,
-    ];
+  lines.push(`Player input: ${rawInput}`);
 
-    if (entity) {
-      const parts: string[] = [];
-      if (entity.short) parts.push(`description: ${entity.short}`);
-      if (entity.presence) parts.push(`presence: ${entity.presence}`);
-      if (entity.playerName) parts.push(`name: ${entity.playerName}`);
-      if (parts.length > 0) lines.push(`Entity data: ${parts.join(", ")}`);
-    }
-
-    if (command) lines.push(`Command: ${command}`);
-
-    return lines.join("\n");
-  }
-
-  buildUserPrompt(context: RoomContext, command?: string): string {
-    const visitLabel = context.isFirstVisit ? "first visit" : "returning";
-
-    const presentParts: string[] = [
-      ...context.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
-      ...context.otherPlayers.map((name) => `${name} (player)`),
-    ];
-    const presentLine =
-      presentParts.length > 0 ? presentParts.join(", ") : "empty";
-
-    const lines = [
-      `Room: ${context.roomName}`,
-      `Brief: ${context.roomBrief}`,
-      `Time: ${context.timeOfDay}`,
-      `Moon: ${context.moonPhase}, ${context.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-      formatWeatherLine(context),
-      `Visit: ${visitLabel}`,
-      `Present: ${presentLine}`,
-    ];
-
-    if (context.exits && Object.keys(context.exits).length > 0) {
-      const exitParts = Object.entries(context.exits)
-        .map(([dir, name]) => `${dir} → ${name}`)
-        .join(", ");
-      lines.push(`Exits: ${exitParts}`);
-    }
-
-    if (command) lines.push(`Command: ${command}`);
-
-    return lines.join("\n");
-  }
+  return { system: DESCRIPTION_SYSTEM, user: lines.join("\n") };
 }

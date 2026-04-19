@@ -9,8 +9,7 @@ import {
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { ContextBuilder } from "../src/engine/description/ContextBuilder.js";
-import { PromptBuilder } from "../src/engine/description/PromptBuilder.js";
-import { DescriptionCache } from "../src/engine/description/DescriptionCache.js";
+import { buildDescriptionPrompt } from "../src/engine/description/PromptBuilder.js";
 import { DescriptionService } from "../src/engine/description/index.js";
 
 // ---------------------------------------------------------------------------
@@ -66,7 +65,7 @@ function addItem(
 }
 
 // ---------------------------------------------------------------------------
-// ContextBuilder
+// ContextBuilder — unchanged; pure ECS query assembly
 // ---------------------------------------------------------------------------
 
 describe("ContextBuilder", () => {
@@ -147,7 +146,6 @@ describe("ContextBuilder", () => {
   });
 
   it("excludes the requesting player from entitiesPresent", () => {
-    // Give the player a Presence component — should still be excluded
     world.addComponent(playerId, "Presence", { description: "You are here." });
 
     const ctx = new ContextBuilder(world).buildContext(roomId, playerId);
@@ -199,7 +197,6 @@ describe("ContextBuilder", () => {
     const id = world.createEntity();
     world.addComponent(id, "Player", { name: "Blank", sessionId: "blank" });
     world.addComponent(id, "Position", { roomId });
-    // No VisitedRooms component
 
     const ctx = new ContextBuilder(world).buildContext(roomId, id);
     expect(ctx.isFirstVisit).toBe(true);
@@ -215,18 +212,16 @@ describe("ContextBuilder", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PromptBuilder
+// PromptBuilder — buildDescriptionPrompt (prompt-kind architecture)
 // ---------------------------------------------------------------------------
 
-describe("PromptBuilder", () => {
-  const builder = new PromptBuilder();
-
+describe("buildDescriptionPrompt", () => {
   const baseContext = {
     roomName: "The Courtyard",
     roomBrief: "A wide open courtyard surrounded by stone walls.",
     roomShort: "a wide courtyard",
-    entitiesPresent: [],
-    otherPlayers: [],
+    entitiesPresent: [] as Array<{ name: string; description: string }>,
+    otherPlayers: [] as string[],
     isFirstVisit: false,
     timeOfDay: "day",
     moonPhase: "full",
@@ -235,244 +230,142 @@ describe("PromptBuilder", () => {
     exits: { east: "The Corridor", south: "The Kitchen" },
   };
 
-  describe("buildSystemPrompt", () => {
-    it("instructs second-person present-tense writing", () => {
-      const prompt = builder.buildSystemPrompt();
-      expect(prompt).toMatch(/second-person/i);
-      expect(prompt).toMatch(/present.tense/i);
-    });
+  it("returns a {system, user} object — prompt-kind scaffold shape", () => {
+    const result = buildDescriptionPrompt(baseContext, "look");
+    expect(result).toHaveProperty("system");
+    expect(result).toHaveProperty("user");
+    expect(typeof result.system).toBe("string");
+    expect(typeof result.user).toBe("string");
+  });
 
-    it("prohibits inventing objects or interactive elements", () => {
-      const prompt = builder.buildSystemPrompt();
-      expect(prompt).toMatch(/never invent/i);
+  it("system prompt is self-contained — two calls with different rawInput produce the same system prompt", () => {
+    const r1 = buildDescriptionPrompt(baseContext, "look");
+    const r2 = buildDescriptionPrompt(baseContext, "smell candle");
+    // Verifies the description kind is a pure, isolated function;
+    // a future kind can be added as a separate export without touching this one.
+    expect(r1.system).toBe(r2.system);
+  });
+
+  describe("system prompt", () => {
+    it("instructs second-person present-tense writing", () => {
+      const { system } = buildDescriptionPrompt(baseContext, "look");
+      expect(system).toMatch(/second-person/i);
+      expect(system).toMatch(/present.tense/i);
     });
 
     it("specifies sentence length", () => {
-      const prompt = builder.buildSystemPrompt();
-      expect(prompt).toMatch(/sentences/i);
+      const { system } = buildDescriptionPrompt(baseContext, "look");
+      expect(system).toMatch(/sentences/i);
+    });
+
+    it("instructs in-character handling of implausible input — no refusals", () => {
+      const { system } = buildDescriptionPrompt(baseContext, "look");
+      expect(system).toMatch(/never refuse|never.*apologi|in character/i);
     });
   });
 
-  describe("buildUserPrompt", () => {
+  describe("user prompt — field presence", () => {
     it("includes the room name", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).toContain("Room: The Courtyard");
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Room: The Courtyard");
     });
 
     it("includes the room brief", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).toContain("Brief: A wide open courtyard surrounded by stone walls.");
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Brief: A wide open courtyard surrounded by stone walls.");
     });
 
-    it("marks a returning visit", () => {
-      const prompt = builder.buildUserPrompt({ ...baseContext, isFirstVisit: false });
-      expect(prompt).toContain("Visit: returning");
+    it("includes time and moon", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Time: day");
+      expect(user).toContain("Moon: full, above horizon");
     });
 
-    it("marks a first visit", () => {
-      const prompt = builder.buildUserPrompt({ ...baseContext, isFirstVisit: true });
-      expect(prompt).toContain("Visit: first visit");
+    it("includes weather", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Weather: clear");
+    });
+
+    it("includes exits when present", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Exits:");
+      expect(user).toContain("east → The Corridor");
+      expect(user).toContain("south → The Kitchen");
+    });
+
+    it("omits exits line when exits is empty", () => {
+      const { user } = buildDescriptionPrompt({ ...baseContext, exits: {} }, "look");
+      expect(user).not.toContain("Exits:");
+    });
+
+    it("omits exits line when exits is undefined", () => {
+      const { user } = buildDescriptionPrompt({ ...baseContext, exits: undefined }, "look");
+      expect(user).not.toContain("Exits:");
     });
 
     it("lists present entities", () => {
       const ctx = {
         ...baseContext,
-        entitiesPresent: [
-          { name: "a broom", description: "A broom leans against the wall." },
-        ],
+        entitiesPresent: [{ name: "a broom", description: "A broom leans against the wall." }],
       };
-      const prompt = builder.buildUserPrompt(ctx);
-      expect(prompt).toContain("a broom");
-      expect(prompt).toContain("A broom leans against the wall.");
+      const { user } = buildDescriptionPrompt(ctx, "look");
+      expect(user).toContain("a broom");
+      expect(user).toContain("A broom leans against the wall.");
     });
 
     it("lists other players", () => {
       const ctx = { ...baseContext, otherPlayers: ["Alice"] };
-      const prompt = builder.buildUserPrompt(ctx);
-      expect(prompt).toContain("Alice (player)");
+      const { user } = buildDescriptionPrompt(ctx, "look");
+      expect(user).toContain("Alice (player)");
     });
 
     it("shows 'empty' when nothing is present", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).toContain("Present: empty");
-    });
-
-    it("includes time, moon, and weather", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).toContain("Time: day");
-      expect(prompt).toContain("Moon: full, above horizon");
-      expect(prompt).toContain("Weather: clear");
-    });
-
-    it("includes exits when present", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).toContain("Exits:");
-      expect(prompt).toContain("east → The Corridor");
-      expect(prompt).toContain("south → The Kitchen");
-    });
-
-    it("omits exits line when exits is undefined", () => {
-      const ctx = { ...baseContext, exits: undefined };
-      const prompt = builder.buildUserPrompt(ctx);
-      expect(prompt).not.toContain("Exits:");
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).toContain("Present: empty");
     });
   });
 
-  describe("buildTargetUserPrompt", () => {
-    it("includes room, brief, time, moon, weather, and target", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
-      expect(prompt).toContain("Room: The Courtyard");
-      expect(prompt).toContain("Brief: A wide open courtyard surrounded by stone walls.");
-      expect(prompt).toContain("Time: day");
-      expect(prompt).toContain("Moon: full, above horizon");
-      expect(prompt).toContain("Weather: clear");
-      expect(prompt).toContain("Target: altar");
+  describe("user prompt — raw input contract", () => {
+    it("includes Player input field with the raw input", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look at the altar");
+      expect(user).toContain("Player input: look at the altar");
     });
 
-    it("includes entity data when entity is provided", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "broom", {
-        short: "a broom",
-        presence: "A broom leans against the wall, forgotten.",
-      });
-      expect(prompt).toContain("Entity data:");
-      expect(prompt).toContain("description: a broom");
-      expect(prompt).toContain("presence: A broom leans against the wall, forgotten.");
+    it("includes raw sensory input verbatim", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "smell candle");
+      expect(user).toContain("Player input: smell candle");
     });
 
-    it("includes player name when entity has playerName", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "alice", {
-        playerName: "Alice",
-      });
-      expect(prompt).toContain("name: Alice");
+    it("does NOT contain a Target: field", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look at the altar");
+      expect(user).not.toContain("Target:");
     });
 
-    it("omits entity data line when no entity provided", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
-      expect(prompt).not.toContain("Entity data:");
-    });
-  });
-
-  describe("buildUserPrompt command line", () => {
-    it("omits Command line when no command is given", () => {
-      const prompt = builder.buildUserPrompt(baseContext);
-      expect(prompt).not.toContain("Command:");
+    it("does NOT contain a Command: field", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "smell candle");
+      expect(user).not.toContain("Command:");
     });
 
-    it("includes Command line when command is given", () => {
-      const prompt = builder.buildUserPrompt(baseContext, "listen");
-      expect(prompt).toContain("Command: listen");
+    it("does NOT contain a Visit: field", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "look");
+      expect(user).not.toContain("Visit:");
     });
 
-    it("command appears after exits in the prompt", () => {
-      const prompt = builder.buildUserPrompt(baseContext, "smell");
-      const exitIdx = prompt.indexOf("Exits:");
-      const cmdIdx = prompt.indexOf("Command: smell");
-      expect(exitIdx).toBeGreaterThan(-1);
-      expect(cmdIdx).toBeGreaterThan(exitIdx);
-    });
-  });
-
-  describe("buildTargetUserPrompt command line", () => {
-    it("omits Command line when no command is given", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "altar");
-      expect(prompt).not.toContain("Command:");
-    });
-
-    it("includes Command line when command is given", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "touch");
-      expect(prompt).toContain("Command: touch");
-    });
-
-    it("command appears after target in the prompt", () => {
-      const prompt = builder.buildTargetUserPrompt(baseContext, "altar", undefined, "taste");
-      const targetIdx = prompt.indexOf("Target: altar");
-      const cmdIdx = prompt.indexOf("Command: taste");
-      expect(targetIdx).toBeGreaterThan(-1);
-      expect(cmdIdx).toBeGreaterThan(targetIdx);
+    it("Player input appears after other context fields", () => {
+      const { user } = buildDescriptionPrompt(baseContext, "listen");
+      const briefIdx = user.indexOf("Brief:");
+      const inputIdx = user.indexOf("Player input:");
+      expect(briefIdx).toBeGreaterThan(-1);
+      expect(inputIdx).toBeGreaterThan(briefIdx);
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// DescriptionCache
-// ---------------------------------------------------------------------------
-
-describe("DescriptionCache", () => {
-  const TTL_MS = 5 * 60 * 1000;
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns null on a cache miss", () => {
-    const cache = new DescriptionCache();
-    expect(cache.get("player1", "room1")).toBeNull();
-  });
-
-  it("returns the cached text on a hit", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "The hall is cold.");
-    expect(cache.get("player1", "room1")).toBe("The hall is cold.");
-  });
-
-  it("returns null after TTL expires", () => {
-    vi.useFakeTimers();
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "Stone walls.");
-    vi.advanceTimersByTime(TTL_MS + 1);
-    expect(cache.get("player1", "room1")).toBeNull();
-  });
-
-  it("returns text when TTL has not expired", () => {
-    vi.useFakeTimers();
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "Stone walls.");
-    vi.advanceTimersByTime(TTL_MS - 1);
-    expect(cache.get("player1", "room1")).toBe("Stone walls.");
-  });
-
-  it("invalidate clears all entries for a given room", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "Text A.");
-    cache.set("player2", "room1", "Text B.");
-    cache.set("player1", "room2", "Text C.");
-
-    cache.invalidate("room1");
-
-    expect(cache.get("player1", "room1")).toBeNull();
-    expect(cache.get("player2", "room1")).toBeNull();
-    expect(cache.get("player1", "room2")).toBe("Text C."); // untouched
-  });
-
-  it("invalidatePlayer clears all entries for a given player", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "Text A.");
-    cache.set("player1", "room2", "Text B.");
-    cache.set("player2", "room1", "Text C.");
-
-    cache.invalidatePlayer("player1");
-
-    expect(cache.get("player1", "room1")).toBeNull();
-    expect(cache.get("player1", "room2")).toBeNull();
-    expect(cache.get("player2", "room1")).toBe("Text C."); // untouched
-  });
-
-  it("separate players get separate cache entries for the same room", () => {
-    const cache = new DescriptionCache();
-    cache.set("player1", "room1", "Alice sees it.");
-    cache.set("player2", "room1", "Bob sees it.");
-    expect(cache.get("player1", "room1")).toBe("Alice sees it.");
-    expect(cache.get("player2", "room1")).toBe("Bob sees it.");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// DescriptionService
+// DescriptionService — describe()
 // ---------------------------------------------------------------------------
 
 describe("DescriptionService", () => {
-  const TTL_MS = 5 * 60 * 1000;
-
   let world: World;
   let roomId: string;
   let playerId: string;
@@ -496,34 +389,9 @@ describe("DescriptionService", () => {
       text: "Candlelight flickers across old stone.",
     });
 
-    const result = await world.description.describeRoom(roomId, playerId);
+    const result = await world.description.describe(roomId, playerId, "look");
 
     expect(result).toBe("Candlelight flickers across old stone.");
-  });
-
-  it("returns cached text without calling the LLM on a cache hit", async () => {
-    const generateMock = vi
-      .spyOn(world.llm, "generate")
-      .mockResolvedValue({ ok: true, text: "Generated once." });
-
-    await world.description.describeRoom(roomId, playerId);
-    const second = await world.description.describeRoom(roomId, playerId);
-
-    expect(second).toBe("Generated once.");
-    expect(generateMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls the LLM again after the cache expires", async () => {
-    vi.useFakeTimers();
-    const generateMock = vi
-      .spyOn(world.llm, "generate")
-      .mockResolvedValue({ ok: true, text: "Fresh description." });
-
-    await world.description.describeRoom(roomId, playerId);
-    vi.advanceTimersByTime(TTL_MS + 1);
-    await world.description.describeRoom(roomId, playerId);
-
-    expect(generateMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns fallback text on LLM failure", async () => {
@@ -532,7 +400,7 @@ describe("DescriptionService", () => {
       error: "API error 500",
     });
 
-    const result = await world.description.describeRoom(roomId, playerId);
+    const result = await world.description.describe(roomId, playerId, "look");
 
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
@@ -547,10 +415,8 @@ describe("DescriptionService", () => {
 
     const generateMock = vi.spyOn(noKeyWorld.llm, "generate");
 
-    const result = await noKeyWorld.description.describeRoom(r, p);
+    const result = await noKeyWorld.description.describe(r, p, "look");
 
-    // generate is still called — it returns { ok: false } because of missing key
-    // (the LLMClient handles that internally; DescriptionService handles the ok:false path)
     const callResult = await generateMock.mock.results[0]?.value;
     expect(callResult?.ok).toBe(false);
     expect(typeof result).toBe("string");
@@ -563,7 +429,7 @@ describe("DescriptionService", () => {
       error: "API error 429: rate limited",
     });
 
-    const result = await world.description.describeRoom(roomId, playerId);
+    const result = await world.description.describe(roomId, playerId, "look");
 
     const lower = result.toLowerCase();
     expect(lower).not.toContain("error");
@@ -577,142 +443,56 @@ describe("DescriptionService", () => {
   it("never throws — always returns a string", async () => {
     vi.spyOn(world.llm, "generate").mockRejectedValue(new Error("unexpected"));
 
-    // Even if LLMClient.generate somehow throws, describeRoom should not
-    // (In practice LLMClient never throws, but belt-and-suspenders test)
     await expect(
-      world.description.describeRoom(roomId, playerId)
+      world.description.describe(roomId, playerId, "look")
     ).resolves.toEqual(expect.any(String));
   });
 
-  describe("describeTarget", () => {
-    it("returns AI-generated text on success", async () => {
-      vi.spyOn(world.llm, "generate").mockResolvedValue({
-        ok: true,
-        text: "The altar is cold smooth stone.",
-      });
+  it("always calls the LLM — no caching", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Fresh prose." });
 
-      const result = await world.description.describeTarget(roomId, playerId, "altar");
-      expect(result).toBe("The altar is cold smooth stone.");
-    });
+    await world.description.describe(roomId, playerId, "look");
+    await world.description.describe(roomId, playerId, "look");
 
-    it("includes entity data in the prompt when provided", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "The broom rests silently." });
-
-      await world.description.describeTarget(roomId, playerId, "broom", {
-        short: "a broom",
-        presence: "A broom leans against the wall, forgotten.",
-      });
-
-      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-      expect(userPrompt).toContain("Entity data:");
-      expect(userPrompt).toContain("a broom");
-    });
-
-    it("fallback with entity match returns presence text", async () => {
-      vi.spyOn(world.llm, "generate").mockResolvedValue({
-        ok: false,
-        error: "API error",
-      });
-
-      const result = await world.description.describeTarget(roomId, playerId, "broom", {
-        presence: "A broom leans against the wall, forgotten.",
-        short: "a broom",
-      });
-
-      expect(result).toBe("A broom leans against the wall, forgotten.");
-    });
-
-    it("fallback with entity match but no presence returns short description", async () => {
-      vi.spyOn(world.llm, "generate").mockResolvedValue({
-        ok: false,
-        error: "API error",
-      });
-
-      const result = await world.description.describeTarget(roomId, playerId, "broom", {
-        short: "a broom",
-      });
-
-      expect(result).toBe("a broom");
-    });
-
-    it("fallback without entity match returns atmospheric text", async () => {
-      vi.spyOn(world.llm, "generate").mockResolvedValue({
-        ok: false,
-        error: "API error",
-      });
-
-      const result = await world.description.describeTarget(roomId, playerId, "dragon");
-      expect(result).toBe("You don't see anything notable.");
-    });
-
-    it("does not cache results", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "The altar." });
-
-      await world.description.describeTarget(roomId, playerId, "altar");
-      await world.description.describeTarget(roomId, playerId, "altar");
-
-      expect(generateMock).toHaveBeenCalledTimes(2);
-    });
+    expect(generateMock).toHaveBeenCalledTimes(2);
   });
 
-  describe("command parameter", () => {
-    it("describeRoom with command includes it in the user prompt", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "You hear silence." });
+  it("passes raw input to the user prompt", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "You hear silence." });
 
-      await world.description.describeRoom(roomId, playerId, "listen");
+    await world.description.describe(roomId, playerId, "listen to the bell");
 
-      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-      expect(userPrompt).toContain("Command: listen");
-    });
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Player input: listen to the bell");
+  });
 
-    it("describeRoom with no command does not add a Command line", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "Candlelight." });
+  it("user prompt does not contain Target: or Command:", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Cold stone." });
 
-      await world.description.describeRoom(roomId, playerId);
+    await world.description.describe(roomId, playerId, "touch the altar");
 
-      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-      expect(userPrompt).not.toContain("Command:");
-    });
+    const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).not.toContain("Target:");
+    expect(userPrompt).not.toContain("Command:");
+  });
 
-    it("describeTarget with command includes it in the user prompt", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "Cold stone." });
+  it("different raw inputs produce different LLM calls", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Something." });
 
-      await world.description.describeTarget(roomId, playerId, "wall", undefined, "touch");
+    await world.description.describe(roomId, playerId, "look");
+    await world.description.describe(roomId, playerId, "smell candle");
 
-      const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-      expect(userPrompt).toContain("Command: touch");
-    });
-
-    it("describeRoom with command skips the cache", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "You hear dripping." });
-
-      await world.description.describeRoom(roomId, playerId, "listen");
-      await world.description.describeRoom(roomId, playerId, "listen");
-
-      expect(generateMock).toHaveBeenCalledTimes(2);
-    });
-
-    it("describeRoom without command still uses the cache", async () => {
-      const generateMock = vi
-        .spyOn(world.llm, "generate")
-        .mockResolvedValue({ ok: true, text: "Stone chapel." });
-
-      await world.description.describeRoom(roomId, playerId);
-      await world.description.describeRoom(roomId, playerId);
-
-      expect(generateMock).toHaveBeenCalledTimes(1);
-    });
+    const prompt1 = generateMock.mock.calls[0]?.[1] ?? "";
+    const prompt2 = generateMock.mock.calls[1]?.[1] ?? "";
+    expect(prompt1).toContain("Player input: look");
+    expect(prompt2).toContain("Player input: smell candle");
   });
 });
