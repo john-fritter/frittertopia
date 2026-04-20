@@ -60,7 +60,11 @@ const DESCRIPTION_SYSTEM = (
   "1–3 sentences: concrete, alive to texture, never precious. Use the room " +
   "context as ground truth. Respond to whatever the player typed — if what " +
   "they describe is absent, implausible, or strange, answer naturally and in " +
-  "character. Never refuse, apologize, or mention game mechanics."
+  "character. Never refuse, apologize, or mention game mechanics.\n\n" +
+  "Every item and player in the Present list must be named somewhere in your " +
+  "prose, using the exact spelling from that list. Weave them naturally into " +
+  "the sentence — no special markup or brackets. Do not invent entries that " +
+  "aren't in the list."
 );
 
 export function buildDescriptionPrompt(

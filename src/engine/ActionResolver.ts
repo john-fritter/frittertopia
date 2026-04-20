@@ -7,6 +7,7 @@ import {
   handleSense,
   handleSay,
   handleHelp,
+  handleWhere,
 } from "./verbs/gameplay.js";
 import {
   handleAdminDestroy,
@@ -76,6 +77,12 @@ export class ActionResolver {
       usage: "taste <target>",
       category: "senses",
     });
+    this.parser.registerVerb("where", {
+      aliases: [],
+      description: "Survey the room: short description, exits, who and what is here",
+      usage: "where",
+      category: "senses",
+    });
     this.parser.registerVerb("say", {
       aliases: ["'"],
       description: "Say something out loud",
@@ -125,6 +132,8 @@ export class ActionResolver {
         return await handleSense(this.world, rawInput, intent.target, playerId, "touch");
       case "taste":
         return await handleSense(this.world, rawInput, intent.target, playerId, "taste");
+      case "where":
+        return handleWhere(this.world, playerId);
       case "say":
         return handleSay(this.world, intent.target, playerId);
       case "help":

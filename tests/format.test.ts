@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   wordWrap,
-  formatRoom,
+  formatRoomView,
+  formatFooter,
+  formatWhere,
+  highlightNames,
+  abbreviateDirection,
+  sortDirections,
   formatSelfSay,
   formatSay,
   formatArrival,
@@ -42,7 +47,6 @@ describe("wordWrap", () => {
     const longWord = "a".repeat(100);
     const result = wordWrap(`hello ${longWord} world`, 20);
     expect(result).toContain(longWord);
-    // Long word gets its own line
     const lines = result.split("\n");
     expect(lines).toContain(longWord);
   });
@@ -51,80 +55,256 @@ describe("wordWrap", () => {
     const words = Array(20).fill("longword").join(" ");
     const result = wordWrap(words);
     for (const line of result.split("\n")) {
-      // Each line should be at most 88 chars (or a single long word)
       expect(line.length).toBeLessThanOrEqual(88);
     }
   });
 });
 
-describe("formatRoom", () => {
-  it("formats a full room with items, players, and exits", () => {
-    const output = formatRoom({
-      name: "The Stone Hall",
-      description: "A wide hall of grey stone.",
-      items: ["A wooden chair sits in the corner."],
-      players: ["Aldric"],
+describe("abbreviateDirection", () => {
+  it("abbreviates cardinal directions", () => {
+    expect(abbreviateDirection("north")).toBe("N");
+    expect(abbreviateDirection("south")).toBe("S");
+    expect(abbreviateDirection("east")).toBe("E");
+    expect(abbreviateDirection("west")).toBe("W");
+  });
+
+  it("abbreviates ordinal directions", () => {
+    expect(abbreviateDirection("northeast")).toBe("NE");
+    expect(abbreviateDirection("southwest")).toBe("SW");
+  });
+
+  it("abbreviates vertical directions", () => {
+    expect(abbreviateDirection("up")).toBe("U");
+    expect(abbreviateDirection("down")).toBe("D");
+  });
+
+  it("is case-insensitive", () => {
+    expect(abbreviateDirection("North")).toBe("N");
+    expect(abbreviateDirection("NORTH")).toBe("N");
+  });
+
+  it("uppercases unknown directions", () => {
+    expect(abbreviateDirection("portal")).toBe("PORTAL");
+  });
+});
+
+describe("sortDirections", () => {
+  it("orders cardinals in clockwise canonical order", () => {
+    expect(sortDirections(["W", "N", "S", "E"])).toEqual(["N", "E", "S", "W"]);
+  });
+
+  it("interleaves ordinals correctly", () => {
+    expect(sortDirections(["SW", "N", "NE", "S"])).toEqual(["N", "NE", "S", "SW"]);
+  });
+
+  it("places U/D last", () => {
+    expect(sortDirections(["D", "N", "U"])).toEqual(["N", "U", "D"]);
+  });
+});
+
+describe("highlightNames", () => {
+  it("colors items yellow", () => {
+    const out = highlightNames("a broom leans there", ["broom"], []);
+    expect(stripAnsi(out)).toBe("a broom leans there");
+    expect(out).toContain("\x1b[33m");
+  });
+
+  it("colors players magenta", () => {
+    const out = highlightNames("Robin warms her hands", [], ["Robin"]);
+    expect(stripAnsi(out)).toBe("Robin warms her hands");
+    expect(out).toContain("\x1b[35m");
+  });
+
+  it("handles multi-word names", () => {
+    const out = highlightNames("a tallow candle gutters", ["tallow candle"], []);
+    expect(stripAnsi(out)).toBe("a tallow candle gutters");
+    expect(out).toContain("\x1b[33mtallow candle\x1b[0m");
+  });
+
+  it("matches case-insensitively and preserves original casing", () => {
+    const out = highlightNames("A Broom leans", ["broom"], []);
+    expect(out).toContain("\x1b[33mBroom\x1b[0m");
+  });
+
+  it("prefers the longer name when one is a substring of another", () => {
+    const out = highlightNames(
+      "the tallow candle gutters",
+      ["candle", "tallow candle"],
+      []
+    );
+    expect(out).toContain("\x1b[33mtallow candle\x1b[0m");
+    // The word "candle" inside the longer match should not be double-wrapped.
+    const colored = out.match(/\x1b\[33m[^\x1b]+\x1b\[0m/g) ?? [];
+    expect(colored).toEqual(["\x1b[33mtallow candle\x1b[0m"]);
+  });
+
+  it("matches only on word boundaries", () => {
+    const out = highlightNames("brooms sweep", ["broom"], []);
+    expect(stripAnsi(out)).toBe("brooms sweep");
+    expect(out).not.toContain("\x1b[33m");
+  });
+
+  it("players win over items on name tie", () => {
+    const out = highlightNames("Robin appears", ["Robin"], ["Robin"]);
+    expect(out).toContain("\x1b[35mRobin\x1b[0m");
+    expect(out).not.toContain("\x1b[33mRobin");
+  });
+
+  it("returns prose unchanged with no names", () => {
+    expect(highlightNames("plain prose", [], [])).toBe("plain prose");
+  });
+});
+
+describe("formatFooter", () => {
+  it("renders all five fields separated by middle dots", () => {
+    const out = formatFooter({
+      roomName: "The Monastery Courtyard",
+      directions: ["N", "S"],
+      timeBracket: "dusk",
+      tempBracket: "cold",
+      weather: "overcast",
+    });
+    const plain = stripAnsi(out);
+    expect(plain).toContain("The Monastery Courtyard");
+    expect(plain).toContain("N S");
+    expect(plain).toContain("dusk");
+    expect(plain).toContain("cold");
+    expect(plain).toContain("overcast");
+    expect(plain).toContain("  ·  ");
+  });
+
+  it("renders indoor footer with 'warm · indoor'", () => {
+    const out = formatFooter({
+      roomName: "Kitchen",
+      directions: ["N", "E"],
+      timeBracket: "dusk",
+      tempBracket: "warm",
+      weather: "indoor",
+    });
+    const plain = stripAnsi(out);
+    expect(plain).toContain("warm");
+    expect(plain).toContain("indoor");
+  });
+
+  it("shows em-dash for no exits", () => {
+    const out = formatFooter({
+      roomName: "Dead End",
+      directions: [],
+      timeBracket: "night",
+      tempBracket: "cold",
+      weather: "clear",
+    });
+    expect(stripAnsi(out)).toContain("—");
+  });
+});
+
+describe("formatRoomView", () => {
+  it("highlights present items and appends footer", () => {
+    const out = formatRoomView({
+      prose: "A broom leans against the wall.",
+      items: ["broom"],
+      players: [],
+      footer: {
+        roomName: "Corridor",
+        directions: ["N"],
+        timeBracket: "dusk",
+        tempBracket: "warm",
+        weather: "indoor",
+      },
+    });
+    const plain = stripAnsi(out);
+    expect(plain).toContain("A broom leans against the wall.");
+    expect(plain).toContain("Corridor");
+    expect(plain).toContain("N");
+    expect(out).toContain("\x1b[33mbroom\x1b[0m");
+    // blank line between prose and footer
+    expect(plain).toMatch(/\n\n/);
+  });
+
+  it("prefixes output with a reset so upstream color state can't leak in", () => {
+    const out = formatRoomView({
+      prose: "Quiet stones.",
+      items: [],
+      players: [],
+      footer: {
+        roomName: "Corridor",
+        directions: [],
+        timeBracket: "dusk",
+        tempBracket: "warm",
+        weather: "indoor",
+      },
+    });
+    expect(out.startsWith("\x1b[0m")).toBe(true);
+  });
+});
+
+describe("formatWhere", () => {
+  const footer = {
+    roomName: "Corridor",
+    directions: ["N", "S"],
+    timeBracket: "dusk",
+    tempBracket: "warm",
+    weather: "indoor",
+  };
+
+  it("shows short description, exits with names for visited, players, items, footer", () => {
+    const out = formatWhere({
+      roomName: "Corridor",
+      shortDescription: "A narrow corridor.",
       exits: [
-        { direction: "north", roomName: "The Garden" },
-        { direction: "east" },
+        { direction: "n", roomName: "Kitchen" },
+        { direction: "s" },
       ],
+      players: ["Robin"],
+      items: ["broom"],
+      footer,
     });
-
-    const plain = stripAnsi(output);
-    expect(plain).toContain("The Stone Hall");
-    expect(plain).toContain("A wide hall of grey stone.");
-    expect(plain).toContain("A wooden chair sits in the corner.");
-    expect(plain).toContain("Aldric is here.");
-    expect(plain).toContain("north");
-    expect(plain).toContain("(The Garden)");
-    expect(plain).toContain("east");
+    const plain = stripAnsi(out);
+    expect(plain).toContain("Corridor");
+    expect(plain).toContain("A narrow corridor.");
+    expect(plain).toContain("Exits: n (Kitchen), s");
+    expect(plain).toContain("Players: Robin");
+    expect(plain).toContain("Items: broom");
   });
 
-  it("omits items section when no items", () => {
-    const output = formatRoom({
-      name: "Empty Room",
-      description: "Nothing here.",
-      exits: [{ direction: "south" }],
-    });
-
-    const plain = stripAnsi(output);
-    expect(plain).not.toContain("is here");
-    expect(plain).toContain("south");
-  });
-
-  it("omits players section when no players", () => {
-    const output = formatRoom({
-      name: "Empty Room",
-      description: "Nothing here.",
-      items: ["A rock."],
+  it("omits Players line when empty", () => {
+    const out = formatWhere({
+      roomName: "Corridor",
+      shortDescription: "A narrow corridor.",
       exits: [],
+      players: [],
+      items: ["broom"],
+      footer,
     });
+    const plain = stripAnsi(out);
+    expect(plain).not.toContain("Players:");
+    expect(plain).toContain("Items:");
+  });
 
-    const plain = stripAnsi(output);
-    expect(plain).not.toContain("is here");
-    expect(plain).toContain("Exits: none");
+  it("omits Items line when empty", () => {
+    const out = formatWhere({
+      roomName: "Corridor",
+      shortDescription: "A narrow corridor.",
+      exits: [],
+      players: ["Robin"],
+      items: [],
+      footer,
+    });
+    const plain = stripAnsi(out);
+    expect(plain).toContain("Players:");
+    expect(plain).not.toContain("Items:");
   });
 
   it("shows 'Exits: none' with no exits", () => {
-    const output = formatRoom({
-      name: "Dead End",
-      description: "A dead end.",
+    const out = formatWhere({
+      roomName: "Dead End",
+      shortDescription: "A dead end.",
       exits: [],
+      players: [],
+      items: [],
+      footer,
     });
-
-    expect(stripAnsi(output)).toContain("Exits: none");
-  });
-
-  it("shows bare direction for unvisited exits", () => {
-    const output = formatRoom({
-      name: "Room",
-      description: "A room.",
-      exits: [{ direction: "west" }],
-    });
-
-    const plain = stripAnsi(output);
-    expect(plain).toContain("west");
-    expect(plain).not.toContain("(");
+    expect(stripAnsi(out)).toContain("Exits: none");
   });
 });
 
@@ -155,7 +335,6 @@ describe("formatting functions", () => {
     const output = formatSystem("Server message");
     expect(output).toContain("Server message");
     expect(stripAnsi(output)).toBe("Server message");
-    // Contains ANSI codes
     expect(output).not.toBe("Server message");
   });
 });

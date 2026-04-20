@@ -8,17 +8,19 @@ const GREEN = "\x1b[32m";
 const MAGENTA = "\x1b[35m";
 const DIM_WHITE = "\x1b[2;37m";
 
-export interface RoomExit {
-  direction: string;
-  roomName?: string;
+export interface RoomFooter {
+  roomName: string;
+  directions: string[];
+  timeBracket: string;
+  tempBracket: string;
+  weather: string;
 }
 
-export interface RoomData {
-  name: string;
-  description: string;
-  items?: string[];
-  players?: string[];
-  exits: RoomExit[];
+export interface RoomView {
+  prose: string;
+  items: string[];
+  players: string[];
+  footer: RoomFooter;
 }
 
 export function wordWrap(text: string, width = 88): string {
@@ -54,42 +56,141 @@ function wrapParagraph(text: string, width: number): string {
   return lines.join("\n");
 }
 
-export function formatRoom(data: RoomData): string {
+const DIRECTION_ABBREV: Record<string, string> = {
+  north: "N",
+  northeast: "NE",
+  east: "E",
+  southeast: "SE",
+  south: "S",
+  southwest: "SW",
+  west: "W",
+  northwest: "NW",
+  up: "U",
+  down: "D",
+};
+
+const DIRECTION_ORDER = ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "U", "D"];
+
+export function abbreviateDirection(dir: string): string {
+  const lower = dir.toLowerCase();
+  return DIRECTION_ABBREV[lower] ?? dir.toUpperCase();
+}
+
+export function sortDirections(abbrev: string[]): string[] {
+  const rank = new Map(DIRECTION_ORDER.map((d, i) => [d, i] as const));
+  return [...abbrev].sort((a, b) => {
+    const ai = rank.get(a) ?? DIRECTION_ORDER.length;
+    const bi = rank.get(b) ?? DIRECTION_ORDER.length;
+    if (ai !== bi) return ai - bi;
+    return a.localeCompare(b);
+  });
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Find every exact occurrence of a present item or player name in the prose
+ * and wrap it in the appropriate ANSI color. Matches are word-bounded and
+ * case-insensitive; the original casing in the prose is preserved. Longest
+ * names are tried first so "tallow candle" wins over "candle". When a name
+ * appears in both lists (rare), the player interpretation wins.
+ */
+export function highlightNames(
+  prose: string,
+  items: string[],
+  players: string[]
+): string {
+  const entries: Array<{ name: string; color: string; priority: number }> = [];
+  // priority 0 = player (wins on length tie), 1 = item
+  for (const p of players) {
+    if (p) entries.push({ name: p, color: MAGENTA, priority: 0 });
+  }
+  for (const i of items) {
+    if (i) entries.push({ name: i, color: YELLOW, priority: 1 });
+  }
+  if (entries.length === 0) return prose;
+
+  // Longest first so multi-word names beat substrings. Stable tie-break on priority.
+  entries.sort((a, b) => {
+    if (b.name.length !== a.name.length) return b.name.length - a.name.length;
+    return a.priority - b.priority;
+  });
+
+  const lookup = new Map<string, string>();
+  for (const e of entries) {
+    const key = e.name.toLowerCase();
+    if (!lookup.has(key)) lookup.set(key, e.color);
+  }
+
+  const pattern = entries.map((e) => escapeRegex(e.name)).join("|");
+  const re = new RegExp(`\\b(?:${pattern})\\b`, "gi");
+
+  return prose.replace(re, (match) => {
+    const color = lookup.get(match.toLowerCase());
+    if (!color) return match;
+    return `${color}${match}${RESET}`;
+  });
+}
+
+const SEP = "  ·  ";
+
+export function formatFooter(footer: RoomFooter): string {
+  const dirs = footer.directions.length > 0 ? footer.directions.join(" ") : "—";
+  return [
+    `${BOLD_WHITE}${footer.roomName}${RESET}`,
+    `${CYAN}${dirs}${RESET}`,
+    `${DIM_WHITE}${footer.timeBracket}${RESET}`,
+    `${DIM_WHITE}${footer.tempBracket}${RESET}`,
+    `${DIM_WHITE}${footer.weather}${RESET}`,
+  ].join(SEP);
+}
+
+export function formatRoomView(view: RoomView): string {
+  const highlighted = highlightNames(view.prose, view.items, view.players);
+  const prose = wordWrap(highlighted);
+  // Leading RESET defends against upstream unterminated ANSI state leaking in.
+  return `${RESET}${prose}\n\n${formatFooter(view.footer)}`;
+}
+
+export interface WhereBody {
+  roomName: string;
+  shortDescription: string;
+  exits: Array<{ direction: string; roomName?: string }>;
+  players: string[];
+  items: string[];
+  footer: RoomFooter;
+}
+
+export function formatWhere(body: WhereBody): string {
   const sections: string[] = [];
 
-  // Room name
-  sections.push(`${BOLD_WHITE}${data.name}${RESET}`);
+  sections.push(`${BOLD_WHITE}${body.roomName}${RESET}`);
+  sections.push(wordWrap(body.shortDescription));
 
-  // Description
-  sections.push(wordWrap(data.description));
-
-  // Items
-  if (data.items && data.items.length > 0) {
-    sections.push(data.items.map((item) => `${YELLOW}${item}${RESET}`).join("\n"));
-  }
-
-  // Other players
-  if (data.players && data.players.length > 0) {
-    sections.push(
-      data.players
-        .map((name) => `${MAGENTA}${name}${RESET} is here.`)
-        .join("\n")
-    );
-  }
-
-  // Exits
-  if (data.exits.length > 0) {
-    const exitParts = data.exits.map((e) => {
+  if (body.exits.length > 0) {
+    const parts = body.exits.map((e) => {
       const dir = `${CYAN}${e.direction}${RESET}`;
-      if (e.roomName) {
-        return `${dir} ${DIM_CYAN}(${e.roomName})${RESET}`;
-      }
+      if (e.roomName) return `${dir} ${DIM_CYAN}(${e.roomName})${RESET}`;
       return dir;
     });
-    sections.push("Exits: " + exitParts.join(", "));
+    sections.push("Exits: " + parts.join(", "));
   } else {
     sections.push("Exits: none");
   }
+
+  if (body.players.length > 0) {
+    const names = body.players.map((n) => `${MAGENTA}${n}${RESET}`).join(", ");
+    sections.push(`Players: ${names}`);
+  }
+
+  if (body.items.length > 0) {
+    const names = body.items.map((n) => `${YELLOW}${n}${RESET}`).join(", ");
+    sections.push(`Items: ${names}`);
+  }
+
+  sections.push(formatFooter(body.footer));
 
   return sections.join("\n\n");
 }
@@ -132,4 +233,12 @@ export function formatCyan(text: string): string {
 
 export function formatDim(text: string): string {
   return `${DIM_WHITE}${text}${RESET}`;
+}
+
+export function formatMagenta(text: string): string {
+  return `${MAGENTA}${text}${RESET}`;
+}
+
+export function formatYellow(text: string): string {
+  return `${YELLOW}${text}${RESET}`;
 }

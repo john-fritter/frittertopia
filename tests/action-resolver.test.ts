@@ -50,15 +50,16 @@ describe("ActionResolver", () => {
     resolver = new ActionResolver(world);
   });
 
-  it("look at current room produces correct output", async () => {
+  it("look at current room produces prose plus footer", async () => {
     const result = await resolver.resolve({ verb: "look" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
+    // Room name appears in the footer
     expect(plain).toContain("The Stone Hall");
     // DescriptionService fallback (no LLM in tests)
     expect(plain).toContain("the stone hall");
-    expect(plain).toContain("A wooden chair sits in the corner.");
-    expect(plain).toContain("north");
+    // Footer carries the abbreviated exit direction
+    expect(plain).toContain("N");
   });
 
   it("move through a valid exit changes position and returns new room look", async () => {
@@ -76,7 +77,8 @@ describe("ActionResolver", () => {
     expect(plain).toContain("The Garden");
     // DescriptionService fallback (no LLM in tests)
     expect(plain).toContain("the garden");
-    expect(plain).toContain("south");
+    // Footer carries the abbreviated exit direction
+    expect(plain).toContain("S");
 
     // Room messages contain ANSI codes
     expect(result.toRoom).toBeDefined();
@@ -150,7 +152,7 @@ describe("ActionResolver", () => {
     expect(result.toPlayer).toBe("I don't understand that.");
   });
 
-  it("other players appear in look output", async () => {
+  it("other players appear in 'where' output", async () => {
     const otherPlayer = world.createEntity();
     world.addComponent(otherPlayer, "Player", {
       name: "Aldric",
@@ -158,9 +160,10 @@ describe("ActionResolver", () => {
     });
     world.addComponent(otherPlayer, "Position", { roomId: roomA });
 
-    const result = await resolver.resolve({ verb: "look" }, playerId);
-    expect(stripAnsi(result.toPlayer)).toContain("Aldric");
-    expect(stripAnsi(result.toPlayer)).toContain("is here");
+    const result = await resolver.resolve({ verb: "where" }, playerId);
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("Aldric");
+    expect(plain).toContain("Players:");
   });
 });
 
@@ -238,28 +241,26 @@ describe("VisitedRooms behavior", () => {
     expect(visited.rooms).toContain(roomB);
   });
 
-  it("exit room names shown only for visited rooms", async () => {
+  it("exit room names hidden in 'where' for unvisited rooms", async () => {
     // Player is in roomA, roomB is not visited
-    const result = await resolver.resolve({ verb: "look" }, playerId);
+    const result = await resolver.resolve({ verb: "where" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
-    // roomB exit should show bare direction, no room name
-    expect(plain).toContain("north");
-    expect(plain).not.toContain("The Garden");
+    // 'where' shows the Exits: line with direction, but no room name
+    expect(plain).toContain("Exits: north");
+    expect(plain).not.toContain("(The Garden)");
   });
 
-  it("exit room names shown for visited rooms", async () => {
+  it("exit room names shown in 'where' for visited rooms", async () => {
     // Mark roomB as visited
     world.setComponent(playerId, "VisitedRooms", {
       rooms: [roomA, roomB],
     });
 
-    const result = await resolver.resolve({ verb: "look" }, playerId);
+    const result = await resolver.resolve({ verb: "where" }, playerId);
     const plain = stripAnsi(result.toPlayer);
 
-    // roomB exit should show room name
-    expect(plain).toContain("north");
-    expect(plain).toContain("The Garden");
+    expect(plain).toContain("Exits: north (The Garden)");
   });
 });
 
@@ -299,7 +300,10 @@ describe("Targeted look — raw input passed to storyteller", () => {
 
     const result = await resolver.resolve({ verb: "look", target: "rosemary", rawInput: "look at rosemary" }, playerId);
 
-    expect(result.toPlayer).toBe("The rosemary is fragrant.");
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("The rosemary is fragrant.");
+    // Footer is appended on targeted look
+    expect(plain).toContain("The Test Room");
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
     expect(userPrompt).toContain("Player input: look at rosemary");
     expect(userPrompt).not.toContain("Target:");
@@ -319,7 +323,9 @@ describe("Targeted look — raw input passed to storyteller", () => {
     });
 
     const result = await resolver.resolve({ verb: "look", target: "wall" }, playerId);
-    expect(result.toPlayer).toBe("Old stone, cold to the touch.");
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("Old stone, cold to the touch.");
+    expect(plain).toContain("The Test Room");
   });
 
   it("entity presence is in room context so LLM can use it", async () => {
@@ -449,7 +455,9 @@ describe("Sensory verbs", () => {
 
     const result = await r.resolve(intent, playerId);
 
-    expect(result.toPlayer).toBe("You hear rustling.");
+    const plain = stripAnsi(result.toPlayer);
+    expect(plain).toContain("You hear rustling.");
+    expect(plain).toContain("The Herb Garden");
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
     expect(userPrompt).toContain("Player input: listen to rosemary");
   });
