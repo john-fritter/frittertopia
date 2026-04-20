@@ -18,6 +18,8 @@ export interface RoomFooter {
 
 export interface RoomView {
   prose: string;
+  items: string[];
+  players: string[];
   footer: RoomFooter;
 }
 
@@ -84,18 +86,52 @@ export function sortDirections(abbrev: string[]): string[] {
   });
 }
 
-const MARKUP_RE = /\[\[(item|player):([^\]]+)\]\]/g;
-
-export function renderMarkup(prose: string): string {
-  return prose.replace(MARKUP_RE, (_match, kind: string, name: string) => {
-    if (kind === "item") return `${YELLOW}${name}${RESET}`;
-    if (kind === "player") return `${MAGENTA}${name}${RESET}`;
-    return name;
-  });
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function stripMarkup(prose: string): string {
-  return prose.replace(MARKUP_RE, (_match, _kind: string, name: string) => name);
+/**
+ * Find every exact occurrence of a present item or player name in the prose
+ * and wrap it in the appropriate ANSI color. Matches are word-bounded and
+ * case-insensitive; the original casing in the prose is preserved. Longest
+ * names are tried first so "tallow candle" wins over "candle". When a name
+ * appears in both lists (rare), the player interpretation wins.
+ */
+export function highlightNames(
+  prose: string,
+  items: string[],
+  players: string[]
+): string {
+  const entries: Array<{ name: string; color: string; priority: number }> = [];
+  // priority 0 = player (wins on length tie), 1 = item
+  for (const p of players) {
+    if (p) entries.push({ name: p, color: MAGENTA, priority: 0 });
+  }
+  for (const i of items) {
+    if (i) entries.push({ name: i, color: YELLOW, priority: 1 });
+  }
+  if (entries.length === 0) return prose;
+
+  // Longest first so multi-word names beat substrings. Stable tie-break on priority.
+  entries.sort((a, b) => {
+    if (b.name.length !== a.name.length) return b.name.length - a.name.length;
+    return a.priority - b.priority;
+  });
+
+  const lookup = new Map<string, string>();
+  for (const e of entries) {
+    const key = e.name.toLowerCase();
+    if (!lookup.has(key)) lookup.set(key, e.color);
+  }
+
+  const pattern = entries.map((e) => escapeRegex(e.name)).join("|");
+  const re = new RegExp(`\\b(?:${pattern})\\b`, "gi");
+
+  return prose.replace(re, (match) => {
+    const color = lookup.get(match.toLowerCase());
+    if (!color) return match;
+    return `${color}${match}${RESET}`;
+  });
 }
 
 const SEP = "  ·  ";
@@ -112,8 +148,10 @@ export function formatFooter(footer: RoomFooter): string {
 }
 
 export function formatRoomView(view: RoomView): string {
-  const prose = wordWrap(renderMarkup(view.prose));
-  return `${prose}\n\n${formatFooter(view.footer)}`;
+  const highlighted = highlightNames(view.prose, view.items, view.players);
+  const prose = wordWrap(highlighted);
+  // Leading RESET defends against upstream unterminated ANSI state leaking in.
+  return `${RESET}${prose}\n\n${formatFooter(view.footer)}`;
 }
 
 export interface WhereBody {

@@ -4,8 +4,7 @@ import {
   formatRoomView,
   formatFooter,
   formatWhere,
-  renderMarkup,
-  stripMarkup,
+  highlightNames,
   abbreviateDirection,
   sortDirections,
   formatSelfSay,
@@ -103,37 +102,56 @@ describe("sortDirections", () => {
   });
 });
 
-describe("renderMarkup", () => {
+describe("highlightNames", () => {
   it("colors items yellow", () => {
-    const out = renderMarkup("a [[item:broom]] leans there");
+    const out = highlightNames("a broom leans there", ["broom"], []);
     expect(stripAnsi(out)).toBe("a broom leans there");
     expect(out).toContain("\x1b[33m");
   });
 
   it("colors players magenta", () => {
-    const out = renderMarkup("[[player:Robin]] warms her hands");
+    const out = highlightNames("Robin warms her hands", [], ["Robin"]);
     expect(stripAnsi(out)).toBe("Robin warms her hands");
     expect(out).toContain("\x1b[35m");
   });
 
   it("handles multi-word names", () => {
-    const out = renderMarkup("a [[item:tallow candle]] gutters");
+    const out = highlightNames("a tallow candle gutters", ["tallow candle"], []);
     expect(stripAnsi(out)).toBe("a tallow candle gutters");
+    expect(out).toContain("\x1b[33mtallow candle\x1b[0m");
   });
 
-  it("leaves text without markup unchanged", () => {
-    expect(renderMarkup("plain prose")).toBe("plain prose");
+  it("matches case-insensitively and preserves original casing", () => {
+    const out = highlightNames("A Broom leans", ["broom"], []);
+    expect(out).toContain("\x1b[33mBroom\x1b[0m");
   });
 
-  it("leaves unknown markup kinds as literal name", () => {
-    expect(renderMarkup("[[thing:X]]")).toBe("[[thing:X]]");
+  it("prefers the longer name when one is a substring of another", () => {
+    const out = highlightNames(
+      "the tallow candle gutters",
+      ["candle", "tallow candle"],
+      []
+    );
+    expect(out).toContain("\x1b[33mtallow candle\x1b[0m");
+    // The word "candle" inside the longer match should not be double-wrapped.
+    const colored = out.match(/\x1b\[33m[^\x1b]+\x1b\[0m/g) ?? [];
+    expect(colored).toEqual(["\x1b[33mtallow candle\x1b[0m"]);
   });
-});
 
-describe("stripMarkup", () => {
-  it("removes brackets, leaves name", () => {
-    expect(stripMarkup("a [[item:broom]] leans")).toBe("a broom leans");
-    expect(stripMarkup("[[player:Robin]]")).toBe("Robin");
+  it("matches only on word boundaries", () => {
+    const out = highlightNames("brooms sweep", ["broom"], []);
+    expect(stripAnsi(out)).toBe("brooms sweep");
+    expect(out).not.toContain("\x1b[33m");
+  });
+
+  it("players win over items on name tie", () => {
+    const out = highlightNames("Robin appears", ["Robin"], ["Robin"]);
+    expect(out).toContain("\x1b[35mRobin\x1b[0m");
+    expect(out).not.toContain("\x1b[33mRobin");
+  });
+
+  it("returns prose unchanged with no names", () => {
+    expect(highlightNames("plain prose", [], [])).toBe("plain prose");
   });
 });
 
@@ -181,9 +199,11 @@ describe("formatFooter", () => {
 });
 
 describe("formatRoomView", () => {
-  it("renders prose with markup and appends footer", () => {
+  it("highlights present items and appends footer", () => {
     const out = formatRoomView({
-      prose: "A [[item:broom]] leans against the wall.",
+      prose: "A broom leans against the wall.",
+      items: ["broom"],
+      players: [],
       footer: {
         roomName: "Corridor",
         directions: ["N"],
@@ -196,8 +216,25 @@ describe("formatRoomView", () => {
     expect(plain).toContain("A broom leans against the wall.");
     expect(plain).toContain("Corridor");
     expect(plain).toContain("N");
+    expect(out).toContain("\x1b[33mbroom\x1b[0m");
     // blank line between prose and footer
     expect(plain).toMatch(/\n\n/);
+  });
+
+  it("prefixes output with a reset so upstream color state can't leak in", () => {
+    const out = formatRoomView({
+      prose: "Quiet stones.",
+      items: [],
+      players: [],
+      footer: {
+        roomName: "Corridor",
+        directions: [],
+        timeBracket: "dusk",
+        tempBracket: "warm",
+        weather: "indoor",
+      },
+    });
+    expect(out.startsWith("\x1b[0m")).toBe(true);
   });
 });
 

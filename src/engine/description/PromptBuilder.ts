@@ -62,12 +62,9 @@ const DESCRIPTION_SYSTEM = (
   "they describe is absent, implausible, or strange, answer naturally and in " +
   "character. Never refuse, apologize, or mention game mechanics.\n\n" +
   "Every item and player in the Present list must be named somewhere in your " +
-  "prose. Mark them inline using exact names from that list: interactable " +
-  "items as [[item:name]] and present players as [[player:name]] — for " +
-  "example, \"a [[item:broom]] leans against the wall\" or \"[[player:Robin]] " +
-  "warms her hands.\" The markup wraps the name only, inline in the sentence. " +
-  "Do not invent entries. Do not use this markup for anything not in the " +
-  "Present list."
+  "prose, using the exact spelling from that list. Weave them naturally into " +
+  "the sentence — no special markup or brackets. Do not invent entries that " +
+  "aren't in the list."
 );
 
 export function buildDescriptionPrompt(

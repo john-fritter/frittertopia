@@ -113,7 +113,8 @@ export async function handleLook(
 
   const description = await world.description.describe(position.roomId, playerId, rawInput);
   const footer = buildFooter(world, position.roomId);
-  let output = formatRoomView({ prose: description, footer });
+  const { items, players } = collectPresentNames(world, position.roomId, playerId);
+  let output = formatRoomView({ prose: description, items, players, footer });
   if (world.description.debugMode && world.description.lastPrompt) {
     output += "\n\n" + formatPromptBlock(world.description.lastPrompt);
   }
@@ -137,7 +138,44 @@ export async function handleSense(
 
   const text = await world.description.describe(position.roomId, playerId, rawInput);
   const footer = buildFooter(world, position.roomId);
-  return { toPlayer: formatRoomView({ prose: text, footer }) };
+  const { items, players } = collectPresentNames(world, position.roomId, playerId);
+  return { toPlayer: formatRoomView({ prose: text, items, players, footer }) };
+}
+
+export function collectPresentNames(
+  world: World,
+  roomId: string,
+  excludePlayerId: string
+): { items: string[]; players: string[] } {
+  const players: string[] = [];
+  const items: string[] = [];
+
+  for (const id of world.getEntitiesWithComponent("Position")) {
+    if (id === excludePlayerId) continue;
+    if (id === roomId) continue;
+    const pos = world.getComponent(id, "Position") as { roomId: string };
+    if (pos.roomId !== roomId) continue;
+
+    const otherPlayer = world.getComponent(id, "Player") as
+      | { name: string; sessionId: string }
+      | undefined;
+    if (otherPlayer && otherPlayer.sessionId) {
+      players.push(otherPlayer.name);
+      continue;
+    }
+
+    const presence = world.getComponent(id, "Presence") as
+      | { description: string }
+      | undefined;
+    if (presence) {
+      const entDesc = world.getComponent(id, "Description") as
+        | { short: string }
+        | undefined;
+      items.push(entDesc?.short ?? presence.description);
+    }
+  }
+
+  return { items, players };
 }
 
 export function handleWhere(world: World, playerId: string): ActionResult {
@@ -171,33 +209,7 @@ export function handleWhere(world: World, playerId: string): ActionResult {
     }
   }
 
-  const players: string[] = [];
-  const items: string[] = [];
-
-  for (const id of world.getEntitiesWithComponent("Position")) {
-    if (id === playerId) continue;
-    if (id === roomId) continue;
-    const pos = world.getComponent(id, "Position") as { roomId: string };
-    if (pos.roomId !== roomId) continue;
-
-    const otherPlayer = world.getComponent(id, "Player") as
-      | { name: string; sessionId: string }
-      | undefined;
-    if (otherPlayer && otherPlayer.sessionId) {
-      players.push(otherPlayer.name);
-      continue;
-    }
-
-    const presence = world.getComponent(id, "Presence") as
-      | { description: string }
-      | undefined;
-    if (presence) {
-      const entDesc = world.getComponent(id, "Description") as
-        | { short: string }
-        | undefined;
-      items.push(entDesc?.short ?? presence.description);
-    }
-  }
+  const { items, players } = collectPresentNames(world, roomId, playerId);
 
   const body: WhereBody = {
     roomName: room?.name ?? "Unknown Room",
@@ -291,7 +303,8 @@ export async function composeLook(
   }
 
   const footer = buildFooter(world, roomId);
-  let output = formatRoomView({ prose: description, footer });
+  const { items, players } = collectPresentNames(world, roomId, playerId);
+  let output = formatRoomView({ prose: description, items, players, footer });
   if (world.description.debugMode && world.description.lastPrompt) {
     output += "\n\n" + formatPromptBlock(world.description.lastPrompt);
   }
