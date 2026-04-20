@@ -178,13 +178,7 @@ export function collectPresentNames(
   return { items, players };
 }
 
-export function handleWhere(world: World, playerId: string): ActionResult {
-  const position = world.getComponent(playerId, "Position") as
-    | { roomId: string }
-    | undefined;
-  if (!position) return { toPlayer: "You aren't anywhere." };
-
-  const roomId = position.roomId;
+export function buildWhereBody(world: World, playerId: string, roomId: string): WhereBody {
   const room = world.getComponent(roomId, "Room") as { name: string } | undefined;
   const desc = world.getComponent(roomId, "Description") as
     | { short: string }
@@ -211,7 +205,7 @@ export function handleWhere(world: World, playerId: string): ActionResult {
 
   const { items, players } = collectPresentNames(world, roomId, playerId);
 
-  const body: WhereBody = {
+  return {
     roomName: room?.name ?? "Unknown Room",
     shortDescription: desc?.short ?? "You see nothing special.",
     exits,
@@ -219,8 +213,15 @@ export function handleWhere(world: World, playerId: string): ActionResult {
     items,
     footer: buildFooter(world, roomId),
   };
+}
 
-  return { toPlayer: formatWhere(body) };
+export function handleWhere(world: World, playerId: string): ActionResult {
+  const position = world.getComponent(playerId, "Position") as
+    | { roomId: string }
+    | undefined;
+  if (!position) return { toPlayer: "You aren't anywhere." };
+
+  return { toPlayer: formatWhere(buildWhereBody(world, playerId, position.roomId)) };
 }
 
 export function handleSay(
@@ -287,21 +288,16 @@ export async function composeLook(
   forceLong = false,
   rawInput = "look"
 ): Promise<string> {
-  const desc = world.getComponent(roomId, "Description") as
-    | { short: string }
-    | undefined;
-
   const visitedRooms = getVisitedRooms(world, playerId);
   const hasVisited = visitedRooms.has(roomId);
 
-  // First visit or explicit look → AI description; revisit → short
-  let description: string;
-  if (forceLong || !hasVisited) {
-    description = await world.description.describe(roomId, playerId, rawInput);
-  } else {
-    description = desc?.short ?? "You see nothing special.";
+  // First visit or explicit look → AI description with footer.
+  // Revisit-on-enter → same view as `where` (short desc + exits + items + players).
+  if (!forceLong && hasVisited) {
+    return formatWhere(buildWhereBody(world, playerId, roomId));
   }
 
+  const description = await world.description.describe(roomId, playerId, rawInput);
   const footer = buildFooter(world, roomId);
   const { items, players } = collectPresentNames(world, roomId, playerId);
   let output = formatRoomView({ prose: description, items, players, footer });
