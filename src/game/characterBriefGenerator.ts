@@ -11,7 +11,11 @@ Write in plain prose. No headers, no sections, no bullet points.
 
 Describe the character as a body at rest: what they look like standing still. No movement description. No posture description. No personality inference.
 
-Use only the physical traits provided. You may invent hairstyle and, where plausible, facial hair. Do not add scars, marks, callouses, or any other feature not listed. Do not add practical notes. Do not comment on whether the character can fit through doorways.
+Use only the physical traits provided. You may invent hairstyle and, where plausible, facial hair. Do not add scars, marks, callouses, hands, clothing, or any other feature not listed.
+
+If the character has a tattoo or tattoos, describe what they actually depict and where they are. Invent the design — don't note that it was unspecified.
+
+If a detail wasn't provided, omit it rather than noting its absence.
 
 The character must be able to walk on land, breathe, eat, drink, speak, fit through a normal doorway, wear clothing, carry a pack, and die. If the provided traits produce something that can't do these things, find the nearest version that can. Note any adjustment in one sentence at the end, then stop.`;
 
