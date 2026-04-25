@@ -13,7 +13,8 @@ describe("rollCharacter", () => {
     expect(typeof r.skin).toBe("string");
     expect(typeof r.eyes).toBe("string");
     expect(typeof r.hair).toBe("string");
-    expect(r.weirdFeature === null || typeof r.weirdFeature === "string").toBe(true);
+    expect(r.fantasticalFeature === null || typeof r.fantasticalFeature === "string").toBe(true);
+    expect(Array.isArray(r.skinMarks)).toBe(true);
   });
 
   it("passes gender through unchanged", () => {
@@ -127,17 +128,64 @@ describe("distributions over 1000 rolls", () => {
     expect(rolls.every((r) => allHair.has(r.hair))).toBe(true);
   });
 
-  it("weird feature: appears roughly 30% of the time", () => {
-    const weirdCount = rolls.filter((r) => r.weirdFeature !== null).length;
+  it("fantastical feature: appears roughly 30% of the time", () => {
+    const withFeature = rolls.filter((r) => r.fantasticalFeature !== null).length;
     // expected ~300; 4-sigma bounds ≈ [242, 358]
-    expect(weirdCount).toBeGreaterThan(200);
-    expect(weirdCount).toBeLessThan(400);
+    expect(withFeature).toBeGreaterThan(200);
+    expect(withFeature).toBeLessThan(400);
   });
 
-  it("weird feature: null or a value from the weird feature table", () => {
-    const valid = new Set<string>([...TABLES.weirdFeature]);
+  it("fantastical feature: null or a value from the fantastical feature table", () => {
+    const valid = new Set<string>([...TABLES.fantasticalFeature]);
     expect(
-      rolls.every((r) => r.weirdFeature === null || valid.has(r.weirdFeature)),
+      rolls.every((r) => r.fantasticalFeature === null || valid.has(r.fantasticalFeature)),
     ).toBe(true);
+  });
+
+  it("skin marks: always an array", () => {
+    expect(rolls.every((r) => Array.isArray(r.skinMarks))).toBe(true);
+  });
+
+  it("skin marks: no character has more than 2", () => {
+    expect(rolls.every((r) => r.skinMarks.length <= 2)).toBe(true);
+  });
+
+  it("skin marks: approximately 40% of characters have at least one", () => {
+    const withMarks = rolls.filter((r) => r.skinMarks.length > 0).length;
+    // expected ~400; P=0.4, std dev ≈ 15.5, 4-sigma bounds ≈ [338, 462]
+    expect(withMarks).toBeGreaterThan(280);
+    expect(withMarks).toBeLessThan(520);
+  });
+
+  it("skin marks: approximately 20% of marked characters have a second mark", () => {
+    const withMarks = rolls.filter((r) => r.skinMarks.length > 0);
+    const withSecond = withMarks.filter((r) => r.skinMarks.length >= 2).length;
+    // expected ~80 (20% of ~400); generous bounds
+    expect(withSecond).toBeGreaterThan(30);
+    expect(withSecond).toBeLessThan(150);
+  });
+
+  it("skin marks: all values are from the marks table or freckles variants", () => {
+    const validTypes = new Set<string>([
+      ...TABLES.skinMarks.types.filter((t) => t !== "freckles"),
+      "freckles (light)",
+      "freckles (heavy)",
+    ]);
+    for (const r of rolls) {
+      for (const mark of r.skinMarks) {
+        expect(validTypes.has(mark)).toBe(true);
+      }
+    }
+  });
+
+  it("skin marks: no two marks on the same character share a base type", () => {
+    function base(mark: string): string {
+      return mark.startsWith("freckles") ? "freckles" : mark;
+    }
+    for (const r of rolls) {
+      if (r.skinMarks.length === 2) {
+        expect(base(r.skinMarks[0]!)).not.toBe(base(r.skinMarks[1]!));
+      }
+    }
   });
 });

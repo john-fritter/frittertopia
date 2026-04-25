@@ -10,7 +10,8 @@ const sampleRoll: CharacterRoll = {
   skin: "warm beige",
   eyes: "hazel",
   hair: "auburn",
-  weirdFeature: "pointed ears",
+  fantasticalFeature: "pointed ears",
+  skinMarks: ["small tattoo"],
 };
 
 afterEach(() => {
@@ -72,18 +73,31 @@ describe("generateCharacterBrief — failure path", () => {
     expect(result).toContain("auburn");
   });
 
-  it("fallback includes weird feature when present", async () => {
+  it("fallback includes fantastical feature when present", async () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
     const result = await generateCharacterBrief(sampleRoll);
     expect(result).toContain("pointed ears");
   });
 
-  it("fallback omits weird feature when null", async () => {
+  it("fallback omits fantastical feature when null", async () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
-    const noFeatureRoll: CharacterRoll = { ...sampleRoll, weirdFeature: null };
+    const noFeatureRoll: CharacterRoll = { ...sampleRoll, fantasticalFeature: null };
     const result = await generateCharacterBrief(noFeatureRoll);
     expect(result).not.toContain("null");
-    expect(result).not.toContain("Notable:");
+    expect(result).not.toContain("Fantastical feature:");
+  });
+
+  it("fallback includes skin marks when present", async () => {
+    vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
+    const result = await generateCharacterBrief(sampleRoll);
+    expect(result).toContain("small tattoo");
+  });
+
+  it("fallback omits skin marks section when array is empty", async () => {
+    vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
+    const noMarksRoll: CharacterRoll = { ...sampleRoll, skinMarks: [] };
+    const result = await generateCharacterBrief(noMarksRoll);
+    expect(result).not.toContain("Marks:");
   });
 
   it("never throws — returns a string even when generate rejects", async () => {
@@ -128,7 +142,7 @@ describe("generateCharacterBrief — user prompt contents", () => {
     expect(userPrompt).not.toMatch(/\b67\b/); // no bare "67" without conversion context
   });
 
-  it("weird feature appears in user prompt when present", async () => {
+  it("fantastical feature appears in user prompt when present", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
@@ -137,14 +151,35 @@ describe("generateCharacterBrief — user prompt contents", () => {
     expect(userPrompt).toContain("pointed ears");
   });
 
-  it("user prompt shows 'none' for weird feature when null", async () => {
+  it("user prompt shows 'none' for fantastical feature when null", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
-    const noFeatureRoll: CharacterRoll = { ...sampleRoll, weirdFeature: null };
+    const noFeatureRoll: CharacterRoll = { ...sampleRoll, fantasticalFeature: null };
     await generateCharacterBrief(noFeatureRoll);
     const userPrompt = mock.mock.calls[0]?.[1] ?? "";
     expect(userPrompt).toContain("none");
     expect(userPrompt).not.toContain("null");
+  });
+
+  it("user prompt includes skin marks when array is non-empty", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const userPrompt = mock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("Skin marks:");
+    expect(userPrompt).toContain("small tattoo");
+  });
+
+  it("user prompt omits skin marks field entirely when array is empty", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    const noMarksRoll: CharacterRoll = { ...sampleRoll, skinMarks: [] };
+    await generateCharacterBrief(noMarksRoll);
+    const userPrompt = mock.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).not.toContain("Skin marks:");
+    expect(userPrompt).not.toContain("none"); // field omitted entirely, not set to "none"
   });
 });

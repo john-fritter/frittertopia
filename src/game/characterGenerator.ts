@@ -149,35 +149,54 @@ export const TABLES = {
       "bald with unusual scalp texture",
     ] as const,
   },
-  weirdFeature: [
-    "brow ridge (subtle)",
-    "brow ridge (dramatic)",
-    "small tusks",
-    "elongated fingers",
-    "extra finger on each hand",
-    "too few fingers",
+  fantasticalFeature: [
     "pointed ears",
     "very large ears",
     "absent ears",
+    "brow ridge (subtle)",
+    "brow ridge (dramatic)",
+    "small horns (two symmetrical)",
+    "large horns",
+    "single horn",
+    "fangs (upper canines subtle)",
+    "tusks (lower jaw prominent)",
+    "forked tongue",
+    "pointed teeth throughout",
+    "a second set of eyelids",
+    "eyes that reflect light in darkness",
+    "vestigial gills (neck dry non-functional)",
     "small tail",
     "long tail",
+    "tail with a tuft",
+    "tail with a flat paddle end",
     "claws instead of nails",
+    "retractable claws",
     "pawpads on palms",
-    "unusual density of teeth",
-    "teeth too sharp",
-    "a second set of eyelids",
-    "skin markings that follow vein or bone lines",
-    "significant facial scar",
-    "significant body scar",
-    "one eye missing",
-    "neck longer than expected",
-    "shoulders dramatically broader than build suggests",
-    "very long arms",
-    "very short arms",
-    "skin that is slightly the wrong temperature to the touch",
-    "patches of fur or hair where it wouldn't normally appear",
-    "a smell that doesn't match the body",
+    "webbed fingers and toes",
+    "digitigrade legs",
+    "patches of scales (jaw forearms or shoulders)",
+    "patches of feathers (jaw forearms or shoulders)",
+    "patches of fur where it wouldn't normally grow",
+    "very dense body hair almost fur",
+    "feathered eyebrows",
+    "a crest of feathers or spines along the scalp",
   ] as const,
+  skinMarks: {
+    firstMarkChance: 0.4,
+    secondMarkChance: 0.2,
+    types: [
+      "freckles",
+      "scar (face)",
+      "scar (body)",
+      "birthmark",
+      "small tattoo",
+      "large tattoo",
+      "extensive tattoos",
+      "sun-weathered skin",
+      "age spots",
+    ] as const,
+    freckleIntensity: ["light", "heavy"] as const,
+  },
 } as const;
 
 export type CharacterRoll = {
@@ -188,8 +207,40 @@ export type CharacterRoll = {
   skin: string;
   eyes: string;
   hair: string;
-  weirdFeature: string | null;
+  fantasticalFeature: string | null;
+  skinMarks: string[];
 };
+
+function rollOneSkinMark(): string {
+  const base = uniformPick(TABLES.skinMarks.types);
+  if (base === "freckles") {
+    return `freckles (${uniformPick(TABLES.skinMarks.freckleIntensity)})`;
+  }
+  return base;
+}
+
+function skinMarkBase(mark: string): string {
+  return mark.startsWith("freckles") ? "freckles" : mark;
+}
+
+function rollSkinMarks(): string[] {
+  if (Math.random() >= TABLES.skinMarks.firstMarkChance) return [];
+
+  const first = rollOneSkinMark();
+  const marks: string[] = [first];
+
+  if (Math.random() < TABLES.skinMarks.secondMarkChance) {
+    let second = rollOneSkinMark();
+    if (skinMarkBase(second) === skinMarkBase(first)) {
+      second = rollOneSkinMark(); // one reroll attempt
+    }
+    if (skinMarkBase(second) !== skinMarkBase(first)) {
+      marks.push(second);
+    }
+  }
+
+  return marks;
+}
 
 export function rollCharacter(gender: string): CharacterRoll {
   const age = clamp(
@@ -222,8 +273,10 @@ export function rollCharacter(gender: string): CharacterRoll {
       ? uniformPick(TABLES.hair.weird)
       : uniformPick(TABLES.hair.normal);
 
-  const weirdFeature =
-    Math.random() < 0.3 ? uniformPick(TABLES.weirdFeature) : null;
+  const fantasticalFeature =
+    Math.random() < 0.3 ? uniformPick(TABLES.fantasticalFeature) : null;
 
-  return { gender, age, height, build, skin, eyes, hair, weirdFeature };
+  const skinMarks = rollSkinMarks();
+
+  return { gender, age, height, build, skin, eyes, hair, fantasticalFeature, skinMarks };
 }

@@ -5,13 +5,15 @@ export const client = new LLMClient();
 
 const MAX_RETRIES = 3;
 
-const SYSTEM_PROMPT = `You are the storyteller for Frittertopia, a dreamlike persistent world. You are generating an internal character brief for a new arrival. The brief is never shown to the player. It is your working reference document — plain descriptive language, not prose, not second person. Its only purpose is physical continuity: ensuring this character is described consistently every time they appear.
+const SYSTEM_PROMPT = `You are the storyteller for Frittertopia. This is an internal working note — never shown to the player. Keep it under 75 words.
 
-Write a short physical description that incorporates the provided traits. Be specific. Include at least one detail about how this person moves or holds themselves that feels consistent with their physical form. The storyteller who reads this brief should be able to pick this character out of a crowd.
+Write in plain prose. No headers, no sections, no bullet points.
 
-Do not invent personality. Do not invent history. Do not invent preferences unless they fall naturally from the physical form. Fill in details like hairstyle, minor marks, and texture that weren't specified but are needed to make the description feel inhabited. Keep it under 150 words.
+Describe the character as a body at rest: what they look like standing still. No movement description. No posture description. No personality inference.
 
-The character must be a bipedal humanoid that is able to walk on land, breathe, eat, drink, speak, fit through a normal doorway, wear clothing, carry a pack, and die. If the provided traits create something that can't do these things, find the nearest version that can and describe that instead.`;
+Use only the physical traits provided. You may invent hairstyle and, where plausible, facial hair. Do not add scars, marks, callouses, or any other feature not listed. Do not add practical notes. Do not comment on whether the character can fit through doorways.
+
+The character must be able to walk on land, breathe, eat, drink, speak, fit through a normal doorway, wear clothing, carry a pack, and die. If the provided traits produce something that can't do these things, find the nearest version that can. Note any adjustment in one sentence at the end, then stop.`;
 
 function inchesToReadable(inches: number): string {
   const feet = Math.floor(inches / 12);
@@ -20,7 +22,7 @@ function inchesToReadable(inches: number): string {
 }
 
 function buildUserPrompt(roll: CharacterRoll): string {
-  return [
+  const lines = [
     `Gender: ${roll.gender}`,
     `Age: ${roll.age}`,
     `Height: ${inchesToReadable(roll.height)}`,
@@ -28,8 +30,12 @@ function buildUserPrompt(roll: CharacterRoll): string {
     `Skin: ${roll.skin}`,
     `Eyes: ${roll.eyes}`,
     `Hair: ${roll.hair}`,
-    `Weird feature: ${roll.weirdFeature ?? "none"}`,
-  ].join("\n");
+    `Fantastical feature: ${roll.fantasticalFeature ?? "none"}`,
+  ];
+  if (roll.skinMarks.length > 0) {
+    lines.push(`Skin marks: ${roll.skinMarks.join(", ")}`);
+  }
+  return lines.join("\n");
 }
 
 function buildFallback(roll: CharacterRoll): string {
@@ -38,8 +44,11 @@ function buildFallback(roll: CharacterRoll): string {
     `${inchesToReadable(roll.height)}, ${roll.build} build.`,
     `Skin: ${roll.skin}. Eyes: ${roll.eyes}. Hair: ${roll.hair}.`,
   ];
-  if (roll.weirdFeature !== null) {
-    parts.push(`Notable: ${roll.weirdFeature}.`);
+  if (roll.fantasticalFeature !== null) {
+    parts.push(`Fantastical feature: ${roll.fantasticalFeature}.`);
+  }
+  if (roll.skinMarks.length > 0) {
+    parts.push(`Marks: ${roll.skinMarks.join(", ")}.`);
   }
   return parts.join(" ");
 }
