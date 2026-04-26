@@ -20,7 +20,7 @@ function normalPickFromArray<T>(arr: readonly T[], center: number, stddev: numbe
 
 export const TABLES = {
   age: { mean: 35, stddev: 15, min: 10, max: 90 },
-  height: { mean: 67, stddev: 4, min: 24, max: 96 },
+  height: { mean: 67, stddev: 10, min: 24, max: 96 },
   build: [
     "skeletal",
     "very slight",
