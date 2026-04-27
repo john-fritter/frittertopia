@@ -51,16 +51,16 @@ describe("distributions over 1000 rolls", () => {
     ).toBe(true);
   });
 
-  it("height: center heavy — most characters between 63 and 71 inches", () => {
-    const centerCount = rolls.filter((r) => r.height >= 63 && r.height <= 71).length;
-    // mean=67, stddev=4: P(63–71) = P(±1σ) ≈ 68%
+  it("height: center heavy — most characters between 57 and 77 inches", () => {
+    const centerCount = rolls.filter((r) => r.height >= 57 && r.height <= 77).length;
+    // mean=67, stddev=10: P(57–77) = P(±1σ) ≈ 68%
     expect(centerCount).toBeGreaterThan(550);
   });
 
-  it("height: extremes rare — very few characters shorter than 55 or taller than 79 inches", () => {
-    const extremeCount = rolls.filter((r) => r.height < 55 || r.height > 79).length;
-    // P(|N|>3) ≈ 0.27%
-    expect(extremeCount).toBeLessThan(20);
+  it("height: extremes rare — very few characters shorter than 47 or taller than 87 inches", () => {
+    const extremeCount = rolls.filter((r) => r.height < 47 || r.height > 87).length;
+    // P(|N|>2) ≈ 4.5% → ~45; generous bound
+    expect(extremeCount).toBeLessThan(100);
   });
 
   it("build: only valid values", () => {

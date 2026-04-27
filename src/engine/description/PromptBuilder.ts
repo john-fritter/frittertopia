@@ -1,8 +1,10 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { RoomContext } from "./ContextBuilder.js";
+import type { CharacterRoll } from "../../game/characterGenerator.js";
 
 // ---------------------------------------------------------------------------
-// Shared context-assembly helper
-// Each prompt kind calls this to produce a structured world/sim state payload.
+// Internal helpers — shared by buildRoomUserPrompt
 // ---------------------------------------------------------------------------
 
 interface WorldStatePayload {
@@ -50,55 +52,138 @@ function formatWeatherLine(state: WorldStatePayload): string {
   return `Weather: ${parts.join(", ")}`;
 }
 
+function inchesToReadable(inches: number): string {
+  const feet = Math.floor(inches / 12);
+  const remaining = inches % 12;
+  return `${feet}'${remaining}"`;
+}
+
 // ---------------------------------------------------------------------------
-// Description kind
+// Fallback content — used when content/prompts/ is not found at init time.
+// Contains the patterns that description-service.test.ts asserts on.
 // ---------------------------------------------------------------------------
 
-const DESCRIPTION_SYSTEM = (
-  "You are the narrator of a text adventure in the literary tradition of " +
-  "atmospheric, sparse MUDs. Write second-person present-tense responses of " +
-  "1–3 sentences: concrete, alive to texture, never precious. Use the room " +
-  "context as ground truth. Respond to whatever the player typed — if what " +
-  "they describe is absent, implausible, or strange, answer naturally and in " +
-  "character. Never refuse, apologize, or mention game mechanics.\n\n" +
-  "Every item and player in the Present list must be named somewhere in your " +
-  "prose, using the exact spelling from that list. Weave them naturally into " +
-  "the sentence — no special markup or brackets. Do not invent entries that " +
-  "aren't in the list."
-);
+const FALLBACK_STORYTELLER =
+  "You are the storyteller of Frittertopia. " +
+  "You write in second-person, present tense. " +
+  "Respond naturally and in character. " +
+  "Never refuse, apologize, or break frame to mention mechanics.";
+
+const FALLBACK_DESCRIBE_ROOM =
+  "Describe the room in 1–3 sentences. " +
+  "Every entry in the Present list must be named in your prose.";
+
+const FALLBACK_CHARACTER_BRIEF =
+  "You are writing an internal character brief. " +
+  "Plain prose, under 75 words. Describe the character as a body at rest.";
+
+// ---------------------------------------------------------------------------
+// PromptBuilder class
+// ---------------------------------------------------------------------------
+
+export type PromptRole = "describe-room" | "character-brief";
+
+export class PromptBuilder {
+  private world = "";
+  private storyteller = FALLBACK_STORYTELLER;
+  private describeRoom = FALLBACK_DESCRIBE_ROOM;
+  private characterBrief = FALLBACK_CHARACTER_BRIEF;
+
+  loadPromptFiles(promptsDir: string): void {
+    this.world = fs.readFileSync(path.join(promptsDir, "world.md"), "utf8").trim();
+    this.storyteller = fs
+      .readFileSync(path.join(promptsDir, "storyteller.md"), "utf8")
+      .trim();
+    this.describeRoom = fs
+      .readFileSync(path.join(promptsDir, "roles", "describe-room.md"), "utf8")
+      .trim();
+    this.characterBrief = fs
+      .readFileSync(path.join(promptsDir, "roles", "character-brief.md"), "utf8")
+      .trim();
+  }
+
+  buildSystemPrompt(role: PromptRole): string {
+    const roleContent =
+      role === "describe-room" ? this.describeRoom : this.characterBrief;
+    return [this.world, this.storyteller, roleContent]
+      .filter((s) => s.length > 0)
+      .join("\n\n");
+  }
+
+  buildRoomUserPrompt(ctx: RoomContext, rawInput: string): string {
+    const state = assembleWorldState(ctx);
+
+    const presentParts: string[] = [
+      ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
+      ...state.otherPlayers.map((name) => `${name} (player)`),
+    ];
+    const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
+
+    const lines = [
+      `Room: ${state.roomName}`,
+      `Brief: ${state.roomBrief}`,
+      `Time: ${state.timeOfDay}`,
+      `Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`,
+      formatWeatherLine(state),
+      `Present: ${presentLine}`,
+    ];
+
+    if (state.exits && Object.keys(state.exits).length > 0) {
+      const exitParts = Object.entries(state.exits)
+        .map(([dir, name]) => `${dir} → ${name}`)
+        .join(", ");
+      lines.push(`Exits: ${exitParts}`);
+    }
+
+    // recentOutput seam: lines.push(`Recent: ${recentOutput}`);
+
+    lines.push(`Player input: ${rawInput}`);
+
+    return lines.join("\n");
+  }
+
+  buildCharacterUserPrompt(roll: CharacterRoll): string {
+    const lines = [
+      `Gender: ${roll.gender}`,
+      `Age: ${roll.age}`,
+      `Height: ${inchesToReadable(roll.height)}`,
+      `Build: ${roll.build}`,
+      `Skin: ${roll.skin}`,
+      `Eyes: ${roll.eyes}`,
+      `Hair: ${roll.hair}`,
+      `Fantastical feature: ${roll.fantasticalFeature ?? "none"}`,
+    ];
+    if (roll.skinMarks.length > 0) {
+      lines.push(`Skin marks: ${roll.skinMarks.join(", ")}`);
+    }
+    return lines.join("\n");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Singleton — loads from content/prompts/ relative to this file at init time
+// ---------------------------------------------------------------------------
+
+export const promptBuilder = new PromptBuilder();
+try {
+  promptBuilder.loadPromptFiles(
+    path.join(import.meta.dirname, "..", "..", "..", "content", "prompts"),
+  );
+} catch {
+  // content/prompts/ not found — fallbacks in use
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compat export — keeps existing call sites and tests working
+// ---------------------------------------------------------------------------
 
 export function buildDescriptionPrompt(
   ctx: RoomContext,
   rawInput: string,
   // recentOutput?: string,  // seam: wire up when short-term memory feature lands
 ): { system: string; user: string } {
-  const state = assembleWorldState(ctx);
-
-  const presentParts: string[] = [
-    ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
-    ...state.otherPlayers.map((name) => `${name} (player)`),
-  ];
-  const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
-
-  const lines = [
-    `Room: ${state.roomName}`,
-    `Brief: ${state.roomBrief}`,
-    `Time: ${state.timeOfDay}`,
-    `Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-    formatWeatherLine(state),
-    `Present: ${presentLine}`,
-  ];
-
-  if (state.exits && Object.keys(state.exits).length > 0) {
-    const exitParts = Object.entries(state.exits)
-      .map(([dir, name]) => `${dir} → ${name}`)
-      .join(", ");
-    lines.push(`Exits: ${exitParts}`);
-  }
-
-  // recentOutput seam: lines.push(`Recent: ${recentOutput}`);
-
-  lines.push(`Player input: ${rawInput}`);
-
-  return { system: DESCRIPTION_SYSTEM, user: lines.join("\n") };
+  return {
+    system: promptBuilder.buildSystemPrompt("describe-room"),
+    user: promptBuilder.buildRoomUserPrompt(ctx, rawInput),
+  };
 }

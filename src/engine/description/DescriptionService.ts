@@ -1,6 +1,6 @@
 import type { World } from "../World.js";
 import { ContextBuilder } from "./ContextBuilder.js";
-import { buildDescriptionPrompt } from "./PromptBuilder.js";
+import { promptBuilder } from "./PromptBuilder.js";
 
 export interface StoredPrompt {
   system: string;
@@ -24,7 +24,8 @@ export class DescriptionService {
 
   async describe(roomId: string, playerId: string, rawInput: string): Promise<string> {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const { system, user } = buildDescriptionPrompt(ctx, rawInput);
+    const system = promptBuilder.buildSystemPrompt("describe-room");
+    const user = promptBuilder.buildRoomUserPrompt(ctx, rawInput);
 
     this.lastPrompt = {
       system,
