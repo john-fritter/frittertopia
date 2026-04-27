@@ -147,20 +147,20 @@ export class PromptBuilder {
   }
 
   buildCharacterUserPrompt(roll: CharacterRoll): string {
-    const lines = [
-      `Gender: ${roll.gender}`,
-      `Age: ${roll.age}`,
-      `Height: ${roll.height}`,
-      `Build: ${roll.build}`,
-      `Skin: ${roll.skin}`,
-      `Eyes: ${roll.eyes}`,
-      `Hair: ${roll.hair}`,
-      `Fantastical feature: ${roll.fantasticalFeature ?? "none"}`,
+    const bullets = [
+      `- Gender: ${roll.gender}`,
+      `- Age: ${roll.age}`,
+      `- Height: ${roll.height}`,
+      `- Build: ${roll.build}`,
+      `- Skin: ${roll.skin}`,
+      `- Eyes: ${roll.eyes}`,
+      `- Hair: ${roll.hair}`,
+      `- Fantastical feature: ${roll.fantasticalFeature ?? "none"}`,
     ];
     if (roll.skinMarks.length > 0) {
-      lines.push(`Skin marks: ${roll.skinMarks.join(", ")}`);
+      bullets.push(`- Skin marks: ${roll.skinMarks.join(", ")}`);
     }
-    return lines.join("\n");
+    return bullets.join("\n");
   }
 }
 

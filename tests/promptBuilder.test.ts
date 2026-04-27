@@ -33,7 +33,7 @@ describe("PromptBuilder", () => {
     it("does not contain character-brief role instructions", () => {
       // unique phrase from roles/character-brief.md must be absent
       expect(builder.buildSystemPrompt("describe-room")).not.toContain(
-        "internal character brief",
+        "physical continuity record",
       );
     });
   });
@@ -52,7 +52,7 @@ describe("PromptBuilder", () => {
     it("contains character-brief role instructions", () => {
       // unique phrase from roles/character-brief.md
       expect(builder.buildSystemPrompt("character-brief")).toContain(
-        "internal character brief",
+        "physical continuity record",
       );
     });
 
@@ -78,7 +78,7 @@ describe("PromptBuilder", () => {
 
     it("contains character-brief role instructions", () => {
       expect(builder.buildSystemPrompt("character-brief", false)).toContain(
-        "internal character brief",
+        "physical continuity record",
       );
     });
 

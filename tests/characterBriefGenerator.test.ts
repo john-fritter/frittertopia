@@ -116,20 +116,59 @@ describe("generateCharacterBrief — failure path", () => {
   });
 });
 
+describe("generateCharacterBrief — system prompt contents", () => {
+  it("system prompt instructs output to contain CANON: section", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt).toContain("CANON:");
+  });
+
+  it("system prompt instructs output to contain RENDERING NOTES: section", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt).toContain("RENDERING NOTES:");
+  });
+
+  it("system prompt instructs output to contain AVOID: section", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt).toContain("AVOID:");
+  });
+
+  it("system prompt does not contain storyteller voice", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt).not.toContain("been here a long time");
+  });
+});
+
 describe("generateCharacterBrief — user prompt contents", () => {
-  it("user prompt contains all rolled traits", async () => {
+  it("user prompt contains all rolled traits as a bullet list", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
     await generateCharacterBrief(sampleRoll);
     const userPrompt = mock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("female");
-    expect(userPrompt).toContain("adult");
-    expect(userPrompt).toContain("average");
-    expect(userPrompt).toContain("warm beige");
-    expect(userPrompt).toContain("hazel");
-    expect(userPrompt).toContain("auburn");
-    expect(userPrompt).toContain("pointed ears");
+    expect(userPrompt).toContain("- Gender: female");
+    expect(userPrompt).toContain("- Age: adult");
+    expect(userPrompt).toContain("- Height: average");
+    expect(userPrompt).toContain("- Build: average");
+    expect(userPrompt).toContain("- Skin: warm beige");
+    expect(userPrompt).toContain("- Eyes: hazel");
+    expect(userPrompt).toContain("- Hair: auburn");
+    expect(userPrompt).toContain("- Fantastical feature: pointed ears");
   });
 
   it("fantastical feature appears in user prompt when present", async () => {
