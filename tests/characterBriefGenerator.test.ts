@@ -4,8 +4,8 @@ import type { CharacterRoll } from "../src/game/characterGenerator.js";
 
 const sampleRoll: CharacterRoll = {
   gender: "female",
-  age: 32,
-  height: 67, // 5'7"
+  age: "adult",
+  height: "average",
   build: "average",
   skin: "warm beige",
   eyes: "hazel",
@@ -66,7 +66,7 @@ describe("generateCharacterBrief — failure path", () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
     const result = await generateCharacterBrief(sampleRoll);
     expect(result).toContain("female");
-    expect(result).toContain("32");
+    expect(result).toContain("adult");
     expect(result).toContain("average");
     expect(result).toContain("warm beige");
     expect(result).toContain("hazel");
@@ -124,22 +124,12 @@ describe("generateCharacterBrief — user prompt contents", () => {
     await generateCharacterBrief(sampleRoll);
     const userPrompt = mock.mock.calls[0]?.[1] ?? "";
     expect(userPrompt).toContain("female");
-    expect(userPrompt).toContain("32");
+    expect(userPrompt).toContain("adult");
     expect(userPrompt).toContain("average");
     expect(userPrompt).toContain("warm beige");
     expect(userPrompt).toContain("hazel");
     expect(userPrompt).toContain("auburn");
     expect(userPrompt).toContain("pointed ears");
-  });
-
-  it("height is converted to feet and inches, not left as raw inches", async () => {
-    const mock = vi
-      .spyOn(client, "generate")
-      .mockResolvedValue({ ok: true, text: "brief" });
-    await generateCharacterBrief(sampleRoll);
-    const userPrompt = mock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain(`5'7"`);
-    expect(userPrompt).not.toMatch(/\b67\b/); // no bare "67" without conversion context
   });
 
   it("fantastical feature appears in user prompt when present", async () => {

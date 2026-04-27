@@ -7,8 +7,8 @@ describe("rollCharacter", () => {
   it("returns all required fields with the given gender", () => {
     const r = rollCharacter("nonbinary");
     expect(r.gender).toBe("nonbinary");
-    expect(typeof r.age).toBe("number");
-    expect(typeof r.height).toBe("number");
+    expect(typeof r.age).toBe("string");
+    expect(typeof r.height).toBe("string");
     expect(typeof r.build).toBe("string");
     expect(typeof r.skin).toBe("string");
     expect(typeof r.eyes).toBe("string");
@@ -29,66 +29,83 @@ describe("distributions over 1000 rolls", () => {
     rollCharacter(i % 2 === 0 ? "female" : "male"),
   );
 
-  it("age: always within [10, 90]", () => {
-    expect(rolls.every((r) => r.age >= TABLES.age.min && r.age <= TABLES.age.max)).toBe(true);
+  const validAgeBrackets = new Set<string>([...TABLES.ageBrackets, "ageless"]);
+  const validHeightBrackets = new Set<string>([...TABLES.heightBrackets]);
+  const validBuildBrackets = new Set<string>([...TABLES.buildBrackets]);
+
+  it("age: all values are from the age brackets table or 'ageless'", () => {
+    expect(rolls.every((r) => validAgeBrackets.has(r.age))).toBe(true);
   });
 
-  it("age: center heavy — most characters between 25 and 45", () => {
-    const centerCount = rolls.filter((r) => r.age >= 25 && r.age <= 45).length;
-    // mean=35, stddev=15: P(25–45) ≈ 50%
-    expect(centerCount).toBeGreaterThan(350);
-  });
-
-  it("age: extremes rare — few characters younger than 15 or older than 75", () => {
-    const extremeCount = rolls.filter((r) => r.age < 15 || r.age > 75).length;
-    // P(age<15 or age>75) ≈ 9% + 0.4% ≈ 10%
-    expect(extremeCount).toBeLessThan(150);
-  });
-
-  it("height: always within [24, 96] inches", () => {
-    expect(
-      rolls.every((r) => r.height >= TABLES.height.min && r.height <= TABLES.height.max),
-    ).toBe(true);
-  });
-
-  it("height: center heavy — most characters between 57 and 77 inches", () => {
-    const centerCount = rolls.filter((r) => r.height >= 57 && r.height <= 77).length;
-    // mean=67, stddev=10: P(57–77) = P(±1σ) ≈ 68%
-    expect(centerCount).toBeGreaterThan(550);
-  });
-
-  it("height: extremes rare — very few characters shorter than 47 or taller than 87 inches", () => {
-    const extremeCount = rolls.filter((r) => r.height < 47 || r.height > 87).length;
-    // P(|N|>2) ≈ 4.5% → ~45; generous bound
-    expect(extremeCount).toBeLessThan(100);
-  });
-
-  it("build: only valid values", () => {
-    const valid = new Set<string>([...TABLES.build]);
-    expect(rolls.every((r) => valid.has(r.build))).toBe(true);
-  });
-
-  it("build: average is the most common build", () => {
+  it("age: 'adult' appears frequently and outnumbers the extremes", () => {
     const counts: Record<string, number> = {};
-    for (const r of rolls) counts[r.build] = (counts[r.build] ?? 0) + 1;
+    for (const r of rolls) counts[r.age] = (counts[r.age] ?? 0) + 1;
+    const adultCount = counts["adult"] ?? 0;
+    // center=3 ("adult"), stddev=1.8: P(adult) ≈ 22%; expected ~220
+    expect(adultCount).toBeGreaterThan(150);
+    // adult should clearly outnumber the extremes (child/ageless/ancient)
+    expect(adultCount).toBeGreaterThan(counts["child"] ?? 0);
+    expect(adultCount).toBeGreaterThan(counts["ageless"] ?? 0);
+    expect(adultCount).toBeGreaterThan(counts["ancient"] ?? 0);
+  });
 
+  it("age: 'ageless' appears roughly 1/30 of the time (2–5%)", () => {
+    const agelessCount = rolls.filter((r) => r.age === "ageless").length;
+    // P(upper overflow) ≈ 2.6%; 4-sigma bounds ≈ [6, 46]
+    expect(agelessCount).toBeGreaterThan(10);
+    expect(agelessCount).toBeLessThan(55);
+  });
+
+  it("age: 'child' is rare", () => {
+    const childCount = rolls.filter((r) => r.age === "child").length;
+    // lower-end clamping: P(child) ≈ 8.2%, expected ~82; generous upper bound
+    expect(childCount).toBeLessThan(150);
+  });
+
+  it("height: all values are from the height brackets table", () => {
+    expect(rolls.every((r) => validHeightBrackets.has(r.height))).toBe(true);
+  });
+
+  it("height: 'average' appears frequently and outnumbers the extremes", () => {
+    const counts: Record<string, number> = {};
+    for (const r of rolls) counts[r.height] = (counts[r.height] ?? 0) + 1;
     const avgCount = counts["average"] ?? 0;
-    // center=3 ("average"), stddev=1.5: P(average) ≈ 26%
+    // center=3 ("average"), stddev=1.8: P(average) ≈ 22%; expected ~220
     expect(avgCount).toBeGreaterThan(150);
-
-    for (const build of TABLES.build) {
-      if (build === "average") continue;
-      expect(avgCount).toBeGreaterThan(counts[build] ?? 0);
-    }
+    // average should clearly outnumber the extremes
+    expect(avgCount).toBeGreaterThan(counts["tiny"] ?? 0);
+    expect(avgCount).toBeGreaterThan(counts["enormous"] ?? 0);
   });
 
-  it("build: extremes are rare", () => {
+  it("height: 'enormous' and 'tiny' are rare", () => {
+    const counts: Record<string, number> = {};
+    for (const r of rolls) counts[r.height] = (counts[r.height] ?? 0) + 1;
+    // P(enormous or tiny) ≈ 8.2% each due to clamping; expected ~82; generous bound
+    expect(counts["enormous"] ?? 0).toBeLessThan(150);
+    expect(counts["tiny"] ?? 0).toBeLessThan(150);
+  });
+
+  it("build: all values are from the build brackets table", () => {
+    expect(rolls.every((r) => validBuildBrackets.has(r.build))).toBe(true);
+  });
+
+  it("build: 'average' appears frequently and outnumbers the extremes", () => {
     const counts: Record<string, number> = {};
     for (const r of rolls) counts[r.build] = (counts[r.build] ?? 0) + 1;
+    const avgCount = counts["average"] ?? 0;
+    // center=3 ("average"), stddev=1.8: P(average) ≈ 22%; expected ~220
+    expect(avgCount).toBeGreaterThan(150);
+    // average should clearly outnumber the extremes
+    expect(avgCount).toBeGreaterThan(counts["skeletal"] ?? 0);
+    expect(avgCount).toBeGreaterThan(counts["massive"] ?? 0);
+  });
 
-    // P(skeletal) ≈ 4.8%, P(massively built) ≈ 1.1%
-    expect(counts["skeletal"] ?? 0).toBeLessThan(100);
-    expect(counts["massively built"] ?? 0).toBeLessThan(50);
+  it("build: 'skeletal' and 'massive' are rare", () => {
+    const counts: Record<string, number> = {};
+    for (const r of rolls) counts[r.build] = (counts[r.build] ?? 0) + 1;
+    // P(skeletal or massive) ≈ 8.2% each due to clamping; generous bound
+    expect(counts["skeletal"] ?? 0).toBeLessThan(150);
+    expect(counts["massive"] ?? 0).toBeLessThan(150);
   });
 
   it("skin: normal/weird split is approximately 85/15", () => {

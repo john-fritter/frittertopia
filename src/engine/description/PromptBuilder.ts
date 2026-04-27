@@ -52,12 +52,6 @@ function formatWeatherLine(state: WorldStatePayload): string {
   return `Weather: ${parts.join(", ")}`;
 }
 
-function inchesToReadable(inches: number): string {
-  const feet = Math.floor(inches / 12);
-  const remaining = inches % 12;
-  return `${feet}'${remaining}"`;
-}
-
 // ---------------------------------------------------------------------------
 // Fallback content — used when content/prompts/ is not found at init time.
 // Contains the patterns that description-service.test.ts asserts on.
@@ -146,7 +140,7 @@ export class PromptBuilder {
     const lines = [
       `Gender: ${roll.gender}`,
       `Age: ${roll.age}`,
-      `Height: ${inchesToReadable(roll.height)}`,
+      `Height: ${roll.height}`,
       `Build: ${roll.build}`,
       `Skin: ${roll.skin}`,
       `Eyes: ${roll.eyes}`,

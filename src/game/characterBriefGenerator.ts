@@ -6,16 +6,10 @@ export const client = new LLMClient();
 
 const MAX_RETRIES = 3;
 
-function inchesToReadable(inches: number): string {
-  const feet = Math.floor(inches / 12);
-  const remaining = inches % 12;
-  return `${feet}'${remaining}"`;
-}
-
 function buildFallback(roll: CharacterRoll): string {
   const parts = [
-    `${roll.gender}, ${roll.age} years old.`,
-    `${inchesToReadable(roll.height)}, ${roll.build} build.`,
+    `${roll.gender}, ${roll.age}.`,
+    `${roll.height} height, ${roll.build} build.`,
     `Skin: ${roll.skin}. Eyes: ${roll.eyes}. Hair: ${roll.hair}.`,
   ];
   if (roll.fantasticalFeature !== null) {

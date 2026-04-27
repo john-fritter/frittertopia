@@ -19,17 +19,32 @@ function normalPickFromArray<T>(arr: readonly T[], center: number, stddev: numbe
 }
 
 export const TABLES = {
-  age: { mean: 35, stddev: 15, min: 10, max: 90 },
-  height: { mean: 67, stddev: 10, min: 24, max: 96 },
-  build: [
+  ageBrackets: [
+    "child",
+    "teen",
+    "young adult",
+    "adult",
+    "middle-aged",
+    "elderly",
+    "ancient",
+  ] as const,
+  heightBrackets: [
+    "tiny",
+    "short",
+    "below average",
+    "average",
+    "above average",
+    "tall",
+    "enormous",
+  ] as const,
+  buildBrackets: [
     "skeletal",
-    "very slight",
+    "lean",
     "slight",
     "average",
-    "stocky",
+    "sturdy",
     "heavy",
-    "very heavy",
-    "massively built",
+    "massive",
   ] as const,
   skin: {
     normal: [
@@ -201,8 +216,8 @@ export const TABLES = {
 
 export type CharacterRoll = {
   gender: string;
-  age: number;
-  height: number;
+  age: string;
+  height: string;
   build: string;
   skin: string;
   eyes: string;
@@ -210,6 +225,14 @@ export type CharacterRoll = {
   fantasticalFeature: string | null;
   skinMarks: string[];
 };
+
+// Roll age centered at index 3 ("adult"), stddev 1.8.
+// Upper overflow (raw >= 7) yields "ageless" (~2.6% chance).
+function rollAgeBracket(): string {
+  const raw = Math.round(3 + normalRandom() * 1.8);
+  if (raw >= TABLES.ageBrackets.length) return "ageless";
+  return TABLES.ageBrackets[clamp(raw, 0, TABLES.ageBrackets.length - 1)]!;
+}
 
 function rollOneSkinMark(): string {
   const base = uniformPick(TABLES.skinMarks.types);
@@ -243,20 +266,9 @@ function rollSkinMarks(): string[] {
 }
 
 export function rollCharacter(gender: string): CharacterRoll {
-  const age = clamp(
-    Math.round(TABLES.age.mean + TABLES.age.stddev * normalRandom()),
-    TABLES.age.min,
-    TABLES.age.max,
-  );
-
-  const height = clamp(
-    Math.round(TABLES.height.mean + TABLES.height.stddev * normalRandom()),
-    TABLES.height.min,
-    TABLES.height.max,
-  );
-
-  // center=3 ("average"), stddev=1.5 puts skeletal and massively built at the rare tails
-  const build = normalPickFromArray(TABLES.build, 3, 1.5);
+  const age = rollAgeBracket();
+  const height = normalPickFromArray(TABLES.heightBrackets, 3, 1.8);
+  const build = normalPickFromArray(TABLES.buildBrackets, 3, 1.8);
 
   const skin =
     Math.random() < 0.15
