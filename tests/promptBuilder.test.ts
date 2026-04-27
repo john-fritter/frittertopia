@@ -64,6 +64,41 @@ describe("PromptBuilder", () => {
     });
   });
 
+  describe("world.md additions", () => {
+    it("contains the bodies/difference line in describe-room", () => {
+      expect(builder.buildSystemPrompt("describe-room")).toContain(
+        "Do not treat visible difference as proof of nature, origin, morality, or destiny",
+      );
+    });
+
+    it("contains the bodies/difference line in character-brief", () => {
+      expect(builder.buildSystemPrompt("character-brief")).toContain(
+        "Do not treat visible difference as proof of nature, origin, morality, or destiny",
+      );
+    });
+  });
+
+  describe("storyteller.md additions", () => {
+    it("contains the character-brief-as-continuity-record line in describe-room", () => {
+      expect(builder.buildSystemPrompt("describe-room")).toContain(
+        "Use character briefs as continuity records, not scripts",
+      );
+    });
+
+    it("contains the character-brief-as-continuity-record line in character-brief", () => {
+      expect(builder.buildSystemPrompt("character-brief")).toContain(
+        "Use character briefs as continuity records, not scripts",
+      );
+    });
+
+    it("contains the appearance inference prohibition in both prompts", () => {
+      const phrase =
+        "Do not infer personality, backstory, social role, health, morality, species, ancestry, or destiny from appearance";
+      expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
+      expect(builder.buildSystemPrompt("character-brief")).toContain(phrase);
+    });
+  });
+
   describe("loadPromptFiles", () => {
     it("replaces content on reload from the same directory", () => {
       const before = builder.buildSystemPrompt("describe-room");
