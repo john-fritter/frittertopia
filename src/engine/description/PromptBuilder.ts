@@ -67,6 +67,11 @@ const FALLBACK_DESCRIBE_ROOM =
   "Describe the room in 1–3 sentences. " +
   "Every entry in the Present list must be named in your prose.";
 
+const FALLBACK_BRIEF_GENERATOR =
+  "You are a brief generator for Frittertopia. " +
+  "Create internal continuity records used by other AI calls. " +
+  "Write structured, concise, neutral records. Do not invent facts.";
+
 const FALLBACK_CHARACTER_BRIEF =
   "You are writing an internal character brief. " +
   "Plain prose, under 75 words. Describe the character as a body at rest.";
@@ -80,6 +85,7 @@ export type PromptRole = "describe-room" | "character-brief";
 export class PromptBuilder {
   private world = "";
   private storyteller = FALLBACK_STORYTELLER;
+  private briefGenerator = FALLBACK_BRIEF_GENERATOR;
   private describeRoom = FALLBACK_DESCRIBE_ROOM;
   private characterBrief = FALLBACK_CHARACTER_BRIEF;
 
@@ -87,6 +93,9 @@ export class PromptBuilder {
     this.world = fs.readFileSync(path.join(promptsDir, "world.md"), "utf8").trim();
     this.storyteller = fs
       .readFileSync(path.join(promptsDir, "storyteller.md"), "utf8")
+      .trim();
+    this.briefGenerator = fs
+      .readFileSync(path.join(promptsDir, "roles", "brief-generator.md"), "utf8")
       .trim();
     this.describeRoom = fs
       .readFileSync(path.join(promptsDir, "roles", "describe-room.md"), "utf8")
@@ -96,10 +105,11 @@ export class PromptBuilder {
       .trim();
   }
 
-  buildSystemPrompt(role: PromptRole): string {
+  buildSystemPrompt(role: PromptRole, includingStoryteller: boolean = true): string {
     const roleContent =
       role === "describe-room" ? this.describeRoom : this.characterBrief;
-    return [this.world, this.storyteller, roleContent]
+    const middleLayer = includingStoryteller ? this.storyteller : this.briefGenerator;
+    return [this.world, middleLayer, roleContent]
       .filter((s) => s.length > 0)
       .join("\n\n");
   }

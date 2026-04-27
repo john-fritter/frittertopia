@@ -64,6 +64,32 @@ describe("PromptBuilder", () => {
     });
   });
 
+  describe("buildSystemPrompt('character-brief', false)", () => {
+    it("contains world context", () => {
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain("monastery");
+    });
+
+    it("contains brief-generator instructions", () => {
+      // unique phrase from roles/brief-generator.md
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain(
+        "prompt infrastructure",
+      );
+    });
+
+    it("contains character-brief role instructions", () => {
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain(
+        "internal character brief",
+      );
+    });
+
+    it("does not contain storyteller voice", () => {
+      // "been here a long time" is the unique storyteller.md phrase
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
+        "been here a long time",
+      );
+    });
+  });
+
   describe("world.md additions", () => {
     it("contains the bodies/difference line in describe-room", () => {
       expect(builder.buildSystemPrompt("describe-room")).toContain(

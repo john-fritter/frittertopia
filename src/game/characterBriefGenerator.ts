@@ -22,7 +22,7 @@ function buildFallback(roll: CharacterRoll): string {
 }
 
 export async function generateCharacterBrief(roll: CharacterRoll): Promise<string> {
-  const system = promptBuilder.buildSystemPrompt("character-brief");
+  const system = promptBuilder.buildSystemPrompt("character-brief", false);
   const user = promptBuilder.buildCharacterUserPrompt(roll);
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
