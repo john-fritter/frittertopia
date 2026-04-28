@@ -91,6 +91,7 @@ tests/
   auth.test.ts              solar.test.ts             promptBuilder.test.ts
   characterGenerator.test.ts  characterBriefGenerator.test.ts  characterCreation.test.ts
   weather.test.ts           where.test.ts
+  weather-notifications.test.ts
 ```
 
 ## Components currently registered (`src/game/components.ts`)
@@ -114,8 +115,9 @@ tests/
 | `WeatherZone` | `{ climate, tempCurve, pressureDrift, precipitationBias, accumulation? }` | Authored on room/zone entities. Drives WeatherSystem. |
 | `WeatherState` | `{ tempC, pressureMb, precipState, ... }` | Simulated weather state, updated each tick by WeatherSystem. |
 | `WeatherZoneRef` | `{ zoneId }` | Ref to a WeatherZone entity. |
+| `WeatherChangeNotifications` | `{ transitions: Record<string, string> }` | Optional, authored on zone entities. Keys are `"{from}_{to}"` or `"{to}"`. Server checks this before its built-in fallback table; transitions with no authored text and no fallback entry are silently skipped. |
 
-Currently registered events: `sequence_beat`, `sequence_complete`, `player_destroyed` (all in `main.ts`).
+Currently registered events: `sequence_beat`, `sequence_complete`, `player_destroyed` (all in `main.ts`); `weather_state_change` (registered by `GameServer` constructor — payload `{ zoneId, from, to }`).
 
 ## Things that look done but aren't (don't be fooled)
 
