@@ -762,6 +762,122 @@ export function handleAdminLlm(
   return { toPlayer: formatDim(`LLM debug mode: ${state}`) + (arg ? `  ${formatDim("(use @llm on / @llm off)")}` : "") };
 }
 
+export function handleAdminBrief(
+  world: World,
+  target: string | undefined,
+  playerId: string,
+): ActionResult {
+  if (target === "help") {
+    return {
+      toPlayer: [
+        formatBold("@brief — Show stored character roll and brief for a player."),
+        "",
+        formatDim("  @brief         Show your own character roll and brief"),
+        formatDim("  @brief <name>  Show the named player's character roll and brief"),
+      ].join("\n"),
+    };
+  }
+
+  let targetId = playerId;
+  let displayName: string;
+
+  if (target) {
+    const playerIds = world.getEntitiesWithComponent("Player");
+    let found = false;
+    for (const id of playerIds) {
+      const p = world.getComponent(id, "Player") as { name: string } | undefined;
+      if (p?.name.toLowerCase() === target.toLowerCase()) {
+        targetId = id;
+        displayName = p.name;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return { toPlayer: formatDim(`No player found: ${target}`) };
+  } else {
+    const selfPlayer = world.getComponent(playerId, "Player") as { name: string } | undefined;
+    displayName = selfPlayer?.name ?? "(self)";
+  }
+
+  const roll = world.getComponent(targetId, "CharacterRoll");
+  const brief = world.getComponent(targetId, "CharacterBrief") as { brief: string } | undefined;
+
+  const lines: string[] = [];
+  lines.push(formatBold(`[Brief: ${displayName!}]`));
+  lines.push(formatDim("─".repeat(24)));
+
+  if (!roll && !brief) {
+    lines.push(formatDim("  No character data."));
+    return { toPlayer: lines.join("\n") };
+  }
+
+  if (roll) {
+    lines.push("");
+    lines.push(formatBold("CharacterRoll"));
+    for (const [field, value] of Object.entries(roll)) {
+      lines.push(`  ${formatCyan(field)}: ${JSON.stringify(value)}`);
+    }
+  }
+
+  if (brief) {
+    lines.push("");
+    lines.push(formatBold("CharacterBrief"));
+    lines.push(`  ${brief.brief}`);
+  }
+
+  return { toPlayer: lines.join("\n") };
+}
+
+export function handleAdminBriefs(
+  world: World,
+  target: string | undefined,
+  playerId: string,
+): ActionResult {
+  if (target === "help") {
+    return {
+      toPlayer: [
+        formatBold("@briefs — Show all character briefs for players in the current room."),
+        "",
+        formatDim("  @briefs    List player briefs for everyone in your current room"),
+      ].join("\n"),
+    };
+  }
+
+  const position = world.getComponent(playerId, "Position") as { roomId: string } | undefined;
+  if (!position) return { toPlayer: formatDim("You aren't anywhere.") };
+
+  const lines: string[] = [];
+  lines.push(formatBold("Player Briefs — Current Room"));
+  lines.push(formatDim("─".repeat(30)));
+
+  let count = 0;
+  const playerIds = world.getEntitiesWithComponent("Player");
+  for (const id of playerIds) {
+    const pos = world.getComponent(id, "Position") as { roomId: string } | undefined;
+    if (!pos || pos.roomId !== position.roomId) continue;
+
+    const player = world.getComponent(id, "Player") as { name: string } | undefined;
+    const brief = world.getComponent(id, "CharacterBrief") as { brief: string } | undefined;
+    if (!player) continue;
+
+    const isSelf = id === playerId;
+    lines.push("");
+    lines.push(formatBold(player.name) + (isSelf ? formatDim(" (you)") : ""));
+    if (brief) {
+      lines.push(`  ${brief.brief}`);
+    } else {
+      lines.push(formatDim("  (no brief)"));
+    }
+    count++;
+  }
+
+  if (count === 0) {
+    lines.push(formatDim("  No players in this room."));
+  }
+
+  return { toPlayer: lines.join("\n") };
+}
+
 export function handleAdminHelp(parser: Parser, target: string | undefined): ActionResult {
   if (target === "help") {
     return { toPlayer: [

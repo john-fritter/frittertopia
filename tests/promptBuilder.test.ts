@@ -74,6 +74,37 @@ describe("PromptBuilder", () => {
     });
   });
 
+  // Requirement: buildSystemPrompt("describe") uses describe.md, not describe-room.md
+  describe("buildSystemPrompt('describe')", () => {
+    it("contains world context", () => {
+      expect(builder.buildSystemPrompt("describe")).toContain("monastery");
+    });
+
+    it("contains storyteller voice", () => {
+      expect(builder.buildSystemPrompt("describe")).toContain("been here a long time");
+    });
+
+    it("contains describe role instructions", () => {
+      // unique phrase from roles/describe.md
+      expect(builder.buildSystemPrompt("describe")).toContain("self-directed");
+    });
+
+    it("does not contain describe-room role instructions", () => {
+      expect(builder.buildSystemPrompt("describe")).not.toContain("Present list");
+    });
+
+    it("does not contain character-brief role instructions", () => {
+      expect(builder.buildSystemPrompt("describe")).not.toContain("physical continuity record");
+    });
+  });
+
+  // Requirement: buildSystemPrompt("describe-room") does not bleed into describe
+  describe("describe vs describe-room isolation", () => {
+    it("describe-room does not contain sense role instructions", () => {
+      expect(builder.buildSystemPrompt("describe-room")).not.toContain("self-directed");
+    });
+  });
+
   // Requirement: world.md contains the body-difference line
   describe("world.md content", () => {
     it("contains the basic biology / body-difference line", () => {

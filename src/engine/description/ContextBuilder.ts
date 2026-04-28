@@ -42,6 +42,8 @@ export interface RoomContext {
   exits?: Record<string, string>;
   /** Character briefs for entities present in the room, including the current player. */
   characterBriefs: { name: string; brief: string }[];
+  /** Name of the current player — used in sense prompts to attribute self-references. */
+  currentPlayerName?: string;
 }
 
 export class ContextBuilder {
@@ -191,6 +193,7 @@ export class ContextBuilder {
       ...weatherFields,
       exits,
       characterBriefs,
+      currentPlayerName: selfPlayer?.name,
     };
   }
 }
