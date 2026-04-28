@@ -38,7 +38,7 @@ export function createWeatherSystem(tickIntervalMs: number): SystemFn {
   let elapsed = UPDATE_INTERVAL_MS; // trigger immediately on first tick
   const rng = makeRng();
 
-  return (entities, _events) => {
+  return (entities, events) => {
     elapsed += tickIntervalMs;
     if (elapsed < UPDATE_INTERVAL_MS) return;
     elapsed = 0;
@@ -117,6 +117,14 @@ export function createWeatherSystem(tickIntervalMs: number): SystemFn {
         pressureHistory: newHistory,
         snowDepth: 0,
       });
+
+      if (!debugPrec && transition && transition.state !== existing.precipState) {
+        events.emit("weather_state_change", {
+          zoneId,
+          from: existing.precipState,
+          to: effectivePrecipState,
+        });
+      }
     }
   };
 }

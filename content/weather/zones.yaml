@@ -13,3 +13,32 @@ entities:
           speed: slow
           volatility: high
         precipitationBias: high
+      WeatherChangeNotifications:
+        transitions:
+          clear_rain: "Rain begins to fall on the courtyard stones."
+          clear_snow: "Snow begins to sift down through the open sky."
+          clear_storm: "The sky darkens. Something is building out past the ridge."
+          clear_fog: "Fog drifts in over the walls, slow and low."
+          overcast_rain: "The clouds open. Rain falls."
+          overcast_snow: "Snow begins to fall from the grey sky."
+          overcast_storm: "The clouds thicken and darken. A storm is moving in."
+          rain_storm: "The rain intensifies. Thunder somewhere in the mountains."
+          rain_snow: "The rain turns to snow."
+          rain_sleet: "The rain turns to sleet, rattling against the stones."
+          rain_clear: "The rain stops. The air is cold and clean."
+          rain_overcast: "The rain eases."
+          snow_storm: "The snowfall thickens. Wind picking up."
+          snow_rain: "The snow turns to rain."
+          snow_clear: "The snow stops. The sky opens."
+          snow_overcast: "The snow eases to a grey overcast."
+          storm_rain: "The storm eases. Rain, now, but the worst has passed."
+          storm_clear: "The storm passes. The air is cold and sharp, the sky washed clean."
+          storm_overcast: "The storm breaks, leaving heavy cloud behind."
+          storm_snow: "The storm wind drops. Snow, now, falling straight down."
+          sleet_rain: "The sleet turns to rain."
+          sleet_snow: "The sleet turns to snow."
+          sleet_clear: "The sleet stops."
+          sleet_overcast: "The sleet stops."
+          fog_clear: "The fog lifts."
+          fog_overcast: "The fog thins to a flat grey overcast."
+          fog_rain: "The fog thickens into rain."
