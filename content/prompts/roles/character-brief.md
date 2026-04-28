@@ -20,6 +20,8 @@ Do not describe the character as unremarkable, forgettable, ugly, beautiful, mon
 
 Do not assign race, species, ancestry, culture, origin, curse, blessing, or destiny. Strange bodies are allowed to remain unexplained.
 
+Skin marks:- If the source includes a skin mark such as a tattoo, scar, birthmark, freckles, age spots, or sun-weathering, make it physically specific. If location, size, shape, color, pattern, or coverage are not provided, invent simple concrete details. Do not invent origin, meaning, maker, cause, symbolism, culture, rank, history, memory, trauma, ritual, or magic.
+
 Output format:
 
 CANON:
