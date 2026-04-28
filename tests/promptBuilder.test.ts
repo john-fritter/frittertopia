@@ -12,6 +12,7 @@ describe("PromptBuilder", () => {
     builder.loadPromptFiles(PROMPTS_DIR);
   });
 
+  // Requirement: buildSystemPrompt("describe-room") includes storyteller.md content
   describe("buildSystemPrompt('describe-room')", () => {
     it("contains world context", () => {
       // unique phrase from world.md
@@ -38,32 +39,8 @@ describe("PromptBuilder", () => {
     });
   });
 
-  describe("buildSystemPrompt('character-brief')", () => {
-    it("contains world context", () => {
-      expect(builder.buildSystemPrompt("character-brief")).toContain("monastery");
-    });
-
-    it("contains storyteller voice", () => {
-      expect(builder.buildSystemPrompt("character-brief")).toContain(
-        "been here a long time",
-      );
-    });
-
-    it("contains character-brief role instructions", () => {
-      // unique phrase from roles/character-brief.md
-      expect(builder.buildSystemPrompt("character-brief")).toContain(
-        "physical continuity record",
-      );
-    });
-
-    it("does not contain describe-room role instructions", () => {
-      // unique phrase from roles/describe-room.md must be absent
-      expect(builder.buildSystemPrompt("character-brief")).not.toContain(
-        "Present list",
-      );
-    });
-  });
-
+  // Requirement: buildSystemPrompt("character-brief") does not include storyteller.md content
+  // characterBriefGenerator calls buildSystemPrompt("character-brief", false)
   describe("buildSystemPrompt('character-brief', false)", () => {
     it("contains world context", () => {
       expect(builder.buildSystemPrompt("character-brief", false)).toContain("monastery");
@@ -77,6 +54,7 @@ describe("PromptBuilder", () => {
     });
 
     it("contains character-brief role instructions", () => {
+      // unique phrase from roles/character-brief.md
       expect(builder.buildSystemPrompt("character-brief", false)).toContain(
         "physical continuity record",
       );
@@ -88,40 +66,41 @@ describe("PromptBuilder", () => {
         "been here a long time",
       );
     });
-  });
 
-  describe("world.md additions", () => {
-    it("contains the bodies/difference line in describe-room", () => {
-      expect(builder.buildSystemPrompt("describe-room")).toContain(
-        "Do not treat visible difference as proof of nature, origin, morality, or destiny",
-      );
-    });
-
-    it("contains the bodies/difference line in character-brief", () => {
-      expect(builder.buildSystemPrompt("character-brief")).toContain(
-        "Do not treat visible difference as proof of nature, origin, morality, or destiny",
+    it("does not contain describe-room role instructions", () => {
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
+        "Present list",
       );
     });
   });
 
-  describe("storyteller.md additions", () => {
-    it("contains the character-brief-as-continuity-record line in describe-room", () => {
-      expect(builder.buildSystemPrompt("describe-room")).toContain(
-        "Use character briefs as continuity records, not scripts",
-      );
-    });
-
-    it("contains the character-brief-as-continuity-record line in character-brief", () => {
-      expect(builder.buildSystemPrompt("character-brief")).toContain(
-        "Use character briefs as continuity records, not scripts",
-      );
-    });
-
-    it("contains the appearance inference prohibition in both prompts", () => {
-      const phrase =
-        "Do not infer personality, backstory, social role, health, morality, species, ancestry, or destiny from appearance";
+  // Requirement: world.md contains the body-difference line
+  describe("world.md content", () => {
+    it("contains the basic biology / body-difference line", () => {
+      const phrase = "Do not treat visible difference as proof of nature, origin, morality, or destiny";
       expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
-      expect(builder.buildSystemPrompt("character-brief")).toContain(phrase);
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain(phrase);
+    });
+  });
+
+  // Requirement: storyteller.md contains the character brief usage guidance
+  describe("storyteller.md content", () => {
+    it("contains character brief usage guidance", () => {
+      expect(builder.buildSystemPrompt("describe-room")).toContain(
+        "Use character briefs as continuity records, not scripts",
+      );
+    });
+
+    it("contains the appearance inference prohibition", () => {
+      const phrase =
+        "Do not infer personality, backstory, social role, health, morality, species, ancestry, culture, origin, or destiny from appearance";
+      expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
+    });
+
+    it("is absent from character-brief prompt", () => {
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
+        "Use character briefs as continuity records, not scripts",
+      );
     });
   });
 
@@ -134,7 +113,7 @@ describe("PromptBuilder", () => {
 
     it("produces different output for the two roles after loading", () => {
       const room = builder.buildSystemPrompt("describe-room");
-      const brief = builder.buildSystemPrompt("character-brief");
+      const brief = builder.buildSystemPrompt("character-brief", false);
       expect(room).not.toBe(brief);
     });
   });

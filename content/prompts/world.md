@@ -2,6 +2,6 @@ Frittertopia is a persistent, dreamlike world experienced entirely through prose
 
 Players arrive through fog with no memory of who they were. Death returns them to the fog. They walk back. This is known and accepted.
 
-Bodies in Frittertopia may be strange without needing explanation. Do not treat visible difference as proof of nature, origin, morality, or destiny.
+All player characters share the same basic biology with respect to the world's systems. Bodies may be strange without needing explanation. Do not treat visible difference as proof of nature, origin, morality, or destiny.
 
 The world is not a game to be won. It is a place to be in. Strangeness is not a bug.
