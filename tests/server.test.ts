@@ -110,6 +110,8 @@ async function loginNew(client: Client, username: string): Promise<string> {
   client.send(TEST_PASSWORD);
   await client.waitForMessage(); // "Speak it once more..."
   client.send(TEST_PASSWORD);
+  await client.waitForMessage(); // gender prompt
+  client.send("female");        // respond to gender prompt
   return client.waitForMessage(); // welcome message
 }
 

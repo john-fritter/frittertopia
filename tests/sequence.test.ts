@@ -500,7 +500,9 @@ describe("GameServer sequence integration", () => {
     client.send(TEST_PASSWORD);
     await client.waitForMessage(); // confirm prompt
     client.send(TEST_PASSWORD);
-    // welcome/first beat comes next — caller consumes it
+    await client.waitForMessage(); // gender prompt
+    client.send("female");
+    // first sequence beat comes next — caller consumes it
   }
 
   it("new player gets sequence instead of room description", async () => {
@@ -565,6 +567,11 @@ describe("GameServer sequence integration", () => {
     world.addComponent(playerId, "Player", { name: "Maren", sessionId: "" });
     world.addComponent(playerId, "Position", { roomId: startingRoom });
     world.addComponent(playerId, "VisitedRooms", { rooms: [startingRoom] });
+    world.addComponent(playerId, "CharacterRoll", {
+      gender: "female", age: "adult", height: "average", build: "average",
+      skin: "fair", eyes: "brown", hair: "black", fantasticalFeature: null, skinMarks: [],
+    });
+    world.addComponent(playerId, "CharacterBrief", { brief: "A returning traveller." });
 
     const client = await connectClient(port);
     await client.waitForMessage(); // username prompt

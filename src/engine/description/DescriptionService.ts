@@ -1,6 +1,6 @@
 import type { World } from "../World.js";
 import { ContextBuilder } from "./ContextBuilder.js";
-import { buildDescriptionPrompt } from "./PromptBuilder.js";
+import { promptBuilder } from "./PromptBuilder.js";
 
 export interface StoredPrompt {
   system: string;
@@ -24,12 +24,47 @@ export class DescriptionService {
 
   async describe(roomId: string, playerId: string, rawInput: string): Promise<string> {
     const ctx = this.contextBuilder.buildContext(roomId, playerId);
-    const { system, user } = buildDescriptionPrompt(ctx, rawInput);
+    const system = promptBuilder.buildSystemPrompt("describe-room");
+    const user = promptBuilder.buildRoomUserPrompt(ctx, rawInput);
 
     this.lastPrompt = {
       system,
       user,
       context: `room: ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
+    };
+
+    let result;
+    try {
+      result = await this.world.llm.generate(system, user);
+    } catch {
+      return this.fallback(ctx);
+    }
+
+    if (result.ok) return result.text;
+    return this.fallback(ctx);
+  }
+
+  async describeSense(
+    roomId: string,
+    playerId: string,
+    rawInput: string,
+    parsedTarget?: string,
+  ): Promise<string> {
+    const ctx = this.contextBuilder.buildContext(roomId, playerId);
+
+    let targetBrief: { name: string; brief: string } | undefined;
+    if (parsedTarget) {
+      const lower = parsedTarget.toLowerCase();
+      targetBrief = ctx.characterBriefs?.find((b) => b.name.toLowerCase() === lower);
+    }
+
+    const system = promptBuilder.buildSystemPrompt("describe");
+    const user = promptBuilder.buildSenseUserPrompt(ctx, rawInput, targetBrief);
+
+    this.lastPrompt = {
+      system,
+      user,
+      context: `sense: ${this.world.entities.getKeyForEntity(roomId) ?? roomId}`,
     };
 
     let result;

@@ -17,6 +17,7 @@ import { createTimeOfDaySystem } from "./game/systems/TimeOfDaySystem.js";
 import { createWeatherSystem } from "./game/systems/WeatherSystem.js";
 import { GameServer } from "./server/Server.js";
 import { createAccountTable } from "./server/auth.js";
+import { promptBuilder } from "./engine/description/PromptBuilder.js";
 
 const TICK_INTERVAL = 250;
 
@@ -64,6 +65,10 @@ if (process.argv.includes("--fresh")) {
 
 const db = createDatabase(dbPath);
 createAccountTable(db);
+
+// Load prompt files from content/prompts/ (already auto-loaded by the singleton,
+// but called explicitly here so the startup dependency is visible in this file)
+promptBuilder.loadPromptFiles(path.join(import.meta.dirname, "..", "content", "prompts"));
 
 // Always load content from YAML — it's the authoritative source for rooms, items, sequences
 const contentDir = path.join(import.meta.dirname, "..", "content");

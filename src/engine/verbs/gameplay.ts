@@ -106,12 +106,7 @@ export async function handleLook(
     | undefined;
   if (!position) return { toPlayer: "You aren't anywhere." };
 
-  if (!target) {
-    // Explicit bare look always shows long description
-    return { toPlayer: await composeLook(world, position.roomId, playerId, true, rawInput) };
-  }
-
-  const description = await world.description.describe(position.roomId, playerId, rawInput);
+  const description = await world.description.describeSense(position.roomId, playerId, rawInput, target);
   const footer = buildFooter(world, position.roomId);
   const { items, players } = collectPresentNames(world, position.roomId, playerId);
   let output = formatRoomView({ prose: description, items, players, footer });
@@ -136,10 +131,14 @@ export async function handleSense(
     | undefined;
   if (!position) return { toPlayer: "You aren't anywhere." };
 
-  const text = await world.description.describe(position.roomId, playerId, rawInput);
+  const text = await world.description.describeSense(position.roomId, playerId, rawInput, target);
   const footer = buildFooter(world, position.roomId);
   const { items, players } = collectPresentNames(world, position.roomId, playerId);
-  return { toPlayer: formatRoomView({ prose: text, items, players, footer }) };
+  let output = formatRoomView({ prose: text, items, players, footer });
+  if (world.description.debugMode && world.description.lastPrompt) {
+    output += "\n\n" + formatPromptBlock(world.description.lastPrompt);
+  }
+  return { toPlayer: output };
 }
 
 export function collectPresentNames(

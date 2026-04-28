@@ -21,6 +21,8 @@ import {
   handleAdminSysinfo,
   handleAdminPrompt,
   handleAdminLlm,
+  handleAdminBrief,
+  handleAdminBriefs,
   handleAdminHelp,
 } from "./verbs/admin.js";
 import { formatSystem } from "../server/format.js";
@@ -106,6 +108,9 @@ export class ActionResolver {
     this.parser.registerVerb("@sysinfo",     { isAdmin: true, description: "Show ticks, uptime, entity counts",          usage: "@sysinfo" });
     this.parser.registerVerb("@prompt",      { isAdmin: true, description: "Show the last LLM prompt sent",              usage: "@prompt" });
     this.parser.registerVerb("@llm",         { isAdmin: true, description: "Toggle inline LLM prompt display",           usage: "@llm [on|off]" });
+    this.parser.registerVerb("@brief",       { isAdmin: true, description: "Show character roll and brief for a player", usage: "@brief [player]" });
+    this.parser.registerVerb("@briefs",      { isAdmin: true, description: "Show all player briefs in current room",     usage: "@briefs" });
+    this.parser.registerVerb("@as",          { isAdmin: true, description: "Run a command as another player",            usage: "@as <player> <command>" });
     this.parser.registerVerb("@help",        { isAdmin: true, description: "Show this list",                             usage: "@help" });
   }
 
@@ -184,6 +189,40 @@ export class ActionResolver {
         return await this.adminGate(playerId, () =>
           handleAdminLlm(this.world, intent.target)
         );
+      case "@brief":
+        return await this.adminGate(playerId, () =>
+          handleAdminBrief(this.world, intent.target, playerId)
+        );
+      case "@briefs":
+        return await this.adminGate(playerId, () =>
+          handleAdminBriefs(this.world, intent.target, playerId)
+        );
+      case "@as": {
+        return await this.adminGate(playerId, async () => {
+          const t = intent.target;
+          if (!t) return { toPlayer: formatSystem("Usage: @as <player> <command>") };
+          const spaceIdx = t.indexOf(" ");
+          if (spaceIdx < 0) return { toPlayer: formatSystem("Usage: @as <player> <command>") };
+          const targetName = t.slice(0, spaceIdx);
+          const subInput = t.slice(spaceIdx + 1).trim();
+          if (!subInput) return { toPlayer: formatSystem("Usage: @as <player> <command>") };
+
+          const playerIds = this.world.getEntitiesWithComponent("Player");
+          let targetId: string | undefined;
+          for (const id of playerIds) {
+            const p = this.world.getComponent(id, "Player") as { name: string } | undefined;
+            if (p?.name.toLowerCase() === targetName.toLowerCase()) {
+              targetId = id;
+              break;
+            }
+          }
+          if (!targetId) return { toPlayer: formatSystem(`No player found: ${targetName}`) };
+
+          const subIntent = this.parser.parse(subInput);
+          const result = await this.resolve(subIntent, targetId);
+          return { toPlayer: `[as ${targetName}]\n${result.toPlayer}` };
+        });
+      }
       default:
         return { toPlayer: "I don't understand that." };
     }

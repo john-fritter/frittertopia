@@ -6,7 +6,13 @@ A MUD — a persistent, shared text world you connect to over a WebSocket and ex
 $ npx wscat -c ws://localhost:3000
 What is your name?
 > Pell
-Welcome, Pell.
+No one answers to that name. Choose a word to be known by:
+> ••••••
+Speak it once more, to be certain:
+> ••••••
+Before you take shape in this world — are you a man, a woman, or something else?
+You may answer however you like, or press enter to let the world decide.
+> woman
 
 The Monastery Courtyard
 A square of old flagstone open to the sky. Moss fills the gaps in the
@@ -42,7 +48,7 @@ Other useful commands:
 | `npm run dev` | Run the server in dev mode (tsx, no build) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run reset` | Wipe `data/world.db` and start with a fresh world |
-| `npm test` | Run the vitest suite (16 test files) |
+| `npm test` | Run the vitest suite (22 test files) |
 
 The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes and on `SIGINT` / `SIGTERM`.
 
@@ -54,7 +60,7 @@ The server still runs. Room descriptions fall back to a short atmospheric stub (
 
 The first player to connect on a fresh world gets an `Admin` component. To assign explicitly, set `ADMIN_PLAYERS=name1,name2` in the environment — only those names will be granted admin on connect.
 
-Admin verbs (hidden from `help`): `@destroy <player>`, `@inspect <target>`, `@teleport <room-key>`, `@help`.
+Admin verbs (hidden from `help`): `@destroy <player>`, `@inspect <target>`, `@teleport <room-key>`, `@brief [player]`, `@briefs`, `@as <player> <command>`, `@players`, `@time`, `@weather`, `@temperature`, `@pressure`, `@sysinfo`, `@prompt`, `@llm`, `@help`.
 
 ---
 
@@ -77,9 +83,9 @@ Plain ECS. Nothing in here knows what a monastery is.
 - **`Persistence.ts`** — SQLite full-snapshot save/load. Translates UUIDs ↔ keys for content cross-references so a save survives a restart.
 - **`LLMClient.ts`** — thin OpenRouter wrapper with a 10 s timeout. Returns `{ ok, text } | { ok: false, error }`; never throws.
 - **`description/`** — turns a room + player + world state into a prompt, calls the LLM, caches the result.
-  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, and weather. For rooms with a `WeatherZoneRef`, it reads the live `WeatherState` and exposes both raw numbers (`tempF`, `pressureMb`) and interpretation brackets (`tempBracket`, `pressureTrend`, `precipState`) for the LLM.
-  - `PromptBuilder` — system + user prompts for room and target (look-at) descriptions.
-  - `DescriptionService` — orchestrates the call, falls back gracefully on error.
+  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, weather, and character briefs for everyone in the room (including the current player). For rooms with a `WeatherZoneRef`, reads the live `WeatherState` and exposes raw numbers and interpretation brackets to the LLM.
+  - `PromptBuilder` — assembles system and user prompts. Two description roles: **`describe-room`** (room entry on movement, login, teleport, sequence completion) and **`describe`** (all player-initiated sense commands). The sense user prompt uses a structured format — `CURRENT PLAYER BRIEF`, `REFERENCE RULE` (binds "I"/"me"/"myself"/body-part references to the current player by name), `OTHER PRESENT PLAYERS` with per-player delimited blocks, and an optional `TARGET BRIEF` when the input names a player with a stored brief. A third role, **`character-brief`**, drives character brief generation and uses the brief-generator middle layer instead of the storyteller.
+  - `DescriptionService` — `describe()` for room entry (uses `describe-room` role); `describeSense()` for player-typed look/listen/smell/touch/taste (uses `describe` role). Both fall back gracefully on LLM failure.
   - `DescriptionCache` — `(playerId, roomId) → text`, 5-minute TTL.
 
 ### 2. The game (`src/game/`)
@@ -93,6 +99,8 @@ This is where engine-agnostic primitives become "Frittertopia".
   - `Room { name }` — human-readable room name.
   - `Exits { exits: { direction → roomId } }` — entity-ref map.
   - `Player { name, sessionId }`, `VisitedRooms { rooms[] }`, `Admin { level }`.
+  - `CharacterRoll { gender, age, height, build, skin, eyes, hair, fantasticalFeature, skinMarks[] }` — the full rolled character description set on first login. Age, height, and build are human-readable bracket strings (e.g. "young adult", "tall", "lean"), not raw numbers. `fantasticalFeature` is nullable; `skinMarks` is an array of zero to two marks.
+  - `CharacterBrief { brief }` — an LLM-generated physical description of the character derived from their `CharacterRoll`. Fed to the storyteller as a continuity record so it can write the player's body consistently across descriptions. Never shown raw to the player.
   - `Presence { description }` — how an item appears in a room listing.
   - `Sequence` — a list of timed beats; while present, blocks player input and emits `sequence_beat`.
   - `TimeOfDay { bracket, moonFraction, moonPhase, updatedAt }` — singleton on the `world.time` entity.
@@ -100,6 +108,8 @@ This is where engine-agnostic primitives become "Frittertopia".
   - `WeatherZone { climate, tempCurve, pressureDrift, precipitationBias }` — authored climate profile on a zone entity. `tempCurve` has seasonal min/max for winter and summer (°C) plus a diurnal swing range. `pressureDrift` controls how volatile pressure is. `precipitationBias` shifts the likelihood of precipitation states.
   - `WeatherState { tempC, pressureMb, precipState, … }` — runtime simulation state: current temperature, pressure, precipitation state, noise terms, pressure history. Produced by `WeatherSystem`; **not persisted** (re-initialized from the climate profile on each server start).
   - `WeatherZoneRef { zoneId }` — on outdoor room entities; points to the zone that governs their weather. Indoor rooms omit this and always show `clear` in LLM context.
+- **`characterGenerator.ts`** — `rollCharacter(gender)` produces a `CharacterRoll` by sampling from weighted tables using an approximate normal distribution (Irwin-Hall, sum of 12 uniforms). Age, height, and build are returned as bracket strings. Skin, eyes, hair, and fantastical features use an 85/15 split between ordinary and unusual tables. Skin marks are probabilistic (40% first mark, 20% second).
+- **`characterBriefGenerator.ts`** — `generateCharacterBrief(roll)` calls the LLM with the character-brief role and returns a prose description under ~75 words. Falls back to a short constructed stub if the LLM is unavailable.
 - **`systems/SequenceSystem.ts`** — advances any entity that has a `Sequence`, emits `sequence_beat`/`sequence_complete`, places the player when finished.
 - **`systems/TimeOfDaySystem.ts`** — every minute of wall-clock, recomputes the time bracket and moon phase from suncalc, writes them to `world.time`.
 - **`systems/WeatherSystem.ts`** — every minute of wall-clock, updates `WeatherState` on every entity that has a `WeatherZone`. On first tick it initializes the state from the climate profile and current season. Subsequent ticks advance the noise random walks, recompute temperature and pressure, and step the precipitation state machine when the current state's duration expires.
@@ -109,7 +119,7 @@ This is where engine-agnostic primitives become "Frittertopia".
 
 ### 3. The server (`src/server/`)
 
-- **`Server.ts`** — `WebSocketServer`. Manages sessions, name validation (2–20 letters), duplicate-name prevention, returning-player reattachment, broadcasts. Holds an `ActionResolver` and routes its `ActionResult` to the right WebSockets.
+- **`Server.ts`** — `WebSocketServer`. Manages sessions, name validation (2–20 letters), duplicate-name prevention, returning-player reattachment, broadcasts. New players go through a gender prompt after auth; `rollCharacter()` and `generateCharacterBrief()` run before the player enters the world, storing `CharacterRoll` and `CharacterBrief` on their entity. Players who disconnect mid-creation resume the gender prompt on next login. Holds an `ActionResolver` and routes its `ActionResult` to the right WebSockets.
 - **`format.ts`** — pure ANSI: bold-white room names, yellow items, cyan exits, green speech, magenta player names, dim-white system text, 88-column word wrap.
 
 ### Content (`content/`)
@@ -125,8 +135,10 @@ The starting room's key must be `starting.room` (or pass another key to `GameSer
 
 ### Tests (`tests/`)
 
-16 vitest files, one per module. The big ones to know about:
-- `description-service.test.ts` mocks `LLMClient` to test prompt assembly, fallbacks, and caching.
+22 vitest files, one per module. The big ones to know about:
+- `characterCreation.test.ts` — server integration tests for the full new-player flow (gender prompt → roll → brief → world entry) and `ContextBuilder` unit tests for character brief collection.
+- `description-service.test.ts` — mocks `LLMClient` to test prompt assembly, fallbacks, role routing (`describe` vs `describe-room`), and the sense user-prompt format (CURRENT PLAYER, REFERENCE RULE, delimited player blocks, TARGET BRIEF).
+- `promptBuilder.test.ts` — pins unique phrases from each prompt file to catch unintended bleed between roles.
 - `light.test.ts` covers the visibility model end-to-end (suncalc + `getVisibility` + `renderDescription`).
 - `persistence.test.ts` covers UUID↔key translation, orphan handling, player-position recovery.
 - `sequence.test.ts` verifies beat timing, deflection of input, and placement on completion.
@@ -139,15 +151,16 @@ The starting room's key must be `starting.room` (or pass another key to `GameSer
 ```
 WebSocket frame
   ↓
-GameServer.handleGameInput(session, "look at well")
+GameServer.handleGameInput(session, "look at the well")
   ↓
-Parser.parse → { verb: "look", target: "well" }
+Parser.parse → { verb: "look", target: "the well" }
   ↓
 ActionResolver.resolve
-  ↓ (look at <target>)
-DescriptionService.describeTarget
-  ↓
-ContextBuilder → RoomContext   PromptBuilder → prompts
+  ↓ (look with target → handleLook)
+DescriptionService.describeSense          ← player-typed sense command
+  ↓                                         (uses "describe" role)
+ContextBuilder → RoomContext              ← includes character briefs,
+PromptBuilder.buildSenseUserPrompt          currentPlayerName, REFERENCE RULE
   ↓
 LLMClient.generate (10s timeout)
   ↓
@@ -155,6 +168,8 @@ ActionResult { toPlayer: "...polished stone, the rope newer..." }
   ↓
 GameServer sends to the player's socket; broadcasts toRoom / toOtherRoom if set.
 ```
+
+For **room entry** (movement, teleport, sequence completion, login), `composeLook` calls `DescriptionService.describe()` instead, which uses the `describe-room` role — different instructions, no per-player attribution section.
 
 In parallel, every 250 ms the tick loop runs registered systems (`SequenceSystem`, `TimeOfDaySystem`, `WeatherSystem`) and flushes the event queue, which is how sequence beats reach the right player's socket. `TimeOfDaySystem` and `WeatherSystem` both use an elapsed-time accumulator to throttle to a 60-second real-world update cadence.
 
@@ -230,7 +245,7 @@ The LLM will then receive current temperature, precipitation state, and pressure
       description: "An iron lantern hangs from a hook, unlit."
 ```
 
-**A new verb** — register it in `ActionResolver.registerVerbs()` with aliases/help metadata, then add a `case` in `resolve()`. If it's an admin verb, name it with a leading `@` and gate it through `adminGate()`.
+**A new verb** — register it in `ActionResolver.registerVerbs()` with aliases/help metadata, then add a `case` in `resolve()`. If it's an admin verb, name it with a leading `@`, gate it through `adminGate()`, and omit the metadata so it stays hidden from `help`. The handler goes in `src/engine/verbs/admin.ts`; use `formatBold`, `formatCyan`, `formatDim` for consistent ANSI output.
 
 **A new behavior** — three steps:
 1. Add a component schema in `src/game/components.ts` (register `refs` if it points at other entities).

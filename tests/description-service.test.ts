@@ -9,8 +9,11 @@ import {
 import { World } from "../src/engine/World.js";
 import { registerComponents } from "../src/game/components.js";
 import { ContextBuilder } from "../src/engine/description/ContextBuilder.js";
-import { buildDescriptionPrompt } from "../src/engine/description/PromptBuilder.js";
+import { buildDescriptionPrompt, PromptBuilder } from "../src/engine/description/PromptBuilder.js";
 import { DescriptionService } from "../src/engine/description/index.js";
+import * as path from "node:path";
+
+const PROMPTS_DIR = path.join(import.meta.dirname, "..", "content", "prompts");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -494,5 +497,205 @@ describe("DescriptionService", () => {
     const prompt2 = generateMock.mock.calls[1]?.[1] ?? "";
     expect(prompt1).toContain("Player input: look");
     expect(prompt2).toContain("Player input: smell candle");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSenseUserPrompt — format contract
+// ---------------------------------------------------------------------------
+
+describe("PromptBuilder — buildSenseUserPrompt", () => {
+  let builder: PromptBuilder;
+  let baseCtx: Parameters<PromptBuilder["buildSenseUserPrompt"]>[0];
+
+  beforeEach(() => {
+    builder = new PromptBuilder();
+    builder.loadPromptFiles(PROMPTS_DIR);
+
+    baseCtx = {
+      roomName: "The Courtyard",
+      roomBrief: "A wide open courtyard surrounded by stone walls.",
+      roomShort: "a wide courtyard",
+      entitiesPresent: [],
+      otherPlayers: [],
+      isFirstVisit: false,
+      timeOfDay: "day",
+      moonPhase: "full",
+      moonAboveHorizon: true,
+      weather: "clear",
+      exits: {},
+      characterBriefs: [{ name: "Aria", brief: "Tall woman with auburn hair." }],
+      currentPlayerName: "Aria",
+    };
+  });
+
+  it("includes CURRENT PLAYER with the player's name", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look hands");
+    expect(user).toContain("CURRENT PLAYER: Aria");
+  });
+
+  it("includes CURRENT PLAYER BRIEF with the player's brief text", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look hands");
+    expect(user).toContain("CURRENT PLAYER BRIEF:");
+    expect(user).toContain("Tall woman with auburn hair.");
+  });
+
+  it("includes REFERENCE RULE binding self-references to the current player by name", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look me");
+    expect(user).toContain("REFERENCE RULE:");
+    expect(user).toContain("refer only to the current player: Aria");
+    expect(user).toContain('"I"');
+    expect(user).toContain('"me"');
+    expect(user).toContain('"myself"');
+  });
+
+  it("includes delimited PLAYER/BRIEF blocks for other players, not a flat list", () => {
+    const ctx = {
+      ...baseCtx,
+      otherPlayers: ["Pell"],
+      characterBriefs: [
+        { name: "Aria", brief: "Tall woman with auburn hair." },
+        { name: "Pell", brief: "Short man with grey eyes." },
+      ],
+    };
+    const user = builder.buildSenseUserPrompt(ctx, "look");
+    expect(user).toContain("OTHER PRESENT PLAYERS:");
+    expect(user).toContain("PLAYER: Pell");
+    expect(user).toContain("BRIEF:");
+    expect(user).toContain("<<<");
+    expect(user).toContain("Short man with grey eyes.");
+    expect(user).toContain(">>>");
+    // Not a flat list (no "- Pell: ..." format)
+    expect(user).not.toMatch(/- Pell:/);
+  });
+
+  it("omits OTHER PRESENT PLAYERS section when no other players have briefs", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look");
+    expect(user).not.toContain("OTHER PRESENT PLAYERS:");
+    // "PLAYER: Name" (other-player block header) should be absent;
+    // "CURRENT PLAYER:" is still present and is intentionally different
+    expect(user).not.toMatch(/^PLAYER: /m);
+  });
+
+  it("includes TARGET and TARGET BRIEF sections when a target brief is supplied", () => {
+    const target = { name: "Pell", brief: "Short man with grey eyes." };
+    const user = builder.buildSenseUserPrompt(baseCtx, "look at Pell", target);
+    expect(user).toContain("TARGET: Pell");
+    expect(user).toContain("TARGET BRIEF:");
+    expect(user).toContain("Short man with grey eyes.");
+  });
+
+  it("omits TARGET section when no target brief is supplied", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look at the well");
+    expect(user).not.toContain("TARGET:");
+    expect(user).not.toContain("TARGET BRIEF:");
+  });
+
+  it("includes room context fields", () => {
+    const user = builder.buildSenseUserPrompt(baseCtx, "look");
+    expect(user).toContain("Room: The Courtyard");
+    expect(user).toContain("Brief: A wide open courtyard");
+    expect(user).toContain("Time: day");
+    expect(user).toContain("Player input: look");
+  });
+
+  it("includes exits when present", () => {
+    const ctx = { ...baseCtx, exits: { north: "The Hall" } };
+    const user = builder.buildSenseUserPrompt(ctx, "look");
+    expect(user).toContain("Exits:");
+    expect(user).toContain("north → The Hall");
+  });
+
+  it("falls back to (no brief on file) when current player has no brief", () => {
+    const ctx = { ...baseCtx, characterBriefs: [] };
+    const user = builder.buildSenseUserPrompt(ctx, "look hands");
+    expect(user).toContain("CURRENT PLAYER: Aria");
+    expect(user).toContain("(no brief on file)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DescriptionService — describe() vs describeSense() routing
+// ---------------------------------------------------------------------------
+
+describe("DescriptionService — role routing", () => {
+  let world: World;
+  let roomId: string;
+  let playerId: string;
+
+  beforeEach(() => {
+    process.env["OPENROUTER_API_KEY"] = "test-key";
+    world = makeWorld();
+    roomId = addRoom(world, "route.room", "The Hall", "a hall", "A long stone hall.");
+    playerId = addPlayer(world, roomId, "Tester", [roomId]);
+    world.addComponent(playerId, "CharacterBrief", { brief: "A sturdy figure." });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env["OPENROUTER_API_KEY"];
+  });
+
+  it("describe() uses the describe-room system prompt", async () => {
+    vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Stone." });
+    await world.description.describe(roomId, playerId, "look");
+    const system = world.description.lastPrompt?.system ?? "";
+    expect(system).toContain("Present list"); // unique to describe-room.md
+    expect(system).not.toContain("self-directed"); // unique to describe.md
+  });
+
+  it("describeSense() uses the describe system prompt", async () => {
+    vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Your hands." });
+    await world.description.describeSense(roomId, playerId, "look hands");
+    const system = world.description.lastPrompt?.system ?? "";
+    expect(system).toContain("self-directed"); // unique to describe.md
+    expect(system).not.toContain("Present list"); // unique to describe-room.md
+  });
+
+  it("describeSense() sets lastPrompt context as sense:", async () => {
+    vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Silence." });
+    await world.description.describeSense(roomId, playerId, "listen");
+    expect(world.description.lastPrompt?.context).toMatch(/^sense:/);
+  });
+
+  it("describe() sets lastPrompt context as room:", async () => {
+    vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Stone." });
+    await world.description.describe(roomId, playerId, "look");
+    expect(world.description.lastPrompt?.context).toMatch(/^room:/);
+  });
+
+  it("describeSense() resolves named target to their brief", async () => {
+    const otherId = addPlayer(world, roomId, "Mira", []);
+    world.addComponent(otherId, "CharacterBrief", { brief: "Slight woman, dark eyes." });
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "She meets your gaze." });
+
+    await world.description.describeSense(roomId, playerId, "look at Mira", "Mira");
+    const user = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(user).toContain("TARGET: Mira");
+    expect(user).toContain("Slight woman, dark eyes.");
+  });
+
+  it("describeSense() omits TARGET section for targets without a brief", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Just a wall." });
+
+    await world.description.describeSense(roomId, playerId, "look at the wall", "the wall");
+    const user = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(user).not.toContain("TARGET:");
+  });
+
+  it("describeSense() user prompt includes CURRENT PLAYER section", async () => {
+    const generateMock = vi
+      .spyOn(world.llm, "generate")
+      .mockResolvedValue({ ok: true, text: "Your hands." });
+
+    await world.description.describeSense(roomId, playerId, "look hands");
+    const user = generateMock.mock.calls[0]?.[1] ?? "";
+    expect(user).toContain("CURRENT PLAYER: Tester");
+    expect(user).toContain("REFERENCE RULE:");
+    expect(user).toContain("refer only to the current player: Tester");
   });
 });
