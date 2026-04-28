@@ -6,6 +6,8 @@ import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
 import { composeLook } from "../engine/verbs/gameplay.js";
 import { formatSystem, formatSequence, formatArrival } from "./format.js";
+import { rollCharacter } from "../game/characterGenerator.js";
+import { generateCharacterBrief } from "../game/characterBriefGenerator.js";
 import {
   findAccountByUsername,
   createAccount,
@@ -13,6 +15,10 @@ import {
 } from "./auth.js";
 
 const MAX_AUTH_RETRIES = 3;
+
+const GENDER_PROMPT =
+  "Before you take shape in this world — are you a man, a woman, or something else? " +
+  "You may answer however you like, or press enter to let the world decide.";
 
 interface Session {
   ws: WebSocket;
@@ -23,6 +29,7 @@ interface Session {
     | "awaiting_password"
     | "awaiting_new_password"
     | "awaiting_password_confirm"
+    | "awaiting_gender"
     | "playing";
   pendingUsername: string | undefined;
   pendingPassword: string | undefined;
@@ -84,7 +91,7 @@ export class GameServer {
 
       ws.on("message", (data) => {
         const input = data.toString().trim();
-        if (!input) return;
+        if (!input && session.state !== "awaiting_gender") return;
 
         if (session.state === "playing") {
           void this.handleGameInput(session, input);
@@ -198,6 +205,9 @@ export class GameServer {
         break;
       case "awaiting_password_confirm":
         await this.handlePasswordConfirmInput(session, input);
+        break;
+      case "awaiting_gender":
+        await this.handleGenderInput(session, input);
         break;
     }
   }
@@ -342,8 +352,16 @@ export class GameServer {
       this.grantAdminIfEligible(existingId, player.name);
 
       session.playerId = existingId;
-      session.state = "playing";
       this.activePlayers.set(playerKey, session.sessionId);
+
+      // If character creation didn't finish (disconnected mid-flow), resume it
+      if (!this.world.getComponent(existingId, "CharacterRoll")) {
+        session.state = "awaiting_gender";
+        this.send(session.ws, GENDER_PROMPT);
+        return;
+      }
+
+      session.state = "playing";
 
       // If player still has an active sequence, let it continue — no room description
       const sequence = this.world.getComponent(existingId, "Sequence");
@@ -369,7 +387,7 @@ export class GameServer {
         existingId
       );
     } else {
-      // New player
+      // New player — create entity and prompt for gender before world entry
       const playerId = this.world.createEntity(playerKey);
       this.world.addComponent(playerId, "Player", {
         name: username,
@@ -379,38 +397,65 @@ export class GameServer {
       this.grantAdminIfEligible(playerId, username);
 
       session.playerId = playerId;
-      session.state = "playing";
       this.activePlayers.set(playerKey, session.sessionId);
 
-      if (this.attachSequenceFromTemplate(playerId)) {
-        return;
-      }
-
-      const startingRoom = this.findStartingRoom();
-      if (!startingRoom) {
-        this.send(session.ws, "Error: No starting room found.");
-        return;
-      }
-
-      this.world.addComponent(playerId, "Position", { roomId: startingRoom });
-      this.world.addComponent(playerId, "VisitedRooms", {
-        rooms: [startingRoom],
-      });
-
-      const lookOutput = await composeLook(
-        this.world,
-        startingRoom,
-        playerId,
-        true
-      );
-      this.send(session.ws, `Welcome, ${username}.\n\n${lookOutput}`);
-
-      this.broadcastToRoom(
-        startingRoom,
-        formatSystem(`${username} appears from the fog.`),
-        playerId
-      );
+      session.state = "awaiting_gender";
+      this.send(session.ws, GENDER_PROMPT);
     }
+  }
+
+  private async handleGenderInput(
+    session: Session,
+    input: string
+  ): Promise<void> {
+    const gender = input || (Math.random() < 0.5 ? "male" : "female");
+    const playerId = session.playerId!;
+
+    const roll = rollCharacter(gender);
+    const brief = await generateCharacterBrief(roll);
+
+    this.world.addComponent(
+      playerId,
+      "CharacterRoll",
+      roll as unknown as Record<string, unknown>
+    );
+    this.world.addComponent(playerId, "CharacterBrief", { brief });
+
+    session.state = "playing";
+
+    if (this.attachSequenceFromTemplate(playerId)) {
+      return;
+    }
+
+    const startingRoom = this.findStartingRoom();
+    if (!startingRoom) {
+      this.send(session.ws, "Error: No starting room found.");
+      return;
+    }
+
+    const player = this.world.getComponent(playerId, "Player") as {
+      name: string;
+      sessionId: string;
+    };
+
+    this.world.addComponent(playerId, "Position", { roomId: startingRoom });
+    this.world.addComponent(playerId, "VisitedRooms", {
+      rooms: [startingRoom],
+    });
+
+    const lookOutput = await composeLook(
+      this.world,
+      startingRoom,
+      playerId,
+      true
+    );
+    this.send(session.ws, `Welcome, ${player.name}.\n\n${lookOutput}`);
+
+    this.broadcastToRoom(
+      startingRoom,
+      formatSystem(`${player.name} appears from the fog.`),
+      playerId
+    );
   }
 
   private attachSequenceFromTemplate(playerId: string): boolean {

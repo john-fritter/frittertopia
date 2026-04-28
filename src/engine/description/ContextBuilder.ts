@@ -40,6 +40,8 @@ export interface RoomContext {
   pressureTrend?: PressureTrend;
   /** Mechanical exits: direction → target room name. */
   exits?: Record<string, string>;
+  /** Character briefs for entities present in the room, including the current player. */
+  characterBriefs: { name: string; brief: string }[];
 }
 
 export class ContextBuilder {
@@ -72,13 +74,29 @@ export class ContextBuilder {
 
     const entitiesPresent: { name: string; description: string }[] = [];
     const otherPlayers: string[] = [];
+    const characterBriefs: { name: string; brief: string }[] = [];
+
+    // Include the current player's own brief so the storyteller knows who they are describing the world to.
+    const selfPlayer = this.world.getComponent(playerId, "Player") as
+      | { name: string }
+      | undefined;
+    const selfBrief = this.world.getComponent(playerId, "CharacterBrief") as
+      | { brief: string }
+      | undefined;
+    if (selfPlayer && selfBrief) {
+      characterBriefs.push({ name: selfPlayer.name, brief: selfBrief.brief });
+    }
 
     for (const id of inRoom) {
+      const brief = this.world.getComponent(id, "CharacterBrief") as
+        | { brief: string }
+        | undefined;
       const player = this.world.getComponent(id, "Player") as
         | { name: string }
         | undefined;
       if (player) {
         otherPlayers.push(player.name);
+        if (brief) characterBriefs.push({ name: player.name, brief: brief.brief });
         continue;
       }
       const presence = this.world.getComponent(id, "Presence") as
@@ -88,10 +106,9 @@ export class ContextBuilder {
         const desc = this.world.getComponent(id, "Description") as
           | { short: string }
           | undefined;
-        entitiesPresent.push({
-          name: desc?.short ?? "something",
-          description: presence.description,
-        });
+        const name = desc?.short ?? "something";
+        entitiesPresent.push({ name, description: presence.description });
+        if (brief) characterBriefs.push({ name, brief: brief.brief });
       }
     }
 
@@ -173,6 +190,7 @@ export class ContextBuilder {
       moonAboveHorizon,
       ...weatherFields,
       exits,
+      characterBriefs,
     };
   }
 }

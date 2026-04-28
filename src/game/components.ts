@@ -135,6 +135,26 @@ export function registerComponents(world: World): void {
   );
 
   world.registerComponent(
+    "CharacterRoll",
+    z.object({
+      gender: z.string(),
+      age: z.string(),
+      height: z.string(),
+      build: z.string(),
+      skin: z.string(),
+      eyes: z.string(),
+      hair: z.string(),
+      fantasticalFeature: z.string().nullable(),
+      skinMarks: z.array(z.string()),
+    })
+  );
+
+  world.registerComponent(
+    "CharacterBrief",
+    z.object({ brief: z.string() })
+  );
+
+  world.registerComponent(
     "WeatherZoneRef",
     z.object({ zoneId: z.string() }),
     ["zoneId"]

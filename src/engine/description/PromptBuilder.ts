@@ -21,6 +21,7 @@ interface WorldStatePayload {
   pressureMb?: number;
   pressureTrend?: string;
   exits?: Record<string, string>;
+  characterBriefs?: { name: string; brief: string }[];
   // recentOutput?: string;  // seam: last N tokens of prior output (short-term memory)
 }
 
@@ -39,6 +40,7 @@ function assembleWorldState(ctx: RoomContext): WorldStatePayload {
     ...(ctx.pressureMb !== undefined && { pressureMb: ctx.pressureMb }),
     ...(ctx.pressureTrend !== undefined && { pressureTrend: ctx.pressureTrend }),
     ...(ctx.exits !== undefined && { exits: ctx.exits }),
+    ...((ctx.characterBriefs?.length ?? 0) > 0 && { characterBriefs: ctx.characterBriefs }),
   };
 }
 
@@ -131,6 +133,13 @@ export class PromptBuilder {
       formatWeatherLine(state),
       `Present: ${presentLine}`,
     ];
+
+    if (state.characterBriefs && state.characterBriefs.length > 0) {
+      const briefLines = state.characterBriefs
+        .map((b) => `- ${b.name}: ${b.brief}`)
+        .join("\n");
+      lines.push(`Character details:\n${briefLines}`);
+    }
 
     if (state.exits && Object.keys(state.exits).length > 0) {
       const exitParts = Object.entries(state.exits)
