@@ -11,7 +11,7 @@ npm install                # Node 22 required (Node 18 will fail on better-sqlit
 npm run dev                # tsx, no build
 npm run build              # tsc → dist/
 npm run reset              # drop data/world.db, fresh start
-npm test                   # vitest, 15 test files in tests/
+npm test                   # vitest, 20 test files in tests/
 ```
 
 Server listens on `PORT` (default 3000). Connect with `npx wscat -c ws://localhost:3000`.
@@ -52,18 +52,22 @@ src/
     description/
       DescriptionService.ts              — describeRoom / describeTarget; caches room results; LLM-fail fallback
       ContextBuilder.ts                  — RoomContext: brief, presence list, players, exits, isFirstVisit, time, weather
-      PromptBuilder.ts                   — system + user prompts (room and target variants)
+      PromptBuilder.ts                   — system + user prompts (room, target, and character-brief variants); loads from content/prompts/ files with inline fallbacks
       DescriptionCache.ts                — (playerId, roomId) → text, 5-min TTL, invalidate(roomId) and invalidatePlayer(id)
       index.ts
   game/
     components.ts                        — registers ALL component schemas — see "Components" below
-    description.ts                       — visibility model + block renderer + getVisibility(roomId, world). NOT YET WIRED into composeLook; tested standalone.
+    characterGenerator.ts                — rollCharacter(gender): pure stat roller; TABLES export has all brackets and weird/normal pools; normal distributions for age/height/build, 15% weird chance for appearance traits
+    characterBriefGenerator.ts           — generateCharacterBrief(roll): calls LLM with character-brief prompt role, 3 retries, fallback to formatted text
     solar.ts                             — getTimeBracket, getMoonData, setDebugTime; LOCATION = Bend, Oregon (44.06, -121.31)
+    weather.ts                           — weather simulation helpers
     systems/
       SequenceSystem.ts                  — advances Sequence beats, emits sequence_beat / sequence_complete, places player on done
       TimeOfDaySystem.ts                 — recomputes bracket + moon every 60 s of wall-clock; updates world.time entity
+      WeatherSystem.ts                   — drives WeatherState per-zone each tick
   server/
-    Server.ts                            — WebSocketServer; sessions, name validation (2-20 letters), duplicate prevention, returning-player reattach, broadcasts; ADMIN_PLAYERS env or first-player-gets-admin
+    Server.ts                            — WebSocketServer; username/password auth, character creation flow, returning-player reattach, broadcasts; ADMIN_PLAYERS env or first-player-gets-admin
+    auth.ts                              — bcrypt account table (accounts in SQLite, separate from ECS): createAccountTable, findAccountByUsername, createAccount, verifyPassword
     format.ts                            — ANSI: bold-white room name, yellow items, cyan exits, green say, magenta players, dim-white system, 88-col wrap
 content/
   world/monastery/
@@ -71,12 +75,22 @@ content/
     items.yaml                           — broom, candle, blanket, rosemary bush
   sequences/
     fog-arrival.yaml                     — Sequence template (key: sequence.fog-arrival), cloned per new player
+  prompts/
+    world.md                             — world-level context fed to all LLM calls
+    storyteller.md                       — voice and style layer
+    describe-room.md                     — room-entry description role prompt
+    describe.md                          — target-look description role prompt
+    character-brief.md                   — character appearance brief role prompt
+    brief-generator.md                   — brief-generator layer prompt
+    roles/                               — role-specific overrides loaded by PromptBuilder
 tests/
   engine.test.ts            content-loader.test.ts    persistence.test.ts
   parser.test.ts            action-resolver.test.ts   server.test.ts
   sequence.test.ts          format.test.ts            help.test.ts
   admin.test.ts             llm-client.test.ts        description-service.test.ts
-  description.test.ts       light.test.ts             solar.test.ts
+  auth.test.ts              solar.test.ts             promptBuilder.test.ts
+  characterGenerator.test.ts  characterBriefGenerator.test.ts  characterCreation.test.ts
+  weather.test.ts           where.test.ts
 ```
 
 ## Components currently registered (`src/game/components.ts`)
@@ -95,24 +109,31 @@ tests/
 | `SkyDescriptions` | `{ brackets: { [bracket]: { sky, window, sound, moon? } } }` | Authored on rooms; **not yet read by the renderer**. |
 | `TimeOfDay` | `{ bracket, moonFraction, moonPhase, updatedAt }` | Singleton on entity keyed `world.time`. |
 | `Sequence` | `{ beats[], currentBeat, elapsed, onComplete{placeInRoom?}, deflectMessage }` | While present on a player, blocks input — `ActionResolver.resolve` returns `deflectMessage` for any verb. |
+| `CharacterRoll` | `{ gender, age, height, build, skin, eyes, hair, fantasticalFeature, skinMarks[] }` | Rolled once at character creation; persisted. All fields are bracket strings, not numbers. |
+| `CharacterBrief` | `{ brief }` | LLM-generated prose summary of the CharacterRoll, stored on the player entity. |
+| `WeatherZone` | `{ climate, tempCurve, pressureDrift, precipitationBias, accumulation? }` | Authored on room/zone entities. Drives WeatherSystem. |
+| `WeatherState` | `{ tempC, pressureMb, precipState, ... }` | Simulated weather state, updated each tick by WeatherSystem. |
+| `WeatherZoneRef` | `{ zoneId }` | Ref to a WeatherZone entity. |
 
 Currently registered events: `sequence_beat`, `sequence_complete`, `player_destroyed` (all in `main.ts`).
 
 ## Things that look done but aren't (don't be fooled)
 
-- **`src/game/description.ts`** — full visibility-tier renderer (`full | reduced | minimal | none`), `BlockDetailSchema`, `DescriptionBlockSchema`, `getVisibility(roomId, world)` reading a `RoomExposure` component. **None of this is registered or called from `composeLook`.** The Description schema in `components.ts` only has `{ short }`, and `RoomExposure` isn't registered at all. Tests pass because they exercise the pure functions directly. Wiring this up is real work — register `RoomExposure`, decide how visibility-tiered text composes with the LLM path, and probably extend `RoomBrief` or replace it.
 - **`SkyDescriptions`** — registered, authored on rooms, never read.
-- **`ContextBuilder`** still hard-codes `timeOfDay: "day"` and `weather: "clear"` in the prompt. The `world.time` entity is updated every minute but nothing reads from it for descriptions yet.
+- **`ContextBuilder`** still hard-codes `timeOfDay: "day"` and `weather: "clear"` in the prompt. The `world.time` entity is updated every minute and `WeatherState` is simulated per-zone, but neither feeds into room descriptions yet.
 
-If a user says "use the new visibility system" or "add weather to descriptions", these are the gaps.
+If a user says "add weather to descriptions" or "use the sky/time data in look", these are the gaps.
 
 ## Connection flow (reference)
 
-1. WS connect → server prompts for name.
-2. Name validated (2–20 letters, no duplicates).
-3. Returning player → Player entity reattached, `sessionId` updated; if mid-`Sequence`, let it continue without re-describing the room.
-4. New player → `attachSequenceFromTemplate("sequence.fog-arrival")` clones the template's `Sequence` onto the player; **no `Position` yet**. SequenceSystem places them in `starting.room` when the last beat fires. Fallback: if the template is missing, place directly.
-5. Game input: `Parser.parse` → `ActionResolver.resolve` → server sends `toPlayer` / broadcasts `toRoom` / `toOtherRoom`.
+1. WS connect → server prompts for username.
+2. Username validated (2–20 letters). If account exists → prompt for password; if new → prompt for password + confirm. Max 3 failed attempts before disconnect.
+3. Returning player with `CharacterRoll` → Player entity reattached, `sessionId` updated; if mid-`Sequence`, let it continue without re-describing the room; otherwise describe current room.
+4. Returning player without `CharacterRoll` (disconnected mid-creation) → resume at gender prompt.
+5. New player → create entity, prompt for gender → `rollCharacter(gender)` → `generateCharacterBrief(roll)` → store `CharacterRoll` and `CharacterBrief` on entity → `attachSequenceFromTemplate("sequence.fog-arrival")` clones the template's `Sequence` onto the player; **no `Position` yet**. SequenceSystem places them in `starting.room` when the last beat fires. Fallback: if the template is missing, place directly.
+6. Game input: `Parser.parse` → `ActionResolver.resolve` → server sends `toPlayer` / broadcasts `toRoom` / `toOtherRoom`.
+
+Auth state machine session states: `awaiting_username` → `awaiting_password` (returning) or `awaiting_new_password` → `awaiting_password_confirm` (new) → `awaiting_gender` (new only) → `playing`.
 
 `Server` constructor takes `startingRoomKey` (default `"starting.room"`) and `sequenceTemplateKey` (default `"sequence.fog-arrival"`) — useful for tests.
 
@@ -182,9 +203,8 @@ The long arc is a world that responds to you — not through scripted events but
 
 - Zone-based activation (only simulate zones with nearby players).
 - NPC simulation layer.
-- Visibility-tier rendering wired into `composeLook` (see "Things that look done but aren't").
-- Weather as a real condition axis (`ContextBuilder` has a placeholder).
-- Reading `SkyDescriptions` and `TimeOfDay` from descriptions.
+- Weather and time of day feeding into room descriptions (`ContextBuilder` has placeholders; `WeatherState` and `TimeOfDay` are simulated but not yet read by the prompt layer).
+- Reading `SkyDescriptions` in descriptions.
 <br>
 ## Working with Cleo
 
