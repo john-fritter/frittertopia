@@ -9,6 +9,7 @@ import {
   handleHelp,
   handleWhere,
 } from "./verbs/gameplay.js";
+import { handleTake, handleDrop, handleInventory } from "./verbs/items.js";
 import {
   handleAdminDestroy,
   handleAdminInspect,
@@ -91,6 +92,24 @@ export class ActionResolver {
       usage: "say <message>, '<message>",
       category: "communication",
     });
+    this.parser.registerVerb("take", {
+      aliases: ["get", "pick up"],
+      description: "Pick up an item from the room",
+      usage: "take <item>, get <item>",
+      category: "interaction",
+    });
+    this.parser.registerVerb("drop", {
+      aliases: ["put down"],
+      description: "Drop an item from your inventory",
+      usage: "drop <item>",
+      category: "interaction",
+    });
+    this.parser.registerVerb("inventory", {
+      aliases: ["i", "inv"],
+      description: "List items you are carrying",
+      usage: "inventory, i, inv",
+      category: "interaction",
+    });
     this.parser.registerVerb("help", {
       aliases: ["?", "commands"],
       description: "Get help with commands",
@@ -139,6 +158,12 @@ export class ActionResolver {
         return await handleSense(this.world, rawInput, intent.target, playerId, "taste");
       case "where":
         return handleWhere(this.world, playerId);
+      case "take":
+        return handleTake(this.world, intent.target, playerId);
+      case "drop":
+        return handleDrop(this.world, intent.target, playerId);
+      case "inventory":
+        return handleInventory(this.world, playerId);
       case "say":
         return handleSay(this.world, intent.target, playerId);
       case "help":

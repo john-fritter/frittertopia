@@ -34,6 +34,31 @@ entities:
       Presence:
         description: "A neatly folded blanket sits on the nearest cot."
 
+  - key: monastery.lantern
+    components:
+      ItemTemplate:
+        decayMs: 3600000
+      Item:
+        carryable: true
+        equippable: true
+        consumable: false
+        slot: "hand"
+      ItemBrief:
+        brief: >-
+          A Coleman lantern from another era, sitting on a shelf as though someone
+          meant to return for it. The green paint has gone chalky with age. The
+          glass globe is intact. Oil sloshes faintly in the reservoir when you
+          lift it.
+      ItemState:
+        lit: false
+        oil: "full"
+      Description:
+        short: "a Coleman lantern"
+      Presence:
+        description: "A Coleman lantern sits on a shelf, its globe dusty but intact."
+      Position:
+        roomId: monastery.kitchen
+
   - components:
       Position:
         roomId: monastery.garden
