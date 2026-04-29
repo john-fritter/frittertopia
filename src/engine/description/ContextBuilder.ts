@@ -9,6 +9,15 @@ import {
   type PressurePoint,
 } from "../../game/weather.js";
 
+export interface ItemBriefEntry {
+  short: string;
+  brief: string;
+  /** ItemState key/values, excluding internal decay fields like placedAt. */
+  state?: Record<string, unknown>;
+  /** "in room" or "carried by {playerName}". */
+  location: string;
+}
+
 export interface RoomContext {
   roomName: string;
   /** Full brief text sent to the LLM. Uses RoomBrief.brief if present, otherwise Description.short. */
@@ -44,6 +53,10 @@ export interface RoomContext {
   characterBriefs: { name: string; brief: string }[];
   /** Name of the current player — used in sense prompts to attribute self-references. */
   currentPlayerName?: string;
+  /** ItemBrief entries for items physically present in the current room. */
+  roomItemBriefs: ItemBriefEntry[];
+  /** ItemBrief entries for items in the current player's inventory. */
+  inventoryItemBriefs: ItemBriefEntry[];
 }
 
 export class ContextBuilder {
@@ -77,6 +90,7 @@ export class ContextBuilder {
     const entitiesPresent: { name: string; description: string }[] = [];
     const otherPlayers: string[] = [];
     const characterBriefs: { name: string; brief: string }[] = [];
+    const roomItemBriefs: ItemBriefEntry[] = [];
 
     // Include the current player's own brief so the storyteller knows who they are describing the world to.
     const selfPlayer = this.world.getComponent(playerId, "Player") as
@@ -111,6 +125,50 @@ export class ContextBuilder {
         const name = desc?.short ?? "something";
         entitiesPresent.push({ name, description: presence.description });
         if (brief) characterBriefs.push({ name, brief: brief.brief });
+      }
+
+      const itemBriefComp = this.world.getComponent(id, "ItemBrief") as
+        | { brief: string }
+        | undefined;
+      if (itemBriefComp) {
+        const desc = this.world.getComponent(id, "Description") as
+          | { short: string }
+          | undefined;
+        const itemState = this.world.getComponent(id, "ItemState") as
+          | Record<string, unknown>
+          | undefined;
+        roomItemBriefs.push({
+          short: desc?.short ?? "unknown",
+          brief: itemBriefComp.brief,
+          ...(itemState !== undefined && { state: itemState }),
+          location: "in room",
+        });
+      }
+    }
+
+    const inventoryItemBriefs: ItemBriefEntry[] = [];
+    const inventory = this.world.getComponent(playerId, "Inventory") as
+      | { itemIds: string[] }
+      | undefined;
+    if (inventory) {
+      const carrierName = selfPlayer?.name ?? "you";
+      for (const itemId of inventory.itemIds) {
+        const itemBriefComp = this.world.getComponent(itemId, "ItemBrief") as
+          | { brief: string }
+          | undefined;
+        if (!itemBriefComp) continue;
+        const desc = this.world.getComponent(itemId, "Description") as
+          | { short: string }
+          | undefined;
+        const itemState = this.world.getComponent(itemId, "ItemState") as
+          | Record<string, unknown>
+          | undefined;
+        inventoryItemBriefs.push({
+          short: desc?.short ?? "unknown",
+          brief: itemBriefComp.brief,
+          ...(itemState !== undefined && { state: itemState }),
+          location: `carried by ${carrierName}`,
+        });
       }
     }
 
@@ -194,6 +252,8 @@ export class ContextBuilder {
       exits,
       characterBriefs,
       currentPlayerName: selfPlayer?.name,
+      roomItemBriefs,
+      inventoryItemBriefs,
     };
   }
 }

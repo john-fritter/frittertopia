@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { RoomContext } from "./ContextBuilder.js";
+import type { RoomContext, ItemBriefEntry } from "./ContextBuilder.js";
 import type { CharacterRoll } from "../../game/characterGenerator.js";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,7 @@ interface WorldStatePayload {
   pressureTrend?: string;
   exits?: Record<string, string>;
   characterBriefs?: { name: string; brief: string }[];
+  roomItemBriefs?: ItemBriefEntry[];
   // recentOutput?: string;  // seam: last N tokens of prior output (short-term memory)
 }
 
@@ -41,6 +42,7 @@ function assembleWorldState(ctx: RoomContext): WorldStatePayload {
     ...(ctx.pressureTrend !== undefined && { pressureTrend: ctx.pressureTrend }),
     ...(ctx.exits !== undefined && { exits: ctx.exits }),
     ...((ctx.characterBriefs?.length ?? 0) > 0 && { characterBriefs: ctx.characterBriefs }),
+    ...((ctx.roomItemBriefs?.length ?? 0) > 0 && { roomItemBriefs: ctx.roomItemBriefs }),
   };
 }
 
@@ -52,6 +54,22 @@ function formatWeatherLine(state: WorldStatePayload): string {
     parts.push(`${state.pressureMb} mb ${state.pressureTrend}`);
   }
   return `Weather: ${parts.join(", ")}`;
+}
+
+function formatItemBriefs(items: ItemBriefEntry[]): string {
+  return items
+    .map((item) => {
+      const lines = [`- ${item.short} (${item.location})`, `  ${item.brief}`];
+      if (item.state) {
+        const stateStr = Object.entries(item.state)
+          .filter(([k]) => k !== "placedAt")
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(", ");
+        if (stateStr) lines.push(`  State: ${stateStr}`);
+      }
+      return lines.join("\n");
+    })
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +169,10 @@ export class PromptBuilder {
       lines.push(`Character details:\n${briefLines}`);
     }
 
+    if (state.roomItemBriefs && state.roomItemBriefs.length > 0) {
+      lines.push(`Item details:\n${formatItemBriefs(state.roomItemBriefs)}`);
+    }
+
     if (state.exits && Object.keys(state.exits).length > 0) {
       const exitParts = Object.entries(state.exits)
         .map(([dir, name]) => `${dir} → ${name}`)
@@ -230,6 +252,18 @@ export class PromptBuilder {
     lines.push(`Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`);
     lines.push(formatWeatherLine(state));
     lines.push(`Present: ${presentLine}`);
+
+    const allItems = [
+      ...(ctx.roomItemBriefs ?? []),
+      ...(ctx.inventoryItemBriefs ?? []),
+    ];
+    if (allItems.length > 0) {
+      lines.push("");
+      lines.push("ITEM DETAILS:");
+      lines.push("<<<");
+      lines.push(formatItemBriefs(allItems));
+      lines.push(">>>");
+    }
 
     if (state.exits && Object.keys(state.exits).length > 0) {
       const exitParts = Object.entries(state.exits)
