@@ -251,7 +251,7 @@ export class ContextBuilder {
       ...weatherFields,
       exits,
       characterBriefs,
-      currentPlayerName: selfPlayer?.name,
+      ...(selfPlayer?.name ? { currentPlayerName: selfPlayer.name } : {}),
       roomItemBriefs,
       inventoryItemBriefs,
     };
