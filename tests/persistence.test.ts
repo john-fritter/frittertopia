@@ -503,3 +503,137 @@ describe("Persistence — save everything, merge on load", () => {
     expect(pos.roomId).toBe(rooms2.kitchen);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Runtime item instances
+// ---------------------------------------------------------------------------
+
+function makeWorldWithItems(): World {
+  const world = makeWorld();
+  world.registerComponent(
+    "Item",
+    z.object({
+      carryable: z.boolean(),
+      equippable: z.boolean(),
+      consumable: z.boolean(),
+      slot: z.string().optional(),
+    })
+  );
+  world.registerComponent(
+    "ItemState",
+    z.record(z.string(), z.union([z.string(), z.boolean(), z.number()]))
+  );
+  world.registerComponent(
+    "Inventory",
+    z.object({ itemIds: z.array(z.string()) }),
+    ["itemIds[]"]
+  );
+  return world;
+}
+
+describe("Persistence — runtime item instances", () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createDatabase(":memory:");
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it("item instance in a room survives save/load with UUID and position preserved", () => {
+    const world1 = makeWorldWithItems();
+    const { kitchen } = populateContent(world1);
+
+    const itemId = world1.createEntity(); // no key — runtime instance
+    world1.addComponent(itemId, "Item", { carryable: true, equippable: false, consumable: false });
+    world1.addComponent(itemId, "Description", { short: "a brass lantern" });
+    world1.addComponent(itemId, "Position", { roomId: kitchen });
+
+    saveWorld(db, world1);
+
+    const world2 = makeWorldWithItems();
+    const rooms2 = populateContent(world2);
+    loadSavedState(db, world2);
+
+    expect(world2.entities.hasEntity(itemId)).toBe(true);
+
+    const pos = world2.getComponent(itemId, "Position") as { roomId: string };
+    expect(pos.roomId).toBe(rooms2.kitchen);
+  });
+
+  it("item instance in player inventory survives save/load", () => {
+    const world1 = makeWorldWithItems();
+    const { kitchen } = populateContent(world1);
+
+    const player = world1.createEntity("player.ada");
+    world1.addComponent(player, "Player", { name: "Ada", sessionId: "" });
+    world1.addComponent(player, "Position", { roomId: kitchen });
+
+    const coinId = world1.createEntity(); // no key — runtime instance
+    world1.addComponent(coinId, "Item", { carryable: true, equippable: false, consumable: false });
+    world1.addComponent(coinId, "Description", { short: "a gold coin" });
+    // No Position — item is in inventory
+    world1.addComponent(player, "Inventory", { itemIds: [coinId] });
+
+    saveWorld(db, world1);
+
+    const world2 = makeWorldWithItems();
+    populateContent(world2);
+    loadSavedState(db, world2);
+
+    expect(world2.entities.hasEntity(coinId)).toBe(true);
+    expect(world2.getComponent(coinId, "Position")).toBeUndefined();
+
+    const inv = world2.getComponent(player, "Inventory") as { itemIds: string[] };
+    expect(inv.itemIds).toContain(coinId);
+  });
+
+  it("ItemState is preserved across restart", () => {
+    const world1 = makeWorldWithItems();
+    const { kitchen } = populateContent(world1);
+
+    const itemId = world1.createEntity();
+    world1.addComponent(itemId, "Item", { carryable: true, equippable: true, consumable: false, slot: "hand" });
+    world1.addComponent(itemId, "Description", { short: "a Coleman lantern" });
+    world1.addComponent(itemId, "Position", { roomId: kitchen });
+    world1.addComponent(itemId, "ItemState", { lit: false, oil: "full", placedAt: 12345 });
+
+    saveWorld(db, world1);
+
+    const world2 = makeWorldWithItems();
+    populateContent(world2);
+    loadSavedState(db, world2);
+
+    const state = world2.getComponent(itemId, "ItemState") as Record<string, unknown>;
+    expect(state["lit"]).toBe(false);
+    expect(state["oil"]).toBe("full");
+    expect(state["placedAt"]).toBe(12345);
+  });
+
+  it("orphaned keyed item (removed from YAML) is still discarded with a warning", () => {
+    const world1 = makeWorldWithItems();
+    populateContent(world1);
+
+    // Keyed item that won't exist on restart
+    const vanishedId = world1.createEntity("vanished.item");
+    world1.addComponent(vanishedId, "Item", { carryable: true, equippable: false, consumable: false });
+    world1.addComponent(vanishedId, "Description", { short: "a vanishing item" });
+
+    saveWorld(db, world1);
+
+    const world2 = makeWorldWithItems();
+    populateContent(world2);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    loadSavedState(db, world2);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Saved state for "vanished.item" but it no longer exists in content')
+    );
+    expect(world2.entities.hasEntity(vanishedId)).toBe(false);
+
+    warnSpy.mockRestore();
+  });
+});

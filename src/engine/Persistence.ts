@@ -100,7 +100,9 @@ export function loadSavedState(
     } else {
       // Entity exists in DB but not in YAML.
       const hasPlayer = comps.some((c) => c.component_type === "Player");
-      if (!hasPlayer) {
+      // Keyless item instances (spawned at runtime, no YAML definition) must survive restarts.
+      const hasItem = !row.key && comps.some((c) => c.component_type === "Item");
+      if (!hasPlayer && !hasItem) {
         // Orphaned content entity — YAML no longer defines it.
         if (row.key) {
           console.warn(
@@ -110,7 +112,7 @@ export function loadSavedState(
         continue;
       }
 
-      // Player entity — create it
+      // Player or runtime item instance — recreate with original UUID.
       world.createEntityWithId(row.id, row.key ?? undefined);
       for (const comp of comps) {
         if (TRANSIENT_COMPONENTS.has(comp.component_type)) continue;
