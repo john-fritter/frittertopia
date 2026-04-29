@@ -48,7 +48,7 @@ Other useful commands:
 | `npm run dev` | Run the server in dev mode (tsx, no build) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run reset` | Wipe `data/world.db` and start with a fresh world |
-| `npm test` | Run the vitest suite (22 test files) |
+| `npm test` | Run the vitest suite (23 test files) |
 
 The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes and on `SIGINT` / `SIGTERM`.
 
@@ -108,18 +108,19 @@ This is where engine-agnostic primitives become "Frittertopia".
   - `WeatherZone { climate, tempCurve, pressureDrift, precipitationBias }` — authored climate profile on a zone entity. `tempCurve` has seasonal min/max for winter and summer (°C) plus a diurnal swing range. `pressureDrift` controls how volatile pressure is. `precipitationBias` shifts the likelihood of precipitation states.
   - `WeatherState { tempC, pressureMb, precipState, … }` — runtime simulation state: current temperature, pressure, precipitation state, noise terms, pressure history. Produced by `WeatherSystem`; **not persisted** (re-initialized from the climate profile on each server start).
   - `WeatherZoneRef { zoneId }` — on outdoor room entities; points to the zone that governs their weather. Indoor rooms omit this and always show `clear` in LLM context.
+  - `WeatherChangeNotifications { transitions: Record<string, string> }` — optional, authored on zone entities. Keyed by `"from_to"` (e.g. `"clear_rain"`) or just the destination state (`"rain"`). When a transition fires, the server checks this map before falling back to built-in prose.
 - **`characterGenerator.ts`** — `rollCharacter(gender)` produces a `CharacterRoll` by sampling from weighted tables using an approximate normal distribution (Irwin-Hall, sum of 12 uniforms). Age, height, and build are returned as bracket strings. Skin, eyes, hair, and fantastical features use an 85/15 split between ordinary and unusual tables. Skin marks are probabilistic (40% first mark, 20% second).
 - **`characterBriefGenerator.ts`** — `generateCharacterBrief(roll)` calls the LLM with the character-brief role and returns a prose description under ~75 words. Falls back to a short constructed stub if the LLM is unavailable.
 - **`systems/SequenceSystem.ts`** — advances any entity that has a `Sequence`, emits `sequence_beat`/`sequence_complete`, places the player when finished.
 - **`systems/TimeOfDaySystem.ts`** — every minute of wall-clock, recomputes the time bracket and moon phase from suncalc, writes them to `world.time`.
-- **`systems/WeatherSystem.ts`** — every minute of wall-clock, updates `WeatherState` on every entity that has a `WeatherZone`. On first tick it initializes the state from the climate profile and current season. Subsequent ticks advance the noise random walks, recompute temperature and pressure, and step the precipitation state machine when the current state's duration expires.
+- **`systems/WeatherSystem.ts`** — every minute of wall-clock, updates `WeatherState` on every entity that has a `WeatherZone`. On first tick it initializes the state from the climate profile and current season. Subsequent ticks advance the noise random walks, recompute temperature and pressure, and step the precipitation state machine when the current state's duration expires. When the precipitation state genuinely changes (new state ≠ old state, no debug override), emits `weather_state_change { zoneId, from, to }` via the event bus.
 - **`solar.ts`** — pure: `getTimeBracket()`, `getMoonData()`. World location is hard-coded to **Bend, Oregon** (44.06 N, -121.31 W). `setDebugTime()` lets tests pin the clock.
 - **`weather.ts`** — pure math, no ECS imports. `computeTemperatureCelsius` layers a seasonal cosine (peak ~Aug 1, thermal lag after the solstice), a diurnal cosine (peak 3 pm, trough 3 am), and a noise term. `updateNoiseTerms` applies a mean-reverting bounded random walk for both temperature and pressure noise. `nextWeatherState` drives the precip state machine; transitions are weighted by current pressure and the zone's `precipitationBias`, with a hard 90-minute cap on storm states. `computePrecipWeights` produces a sigmoid-based probability distribution over rain/snow/sleet at a given temperature, so precipitation type is probabilistic rather than a hard cutoff. `computePressureTrend` reads a 30-minute history window and returns a human-readable trend label.
 - **`description.ts`** — *currently unused at runtime.* A visibility-aware block renderer (`full | reduced | minimal | none`) and an `OUTDOOR / SHELTERED / INDOOR` exposure model. Tested in `description.test.ts` and `light.test.ts`. Wiring it into `composeLook` is on the road map; today the LLM path uses `RoomBrief` directly without visibility gating.
 
 ### 3. The server (`src/server/`)
 
-- **`Server.ts`** — `WebSocketServer`. Manages sessions, name validation (2–20 letters), duplicate-name prevention, returning-player reattachment, broadcasts. New players go through a gender prompt after auth; `rollCharacter()` and `generateCharacterBrief()` run before the player enters the world, storing `CharacterRoll` and `CharacterBrief` on their entity. Players who disconnect mid-creation resume the gender prompt on next login. Holds an `ActionResolver` and routes its `ActionResult` to the right WebSockets.
+- **`Server.ts`** — `WebSocketServer`. Manages sessions, name validation (2–20 letters), duplicate-name prevention, returning-player reattachment, broadcasts. New players go through a gender prompt after auth; `rollCharacter()` and `generateCharacterBrief()` run before the player enters the world, storing `CharacterRoll` and `CharacterBrief` on their entity. Players who disconnect mid-creation resume the gender prompt on next login. Holds an `ActionResolver` and routes its `ActionResult` to the right WebSockets. Registers and handles `weather_state_change`: finds connected players whose room references the changed zone and delivers a short atmospheric message via `formatDim` — authored text from `WeatherChangeNotifications` first, then a built-in fallback table for meaningful transitions (precipitation start/stop, storm arrivals/departures, type changes); boring transitions with no authored text are silently skipped.
 - **`format.ts`** — pure ANSI: bold-white room names, yellow items, cyan exits, green speech, magenta player names, dim-white system text, 88-column word wrap.
 
 ### Content (`content/`)
@@ -129,7 +130,7 @@ YAML, recursively discovered at startup. Anything you drop in is loaded.
 - **`world/monastery/rooms/*.yaml`** — six rooms (courtyard, kitchen, corridor, chapel, dormitory, herb garden). The courtyard and herb garden have `WeatherZoneRef: weather.zone.monastery` and receive live weather context in LLM descriptions. Indoor rooms do not.
 - **`world/monastery/items.yaml`** — four `Presence` items (broom, candle, blanket, rosemary bush).
 - **`sequences/fog-arrival.yaml`** — the new-player intro, a `Sequence` template cloned onto each first-time arrival.
-- **`weather/zones.yaml`** — one zone so far: `weather.zone.monastery`, an alpine climate profile (cold winters, mild summers, high precipitation bias, high pressure volatility).
+- **`weather/zones.yaml`** — one zone so far: `weather.zone.monastery`, an alpine climate profile (cold winters, mild summers, high precipitation bias, high pressure volatility). Includes a `WeatherChangeNotifications` map with authored transition strings for all 27 common state pairs.
 
 The starting room's key must be `starting.room` (or pass another key to `GameServer`). The fog-arrival sequence is keyed `sequence.fog-arrival`.
 
@@ -143,6 +144,7 @@ The starting room's key must be `starting.room` (or pass another key to `GameSer
 - `persistence.test.ts` covers UUID↔key translation, orphan handling, player-position recovery.
 - `sequence.test.ts` verifies beat timing, deflection of input, and placement on completion.
 - `weather.test.ts` — 49 tests covering the weather math in isolation: temperature sinusoids, noise bounds, precipitation weights, pressure trend calculation, state machine transitions (including the storm hard cap), and the seeded PRNG.
+- `weather-notifications.test.ts` — WeatherSystem event emission: fires on genuine state change, silent on initialization and when duration hasn't expired. YAML loading of the `WeatherChangeNotifications` transition map.
 
 ---
 

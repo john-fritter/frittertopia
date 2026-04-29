@@ -1,11 +1,12 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod/v4";
 import type Database from "better-sqlite3";
 import type { World } from "../engine/World.js";
 import { Parser } from "../engine/Parser.js";
 import { ActionResolver } from "../engine/ActionResolver.js";
 import { composeLook } from "../engine/verbs/gameplay.js";
-import { formatSystem, formatSequence, formatArrival } from "./format.js";
+import { formatSystem, formatSequence, formatArrival, formatDim } from "./format.js";
 import { rollCharacter } from "../game/characterGenerator.js";
 import { generateCharacterBrief } from "../game/characterBriefGenerator.js";
 import {
@@ -15,6 +16,35 @@ import {
 } from "./auth.js";
 
 const MAX_AUTH_RETRIES = 3;
+
+const WEATHER_FALLBACKS: Record<string, string> = {
+  clear_rain: "Rain begins to fall.",
+  clear_snow: "Snow begins to fall.",
+  clear_storm: "A storm is building.",
+  clear_fog: "Fog drifts in.",
+  overcast_rain: "Rain begins to fall.",
+  overcast_snow: "Snow begins to fall.",
+  overcast_storm: "A storm is building.",
+  rain_storm: "The rain intensifies into a storm.",
+  rain_snow: "The rain turns to snow.",
+  rain_sleet: "The rain turns to sleet.",
+  rain_clear: "The rain stops.",
+  rain_overcast: "The rain eases.",
+  snow_storm: "A storm builds through the snow.",
+  snow_rain: "The snow turns to rain.",
+  snow_clear: "The snow stops.",
+  snow_overcast: "The snow eases.",
+  storm_rain: "The storm eases to rain.",
+  storm_clear: "The storm passes.",
+  storm_overcast: "The storm breaks.",
+  storm_snow: "The storm turns to snow.",
+  sleet_rain: "The sleet turns to rain.",
+  sleet_snow: "The sleet turns to snow.",
+  sleet_overcast: "The sleet stops.",
+  sleet_clear: "The sleet stops.",
+  fog_clear: "The fog lifts.",
+  fog_overcast: "The fog thins.",
+};
 
 const GENDER_PROMPT =
   "Before you take shape in this world — are you a man, a woman, or something else? " +
@@ -52,6 +82,11 @@ export class GameServer {
     private sequenceTemplateKey = "sequence.fog-arrival"
   ) {
     this.resolver = new ActionResolver(world, this.parser);
+
+    world.registerEvent(
+      "weather_state_change",
+      z.object({ zoneId: z.string(), from: z.string(), to: z.string() })
+    );
 
     const adminEnv = process.env["ADMIN_PLAYERS"];
     if (adminEnv) {
@@ -146,6 +181,20 @@ export class GameServer {
       }
     });
 
+    this.world.onEvent("weather_state_change", (payload) => {
+      const { zoneId, from, to } = payload as {
+        zoneId: string;
+        from: string;
+        to: string;
+      };
+      const text = this.resolveWeatherText(zoneId, from, to);
+      if (!text) return;
+      const formatted = formatDim(text);
+      for (const playerId of this.getPlayersInZone(zoneId)) {
+        this.sendToPlayer(playerId, formatted);
+      }
+    });
+
     this.world.onEvent("player_destroyed", (payload) => {
       const { playerId } = payload as { playerId: string };
 
@@ -166,6 +215,40 @@ export class GameServer {
         }
       }
     });
+  }
+
+  private getPlayersInZone(zoneId: string): string[] {
+    const players = this.world.getEntitiesWithComponents(["Player", "Position"]);
+    const result: string[] = [];
+    for (const playerId of players) {
+      const player = this.world.getComponent(playerId, "Player") as
+        | { name: string; sessionId: string }
+        | undefined;
+      if (!player?.sessionId) continue;
+      const position = this.world.getComponent(playerId, "Position") as
+        | { roomId: string }
+        | undefined;
+      if (!position) continue;
+      const zoneRef = this.world.getComponent(position.roomId, "WeatherZoneRef") as
+        | { zoneId: string }
+        | undefined;
+      if (zoneRef?.zoneId !== zoneId) continue;
+      result.push(playerId);
+    }
+    return result;
+  }
+
+  private resolveWeatherText(zoneId: string, from: string, to: string): string | null {
+    const notifications = this.world.getComponent(zoneId, "WeatherChangeNotifications") as
+      | { transitions: Record<string, string> }
+      | undefined;
+    if (notifications) {
+      const specific = notifications.transitions[`${from}_${to}`];
+      if (specific !== undefined) return specific;
+      const generic = notifications.transitions[to];
+      if (generic !== undefined) return generic;
+    }
+    return WEATHER_FALLBACKS[`${from}_${to}`] ?? null;
   }
 
   private sendToPlayer(playerId: string, text: string): void {

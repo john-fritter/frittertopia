@@ -160,4 +160,11 @@ export function registerComponents(world: World): void {
     ["zoneId"]
   );
 
+  world.registerComponent(
+    "WeatherChangeNotifications",
+    z.object({
+      transitions: z.record(z.string(), z.string()),
+    })
+  );
+
 }
