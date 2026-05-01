@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import * as path from "node:path";
 import { PromptBuilder } from "../src/engine/description/PromptBuilder.js";
+import type { RoomContext } from "../src/engine/description/ContextBuilder.js";
 
 const PROMPTS_DIR = path.join(import.meta.dirname, "..", "content", "prompts");
 
@@ -147,5 +148,173 @@ describe("PromptBuilder", () => {
       const brief = builder.buildSystemPrompt("character-brief", false);
       expect(room).not.toBe(brief);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item brief blocks in user prompts
+// ---------------------------------------------------------------------------
+
+function minimalCtx(overrides: Partial<RoomContext> = {}): RoomContext {
+  return {
+    roomName: "The Kitchen",
+    roomBrief: "A stone kitchen.",
+    roomShort: "A stone kitchen.",
+    entitiesPresent: [],
+    otherPlayers: [],
+    isFirstVisit: false,
+    timeOfDay: "morning",
+    moonPhase: "new",
+    moonAboveHorizon: false,
+    weather: "clear",
+    exits: {},
+    characterBriefs: [],
+    roomItemBriefs: [],
+    inventoryItemBriefs: [],
+    ...overrides,
+  };
+}
+
+describe("buildRoomUserPrompt — item briefs", () => {
+  let builder: PromptBuilder;
+
+  beforeEach(() => {
+    builder = new PromptBuilder();
+    builder.loadPromptFiles(PROMPTS_DIR);
+  });
+
+  it("omits item block when no room items have ItemBrief", () => {
+    const output = builder.buildRoomUserPrompt(minimalCtx(), "look");
+    expect(output).not.toContain("Item details:");
+  });
+
+  it("includes item details block when room items have ItemBrief", () => {
+    const ctx = minimalCtx({
+      roomItemBriefs: [
+        {
+          short: "a Coleman lantern",
+          brief: "A battered lantern, fuel sloshing inside.",
+          state: { lit: false, oil: "full" },
+          location: "in room",
+        },
+      ],
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).toContain("Item details:");
+    expect(output).toContain("a Coleman lantern (in room)");
+    expect(output).toContain("A battered lantern, fuel sloshing inside.");
+    expect(output).toContain("lit=false");
+    expect(output).toContain("oil=full");
+  });
+
+  it("omits state line when item has no state", () => {
+    const ctx = minimalCtx({
+      roomItemBriefs: [
+        { short: "a coin", brief: "A gold coin.", location: "in room" },
+      ],
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).toContain("a coin (in room)");
+    expect(output).not.toContain("State:");
+  });
+
+  it("omits placedAt from state display", () => {
+    const ctx = minimalCtx({
+      roomItemBriefs: [
+        {
+          short: "a widget",
+          brief: "A widget.",
+          state: { placedAt: 12345, lit: true },
+          location: "in room",
+        },
+      ],
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).not.toContain("placedAt");
+    expect(output).toContain("lit=true");
+  });
+
+  it("does not include inventory items in room prompt", () => {
+    const ctx = minimalCtx({
+      inventoryItemBriefs: [
+        { short: "a gold coin", brief: "A coin.", location: "carried by Maren" },
+      ],
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).not.toContain("Item details:");
+    expect(output).not.toContain("a gold coin");
+  });
+});
+
+describe("buildSenseUserPrompt — item briefs", () => {
+  let builder: PromptBuilder;
+
+  beforeEach(() => {
+    builder = new PromptBuilder();
+    builder.loadPromptFiles(PROMPTS_DIR);
+  });
+
+  it("omits item block when no items have briefs", () => {
+    const ctx = minimalCtx({
+      currentPlayerName: "Maren",
+      characterBriefs: [{ name: "Maren", brief: "Tall, dark-haired." }],
+    });
+    const output = builder.buildSenseUserPrompt(ctx, "look");
+    expect(output).not.toContain("ITEM DETAILS:");
+  });
+
+  it("includes room items and inventory items together", () => {
+    const ctx = minimalCtx({
+      currentPlayerName: "Maren",
+      characterBriefs: [{ name: "Maren", brief: "Tall, dark-haired." }],
+      roomItemBriefs: [
+        {
+          short: "a Coleman lantern",
+          brief: "A battered lantern.",
+          state: { lit: false },
+          location: "in room",
+        },
+      ],
+      inventoryItemBriefs: [
+        { short: "a gold coin", brief: "A coin.", location: "carried by Maren" },
+      ],
+    });
+    const output = builder.buildSenseUserPrompt(ctx, "look around");
+    expect(output).toContain("ITEM DETAILS:");
+    expect(output).toContain("<<<");
+    expect(output).toContain(">>>");
+    expect(output).toContain("a Coleman lantern (in room)");
+    expect(output).toContain("a gold coin (carried by Maren)");
+  });
+
+  it("includes only inventory items when room has none with briefs", () => {
+    const ctx = minimalCtx({
+      currentPlayerName: "Maren",
+      characterBriefs: [{ name: "Maren", brief: "Tall." }],
+      inventoryItemBriefs: [
+        { short: "a coin", brief: "A gold coin.", location: "carried by Maren" },
+      ],
+    });
+    const output = builder.buildSenseUserPrompt(ctx, "inventory");
+    expect(output).toContain("ITEM DETAILS:");
+    expect(output).toContain("a coin (carried by Maren)");
+  });
+
+  it("omits placedAt from sense prompt state too", () => {
+    const ctx = minimalCtx({
+      currentPlayerName: "Maren",
+      characterBriefs: [{ name: "Maren", brief: "Tall." }],
+      roomItemBriefs: [
+        {
+          short: "a lantern",
+          brief: "A lantern.",
+          state: { placedAt: 99999, lit: false },
+          location: "in room",
+        },
+      ],
+    });
+    const output = builder.buildSenseUserPrompt(ctx, "look at lantern");
+    expect(output).not.toContain("placedAt");
+    expect(output).toContain("lit=false");
   });
 });

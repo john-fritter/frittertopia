@@ -167,4 +167,34 @@ export function registerComponents(world: World): void {
     })
   );
 
+  world.registerComponent(
+    "Item",
+    z.object({
+      carryable: z.boolean(),
+      equippable: z.boolean(),
+      consumable: z.boolean(),
+      slot: z.string().optional(),
+    })
+  );
+
+  world.registerComponent("ItemBrief", z.object({ brief: z.string() }));
+
+  world.registerComponent(
+    "ItemState",
+    z.record(z.string(), z.union([z.string(), z.boolean(), z.number()]))
+  );
+
+  world.registerComponent(
+    "ItemTemplate",
+    z.object({
+      decayMs: z.number().optional(),
+    })
+  );
+
+  world.registerComponent(
+    "Inventory",
+    z.object({ itemIds: z.array(z.string()) }),
+    ["itemIds[]"]
+  );
+
 }

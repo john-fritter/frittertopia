@@ -11,7 +11,7 @@ npm install                # Node 22 required (Node 18 will fail on better-sqlit
 npm run dev                # tsx, no build
 npm run build              # tsc → dist/
 npm run reset              # drop data/world.db, fresh start
-npm test                   # vitest, 20 test files in tests/
+npm test                   # vitest, 22 test files in tests/
 ```
 
 Server listens on `PORT` (default 3000). Connect with `npx wscat -c ws://localhost:3000`.
@@ -45,14 +45,14 @@ src/
     EventBus.ts                          — Zod-validated typed events; queued within-tick, flushed at end
     TickLoop.ts                          — runs systems in registration order; 250 ms default
     Parser.ts                            — text → Intent; bare directions, "say" captures rest, verb aliases + help metadata
-    ActionResolver.ts                    — verbs: move, look, say, help; admin: @destroy, @inspect, @teleport, @help (gated)
+    ActionResolver.ts                    — verbs: move, look, say, take, drop, inventory, help; admin: @destroy, @inspect, @teleport, @help (gated)
     ContentLoader.ts                     — recursive YAML walker, two-pass ref resolution by string keys
-    Persistence.ts                       — SQLite snapshot save/load, UUID↔key translation for Position/VisitedRooms/Exits
+    Persistence.ts                       — SQLite snapshot save/load, UUID↔key translation for Position/VisitedRooms/Exits; restores keyless Item instances in addition to Player entities
     LLMClient.ts                         — OpenRouter wrapper, Result-style return, AbortController timeout
     description/
       DescriptionService.ts              — describeRoom / describeTarget; caches room results; LLM-fail fallback
-      ContextBuilder.ts                  — RoomContext: brief, presence list, players, exits, isFirstVisit, time, weather
-      PromptBuilder.ts                   — system + user prompts (room, target, and character-brief variants); loads from content/prompts/ files with inline fallbacks
+      ContextBuilder.ts                  — RoomContext: brief, presence list, players, exits, isFirstVisit, time, weather, character briefs, item briefs (roomItemBriefs for room, inventoryItemBriefs for current player's carried items)
+      PromptBuilder.ts                   — system + user prompts (room, target, and character-brief variants); loads from content/prompts/ files with inline fallbacks; buildRoomUserPrompt adds "Item details:" block; buildSenseUserPrompt adds fenced "ITEM DETAILS: <<<>>>" block
       DescriptionCache.ts                — (playerId, roomId) → text, 5-min TTL, invalidate(roomId) and invalidatePlayer(id)
       index.ts
   game/
@@ -65,6 +65,7 @@ src/
       SequenceSystem.ts                  — advances Sequence beats, emits sequence_beat / sequence_complete, places player on done
       TimeOfDaySystem.ts                 — recomputes bracket + moon every 60 s of wall-clock; updates world.time entity
       WeatherSystem.ts                   — drives WeatherState per-zone each tick
+      ItemDecaySystem.ts                 — checks every 10 s; sets placedAt on first tick for room items with ItemTemplate; deletes entity when decayMs has elapsed (default 60 min); items in inventory (no Position) are ignored
   server/
     Server.ts                            — WebSocketServer; username/password auth, character creation flow, returning-player reattach, broadcasts; ADMIN_PLAYERS env or first-player-gets-admin
     auth.ts                              — bcrypt account table (accounts in SQLite, separate from ECS): createAccountTable, findAccountByUsername, createAccount, verifyPassword
@@ -72,7 +73,7 @@ src/
 content/
   world/monastery/
     rooms/{courtyard,kitchen,corridor,chapel,dormitory,herb-garden}.yaml
-    items.yaml                           — broom, candle, blanket, rosemary bush
+    items.yaml                           — broom, candle, blanket, rosemary bush; Coleman lantern (key: monastery.lantern; carryable, slot: hand, ItemBrief, ItemState: lit/oil, ItemTemplate: decayMs 1 hr)
   sequences/
     fog-arrival.yaml                     — Sequence template (key: sequence.fog-arrival), cloned per new player
   prompts/
@@ -90,7 +91,7 @@ tests/
   admin.test.ts             llm-client.test.ts        description-service.test.ts
   auth.test.ts              solar.test.ts             promptBuilder.test.ts
   characterGenerator.test.ts  characterBriefGenerator.test.ts  characterCreation.test.ts
-  weather.test.ts           where.test.ts
+  weather.test.ts           where.test.ts             items.test.ts
   weather-notifications.test.ts
 ```
 
@@ -116,15 +117,19 @@ tests/
 | `WeatherState` | `{ tempC, pressureMb, precipState, ... }` | Simulated weather state, updated each tick by WeatherSystem. |
 | `WeatherZoneRef` | `{ zoneId }` | Ref to a WeatherZone entity. |
 | `WeatherChangeNotifications` | `{ transitions: Record<string, string> }` | Optional, authored on zone entities. Keys are `"{from}_{to}"` or `"{to}"`. Server checks this before its built-in fallback table; transitions with no authored text and no fallback entry are silently skipped. |
+| `Item` | `{ carryable, equippable, consumable, slot? }` | Presence on an entity makes it an item. `carryable: false` blocks `take`. `slot` is e.g. `"hand"` (used when equippable, not yet enforced by a verb). |
+| `ItemBrief` | `{ brief }` | Rich prose description fed to the LLM storyteller. Collected by `ContextBuilder` into `roomItemBriefs` / `inventoryItemBriefs` and rendered into both room and sense prompts. `placedAt` is filtered out of `ItemState` before the storyteller sees state values. |
+| `ItemState` | `Record<string, string \| boolean \| number>` | Arbitrary key/value bag. `placedAt: number` is written by `ItemDecaySystem` (and cleared on `take`) — internal, not shown to the LLM. Other keys (e.g. `lit`, `oil`) are shown. |
+| `ItemTemplate` | `{ decayMs? }` | Marks an item as governed by `ItemDecaySystem`. `decayMs` defaults to 60 min if absent. Items with this component but no `Position` (i.e. in inventory) are never decayed. |
+| `Inventory` | `{ itemIds: string[] }` | On players. Ref array (`itemIds[]`). Max carry limit of 6 enforced by `handleTake`. |
 
 Currently registered events: `sequence_beat`, `sequence_complete`, `player_destroyed` (all in `main.ts`); `weather_state_change` (registered by `GameServer` constructor — payload `{ zoneId, from, to }`).
 
 ## Things that look done but aren't (don't be fooled)
 
-- **`SkyDescriptions`** — registered, authored on rooms, never read.
-- **`ContextBuilder`** still hard-codes `timeOfDay: "day"` and `weather: "clear"` in the prompt. The `world.time` entity is updated every minute and `WeatherState` is simulated per-zone, but neither feeds into room descriptions yet.
-
-If a user says "add weather to descriptions" or "use the sky/time data in look", these are the gaps.
+- **`SkyDescriptions`** — registered, authored on rooms, never read by the renderer or the prompt layer.
+- **`Item.equippable` / `Item.slot`** — the field exists on the schema and the Coleman lantern authors it, but there is no `equip` or `wear` verb and no slot-enforcement system. The field is reserved for a future equip system.
+- **`Item.consumable`** — same: field registered, no `use` or `eat` verb yet.
 
 ## Connection flow (reference)
 
@@ -142,9 +147,10 @@ Auth state machine session states: `awaiting_username` → `awaiting_password` (
 ## Persistence rules
 
 - `saveWorld`: single transaction, `DELETE` then re-`INSERT` everything. Translates UUIDs → keys for `Position.roomId`, `VisitedRooms.rooms`, `Exits.exits.*`.
-- `loadSavedState`: per-entity merge. Content entities (key matches a YAML entity) get DB components written over YAML; player entities (no YAML key) are recreated wholesale with the saved UUID. Orphans are warned and discarded.
+- `loadSavedState`: per-entity merge. Content entities (key matches a YAML entity) get DB components written over YAML; player entities (no YAML key) are recreated wholesale with the saved UUID. **Keyless `Item` instances** (runtime-spawned items with no YAML key) are also recreated wholesale — this includes items carried in player inventories. Orphaned keyed entities (key no longer in YAML) are warned and discarded.
 - After load, every player's `Position.roomId` is checked; if the room no longer exists, they get moved to `starting.room` (or `Position` is removed if even that's gone). `VisitedRooms` is filtered to existing entities.
 - **Renaming a YAML key is a breaking change for existing saves.** UUID churn across restarts is fine.
+- `Inventory` refs (item UUIDs) round-trip correctly: keyless item UUIDs have no key translation (they pass through as raw UUIDs on both save and load), so as long as the item entity is also restored, the inventory stays coherent.
 
 ## Working with this codebase
 
@@ -205,8 +211,9 @@ The long arc is a world that responds to you — not through scripted events but
 
 - Zone-based activation (only simulate zones with nearby players).
 - NPC simulation layer.
-- Weather and time of day feeding into room descriptions (`ContextBuilder` has placeholders; `WeatherState` and `TimeOfDay` are simulated but not yet read by the prompt layer).
 - Reading `SkyDescriptions` in descriptions.
+- Equip/wear/use/eat verbs (item schema fields are reserved).
+- Item spawn system (items must currently be authored in YAML or created via admin commands; there is no runtime loot drop or respawn mechanism beyond the YAML baseline).
 <br>
 ## Working with Cleo
 

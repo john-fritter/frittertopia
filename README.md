@@ -48,7 +48,7 @@ Other useful commands:
 | `npm run dev` | Run the server in dev mode (tsx, no build) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run reset` | Wipe `data/world.db` and start with a fresh world |
-| `npm test` | Run the vitest suite (23 test files) |
+| `npm test` | Run the vitest suite (22 test files) |
 
 The server listens on `PORT` (defaults to `3000`). Auto-saves every 5 minutes and on `SIGINT` / `SIGTERM`.
 
@@ -83,8 +83,8 @@ Plain ECS. Nothing in here knows what a monastery is.
 - **`Persistence.ts`** — SQLite full-snapshot save/load. Translates UUIDs ↔ keys for content cross-references so a save survives a restart.
 - **`LLMClient.ts`** — thin OpenRouter wrapper with a 10 s timeout. Returns `{ ok, text } | { ok: false, error }`; never throws.
 - **`description/`** — turns a room + player + world state into a prompt, calls the LLM, caches the result.
-  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, weather, and character briefs for everyone in the room (including the current player). For rooms with a `WeatherZoneRef`, reads the live `WeatherState` and exposes raw numbers and interpretation brackets to the LLM.
-  - `PromptBuilder` — assembles system and user prompts. Two description roles: **`describe-room`** (room entry on movement, login, teleport, sequence completion) and **`describe`** (all player-initiated sense commands). The sense user prompt uses a structured format — `CURRENT PLAYER BRIEF`, `REFERENCE RULE` (binds "I"/"me"/"myself"/body-part references to the current player by name), `OTHER PRESENT PLAYERS` with per-player delimited blocks, and an optional `TARGET BRIEF` when the input names a player with a stored brief. A third role, **`character-brief`**, drives character brief generation and uses the brief-generator middle layer instead of the storyteller.
+  - `ContextBuilder` — gathers the room brief, who/what is present, exits, time, weather, and character briefs for everyone in the room (including the current player). For rooms with a `WeatherZoneRef`, reads the live `WeatherState` and exposes raw numbers and interpretation brackets to the LLM. Also collects `roomItemBriefs` (items in the room with an `ItemBrief` component) and `inventoryItemBriefs` (items in the current player's inventory with `ItemBrief`), each carrying the item's short name, brief prose, current `ItemState` key/values (with `placedAt` filtered out), and a location string.
+  - `PromptBuilder` — assembles system and user prompts. Two description roles: **`describe-room`** (room entry on movement, login, teleport, sequence completion) and **`describe`** (all player-initiated sense commands). The room user prompt includes an `Item details:` block for room items with `ItemBrief`. The sense user prompt uses a structured format — `CURRENT PLAYER BRIEF`, `REFERENCE RULE` (binds "I"/"me"/"myself"/body-part references to the current player by name), `OTHER PRESENT PLAYERS` with per-player delimited blocks, an optional `TARGET BRIEF` when the input names a player with a stored brief, and an `ITEM DETAILS: <<<>>>` fenced block for room items plus the current player's carried items. A third role, **`character-brief`**, drives character brief generation and uses the brief-generator middle layer instead of the storyteller.
   - `DescriptionService` — `describe()` for room entry (uses `describe-room` role); `describeSense()` for player-typed look/listen/smell/touch/taste (uses `describe` role). Both fall back gracefully on LLM failure.
   - `DescriptionCache` — `(playerId, roomId) → text`, 5-minute TTL.
 
@@ -102,6 +102,11 @@ This is where engine-agnostic primitives become "Frittertopia".
   - `CharacterRoll { gender, age, height, build, skin, eyes, hair, fantasticalFeature, skinMarks[] }` — the full rolled character description set on first login. Age, height, and build are human-readable bracket strings (e.g. "young adult", "tall", "lean"), not raw numbers. `fantasticalFeature` is nullable; `skinMarks` is an array of zero to two marks.
   - `CharacterBrief { brief }` — an LLM-generated physical description of the character derived from their `CharacterRoll`. Fed to the storyteller as a continuity record so it can write the player's body consistently across descriptions. Never shown raw to the player.
   - `Presence { description }` — how an item appears in a room listing.
+  - `Item { carryable, equippable, consumable, slot? }` — marks an entity as an item. `carryable: false` blocks `take`. `equippable` and `slot` are reserved for a future equip system.
+  - `ItemBrief { brief }` — rich prose description fed to the LLM storyteller for items in the room or in the player's inventory. Collected by `ContextBuilder` and rendered into prompts.
+  - `ItemState { [key]: string | boolean | number }` — arbitrary runtime state bag. `placedAt` (written by `ItemDecaySystem`, cleared on `take`) is internal and filtered from LLM context. Other keys (e.g. `lit`, `oil`) are surfaced to the storyteller.
+  - `ItemTemplate { decayMs? }` — opts an item into decay tracking. Items with this component are deleted by `ItemDecaySystem` after `decayMs` (default 60 min) in a room. Items in inventory are never decayed.
+  - `Inventory { itemIds: string[] }` — on players; the list of currently carried item entity IDs. Carry limit of 6 enforced by `handleTake`.
   - `Sequence` — a list of timed beats; while present, blocks player input and emits `sequence_beat`.
   - `TimeOfDay { bracket, moonFraction, moonPhase, updatedAt }` — singleton on the `world.time` entity.
   - `SkyDescriptions` — per-bracket sky/window/sound text (authored on rooms; not yet read by the renderer).
@@ -114,6 +119,7 @@ This is where engine-agnostic primitives become "Frittertopia".
 - **`systems/SequenceSystem.ts`** — advances any entity that has a `Sequence`, emits `sequence_beat`/`sequence_complete`, places the player when finished.
 - **`systems/TimeOfDaySystem.ts`** — every minute of wall-clock, recomputes the time bracket and moon phase from suncalc, writes them to `world.time`.
 - **`systems/WeatherSystem.ts`** — every minute of wall-clock, updates `WeatherState` on every entity that has a `WeatherZone`. On first tick it initializes the state from the climate profile and current season. Subsequent ticks advance the noise random walks, recompute temperature and pressure, and step the precipitation state machine when the current state's duration expires. When the precipitation state genuinely changes (new state ≠ old state, no debug override), emits `weather_state_change { zoneId, from, to }` via the event bus.
+- **`systems/ItemDecaySystem.ts`** — checks every 10 s. For each entity with both `ItemTemplate` and `Position` (i.e. in a room, not carried): stamps `placedAt = Date.now()` on first encounter (via `ItemState`), then deletes the entity when `Date.now() - placedAt >= decayMs`. Items in inventory (no `Position`) are never touched. Default `decayMs` is 60 minutes.
 - **`solar.ts`** — pure: `getTimeBracket()`, `getMoonData()`. World location is hard-coded to **Bend, Oregon** (44.06 N, -121.31 W). `setDebugTime()` lets tests pin the clock.
 - **`weather.ts`** — pure math, no ECS imports. `computeTemperatureCelsius` layers a seasonal cosine (peak ~Aug 1, thermal lag after the solstice), a diurnal cosine (peak 3 pm, trough 3 am), and a noise term. `updateNoiseTerms` applies a mean-reverting bounded random walk for both temperature and pressure noise. `nextWeatherState` drives the precip state machine; transitions are weighted by current pressure and the zone's `precipitationBias`, with a hard 90-minute cap on storm states. `computePrecipWeights` produces a sigmoid-based probability distribution over rain/snow/sleet at a given temperature, so precipitation type is probabilistic rather than a hard cutoff. `computePressureTrend` reads a 30-minute history window and returns a human-readable trend label.
 - **`description.ts`** — *currently unused at runtime.* A visibility-aware block renderer (`full | reduced | minimal | none`) and an `OUTDOOR / SHELTERED / INDOOR` exposure model. Tested in `description.test.ts` and `light.test.ts`. Wiring it into `composeLook` is on the road map; today the LLM path uses `RoomBrief` directly without visibility gating.
@@ -128,7 +134,7 @@ This is where engine-agnostic primitives become "Frittertopia".
 YAML, recursively discovered at startup. Anything you drop in is loaded.
 
 - **`world/monastery/rooms/*.yaml`** — six rooms (courtyard, kitchen, corridor, chapel, dormitory, herb garden). The courtyard and herb garden have `WeatherZoneRef: weather.zone.monastery` and receive live weather context in LLM descriptions. Indoor rooms do not.
-- **`world/monastery/items.yaml`** — four `Presence` items (broom, candle, blanket, rosemary bush).
+- **`world/monastery/items.yaml`** — four `Presence` items (broom, candle, blanket, rosemary bush) and one full item entity: the **Coleman lantern** (key `monastery.lantern`; carryable, slot `hand`, `ItemBrief`, `ItemState: { lit: false, oil: "full" }`, `ItemTemplate: { decayMs: 3600000 }`). The lantern is the reference example for authored items with LLM-visible state.
 - **`sequences/fog-arrival.yaml`** — the new-player intro, a `Sequence` template cloned onto each first-time arrival.
 - **`weather/zones.yaml`** — one zone so far: `weather.zone.monastery`, an alpine climate profile (cold winters, mild summers, high precipitation bias, high pressure volatility). Includes a `WeatherChangeNotifications` map with authored transition strings for all 27 common state pairs.
 
@@ -247,6 +253,33 @@ The LLM will then receive current temperature, precipitation state, and pressure
       description: "An iron lantern hangs from a hook, unlit."
 ```
 
+To make it **carryable** with LLM-visible state, add `Item`, `ItemBrief`, and (for timed decay) `ItemTemplate`. Give it a key so saves track its state rather than duplicating it:
+
+```yaml
+- key: monastery.iron-lantern
+  components:
+    Item:
+      carryable: true
+      equippable: false
+      consumable: false
+    ItemBrief:
+      brief: >-
+        An iron lantern on a hook. The wick is dry. It hasn't been lit
+        in a long time but could be.
+    ItemState:
+      lit: false
+    ItemTemplate:
+      decayMs: 3600000    # 1 hour in a room before it vanishes
+    Description:
+      short: "an iron lantern"
+    Presence:
+      description: "An iron lantern hangs from a hook, unlit."
+    Position:
+      roomId: monastery.cellar
+```
+
+`ItemBrief.brief` is fed to the storyteller whenever the item is in the current room or the player's inventory. `ItemState` key/values (except `placedAt`) are also shown. The `take` verb removes `Position` and adds the item to the player's `Inventory`; `drop` reverses this and stamps `placedAt` to reset the decay timer.
+
 **A new verb** — register it in `ActionResolver.registerVerbs()` with aliases/help metadata, then add a `case` in `resolve()`. If it's an admin verb, name it with a leading `@`, gate it through `adminGate()`, and omit the metadata so it stays hidden from `help`. The handler goes in `src/engine/verbs/admin.ts`; use `formatBold`, `formatCyan`, `formatDim` for consistent ANSI output.
 
 **A new behavior** — three steps:
@@ -264,7 +297,8 @@ Two SQLite tables: `entities(id, key)` and `components(entity_id, component_type
 
 - Content entities (anything that came from a YAML key) — DB wins per-component, only overwriting components actually saved.
 - Player entities (no matching YAML key) — recreated wholesale with their original UUID.
-- Orphaned content entities (key removed from YAML) — discarded with a warning.
+- Keyless `Item` instances (runtime-created items with no YAML key) — also recreated wholesale. This includes items currently in a player's inventory. `Inventory` item IDs round-trip as raw UUIDs (keyless items have no key translation), so inventory coherence is preserved as long as the item entity is restored.
+- Orphaned keyed entities (key removed from YAML) — discarded with a warning, even if they have an `Item` component.
 - Player `Position` and `VisitedRooms` are validated; references to deleted rooms get fixed up to `starting.room`.
 
 Cross-entity references are stored as **keys**, not UUIDs, in the saved data — that's why renaming a room key is a breaking change but reshuffling UUIDs across restarts isn't.
