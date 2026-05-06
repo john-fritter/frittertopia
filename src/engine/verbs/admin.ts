@@ -31,6 +31,8 @@ import {
 } from "../../game/weather.js";
 import { composeLook, formatPromptBlock } from "./gameplay.js";
 import { resolveTarget, markVisited } from "./helpers/entityMatching.js";
+import { generateCharacterBrief } from "../../game/characterBriefGenerator.js";
+import type { CharacterRoll } from "../../game/characterGenerator.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -876,6 +878,61 @@ export function handleAdminBriefs(
   }
 
   return { toPlayer: lines.join("\n") };
+}
+
+export async function handleAdminRegenBrief(
+  world: World,
+  target: string | undefined,
+  playerId: string,
+): Promise<ActionResult> {
+  if (target === "help") {
+    return {
+      toPlayer: [
+        formatBold("@regenerate-brief — Regenerate a player's character brief using the current prompt."),
+        "",
+        formatDim("  @regenerate-brief         Regenerate your own brief"),
+        formatDim("  @regenerate-brief <name>  Regenerate the named player's brief"),
+      ].join("\n"),
+    };
+  }
+
+  let targetId = playerId;
+  let displayName: string;
+
+  if (target) {
+    const playerIds = world.getEntitiesWithComponent("Player");
+    let found = false;
+    for (const id of playerIds) {
+      const p = world.getComponent(id, "Player") as { name: string } | undefined;
+      if (p?.name.toLowerCase() === target.toLowerCase()) {
+        targetId = id;
+        displayName = p.name;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return { toPlayer: formatDim(`No player found: ${target}`) };
+  } else {
+    const selfPlayer = world.getComponent(playerId, "Player") as { name: string } | undefined;
+    displayName = selfPlayer?.name ?? "(self)";
+  }
+
+  const roll = world.getComponent(targetId, "CharacterRoll") as CharacterRoll | undefined;
+  if (!roll) {
+    return { toPlayer: formatDim(`${displayName!} has no CharacterRoll — cannot regenerate brief.`) };
+  }
+
+  const newBrief = await generateCharacterBrief(roll);
+  world.setComponent(targetId, "CharacterBrief", { brief: newBrief });
+
+  return {
+    toPlayer: [
+      formatBold(`[Brief regenerated: ${displayName!}]`),
+      formatDim("─".repeat(30)),
+      "",
+      newBrief,
+    ].join("\n"),
+  };
 }
 
 export function handleAdminHelp(parser: Parser, target: string | undefined): ActionResult {

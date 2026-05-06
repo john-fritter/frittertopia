@@ -73,7 +73,15 @@ describe("generateCharacterBrief — failure path", () => {
     expect(result).toContain("auburn");
   });
 
-  it("fallback includes fantastical feature when present", async () => {
+  it("fallback is plain text — no CANON / RENDERING NOTES / AVOID labels", async () => {
+    vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
+    const result = await generateCharacterBrief(sampleRoll);
+    expect(result).not.toContain("CANON:");
+    expect(result).not.toContain("RENDERING NOTES:");
+    expect(result).not.toContain("AVOID:");
+  });
+
+  it("fallback includes fantastical feature value when present", async () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
     const result = await generateCharacterBrief(sampleRoll);
     expect(result).toContain("pointed ears");
@@ -84,20 +92,20 @@ describe("generateCharacterBrief — failure path", () => {
     const noFeatureRoll: CharacterRoll = { ...sampleRoll, fantasticalFeature: null };
     const result = await generateCharacterBrief(noFeatureRoll);
     expect(result).not.toContain("null");
-    expect(result).not.toContain("Fantastical feature:");
+    expect(result).not.toContain("pointed ears");
   });
 
-  it("fallback includes skin marks when present", async () => {
+  it("fallback includes skin marks value when present", async () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
     const result = await generateCharacterBrief(sampleRoll);
     expect(result).toContain("small tattoo");
   });
 
-  it("fallback omits skin marks section when array is empty", async () => {
+  it("fallback omits skin marks when array is empty", async () => {
     vi.spyOn(client, "generate").mockResolvedValue({ ok: false, error: "fail" });
     const noMarksRoll: CharacterRoll = { ...sampleRoll, skinMarks: [] };
     const result = await generateCharacterBrief(noMarksRoll);
-    expect(result).not.toContain("Marks:");
+    expect(result).not.toContain("small tattoo");
   });
 
   it("never throws — returns a string even when generate rejects", async () => {
@@ -117,31 +125,42 @@ describe("generateCharacterBrief — failure path", () => {
 });
 
 describe("generateCharacterBrief — system prompt contents", () => {
-  it("system prompt instructs output to contain CANON: section", async () => {
+  it("system prompt specifies label-free output format", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
     await generateCharacterBrief(sampleRoll);
     const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt).toContain("CANON:");
+    expect(systemPrompt).toContain("no section labels");
   });
 
-  it("system prompt instructs output to contain RENDERING NOTES: section", async () => {
+  it("system prompt does not instruct CANON / RENDERING NOTES / AVOID output labels", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
     await generateCharacterBrief(sampleRoll);
     const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt).toContain("RENDERING NOTES:");
+    expect(systemPrompt).not.toContain("CANON:");
+    expect(systemPrompt).not.toContain("RENDERING NOTES:");
+    expect(systemPrompt).not.toContain("AVOID:");
   });
 
-  it("system prompt instructs output to contain AVOID: section", async () => {
+  it("system prompt describes rendering notes concept (unusual traits, easy to misuse)", async () => {
     const mock = vi
       .spyOn(client, "generate")
       .mockResolvedValue({ ok: true, text: "brief" });
     await generateCharacterBrief(sampleRoll);
     const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
-    expect(systemPrompt).toContain("AVOID:");
+    expect(systemPrompt).toContain("easy to misuse");
+  });
+
+  it("system prompt describes avoid concept (bad inferences)", async () => {
+    const mock = vi
+      .spyOn(client, "generate")
+      .mockResolvedValue({ ok: true, text: "brief" });
+    await generateCharacterBrief(sampleRoll);
+    const systemPrompt = mock.mock.calls[0]?.[0] ?? "";
+    expect(systemPrompt).toContain("bad inferences");
   });
 
   it("system prompt does not contain storyteller voice", async () => {

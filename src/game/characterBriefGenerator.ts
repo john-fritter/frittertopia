@@ -7,18 +7,17 @@ export const client = new LLMClient();
 const MAX_RETRIES = 3;
 
 function buildFallback(roll: CharacterRoll): string {
-  const parts = [
-    `${roll.gender}, ${roll.age}.`,
-    `${roll.height} height, ${roll.build} build.`,
-    `Skin: ${roll.skin}. Eyes: ${roll.eyes}. Hair: ${roll.hair}.`,
+  const lines = [
+    `${roll.gender}, ${roll.age}, ${roll.height} height, ${roll.build} build.`,
+    `${roll.skin} skin, ${roll.eyes} eyes, ${roll.hair} hair.`,
   ];
   if (roll.fantasticalFeature !== null) {
-    parts.push(`Fantastical feature: ${roll.fantasticalFeature}.`);
+    lines.push(`${roll.fantasticalFeature}.`);
   }
   if (roll.skinMarks.length > 0) {
-    parts.push(`Marks: ${roll.skinMarks.join(", ")}.`);
+    lines.push(roll.skinMarks.join(", ") + ".");
   }
-  return parts.join(" ");
+  return lines.join("\n");
 }
 
 export async function generateCharacterBrief(roll: CharacterRoll): Promise<string> {

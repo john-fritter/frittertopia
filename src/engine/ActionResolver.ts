@@ -24,6 +24,7 @@ import {
   handleAdminLlm,
   handleAdminBrief,
   handleAdminBriefs,
+  handleAdminRegenBrief,
   handleAdminHelp,
 } from "./verbs/admin.js";
 import { formatSystem } from "../server/format.js";
@@ -127,8 +128,9 @@ export class ActionResolver {
     this.parser.registerVerb("@sysinfo",     { isAdmin: true, description: "Show ticks, uptime, entity counts",          usage: "@sysinfo" });
     this.parser.registerVerb("@prompt",      { isAdmin: true, description: "Show the last LLM prompt sent",              usage: "@prompt" });
     this.parser.registerVerb("@llm",         { isAdmin: true, description: "Toggle inline LLM prompt display",           usage: "@llm [on|off]" });
-    this.parser.registerVerb("@brief",       { isAdmin: true, description: "Show character roll and brief for a player", usage: "@brief [player]" });
-    this.parser.registerVerb("@briefs",      { isAdmin: true, description: "Show all player briefs in current room",     usage: "@briefs" });
+    this.parser.registerVerb("@brief",           { isAdmin: true, description: "Show character roll and brief for a player",     usage: "@brief [player]" });
+    this.parser.registerVerb("@briefs",          { isAdmin: true, description: "Show all player briefs in current room",         usage: "@briefs" });
+    this.parser.registerVerb("@regenerate-brief", { isAdmin: true, description: "Regenerate a player's character brief via LLM", usage: "@regenerate-brief [player]" });
     this.parser.registerVerb("@as",          { isAdmin: true, description: "Run a command as another player",            usage: "@as <player> <command>" });
     this.parser.registerVerb("@help",        { isAdmin: true, description: "Show this list",                             usage: "@help" });
   }
@@ -221,6 +223,10 @@ export class ActionResolver {
       case "@briefs":
         return await this.adminGate(playerId, () =>
           handleAdminBriefs(this.world, intent.target, playerId)
+        );
+      case "@regenerate-brief":
+        return await this.adminGate(playerId, () =>
+          handleAdminRegenBrief(this.world, intent.target, playerId)
         );
       case "@as": {
         return await this.adminGate(playerId, async () => {

@@ -8,6 +8,7 @@ import { registerComponents } from "../src/game/components.js";
 import { ActionResolver } from "../src/engine/ActionResolver.js";
 import { GameServer } from "../src/server/Server.js";
 import { createAccountTable } from "../src/server/auth.js";
+import { client as briefClient } from "../src/game/characterBriefGenerator.js";
 
 const TEST_PASSWORD = "openthegate";
 
@@ -85,6 +86,10 @@ describe("Admin commands (unit)", () => {
   let resolver: ActionResolver;
   let adminId: string;
   let normalId: string;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     world = setupWorld();
@@ -446,11 +451,88 @@ describe("Admin commands (unit)", () => {
   });
 
   it("non-admin denied for all new admin commands", async () => {
-    const newCmds = ["@players", "@time", "@sysinfo", "@prompt", "@llm"];
+    const newCmds = ["@players", "@time", "@sysinfo", "@prompt", "@llm", "@regenerate-brief"];
     for (const verb of newCmds) {
       const result = await resolver.resolve({ verb }, normalId);
       expect(result.toPlayer).toBe("You don't have permission to do that.");
     }
+  });
+
+  describe("@regenerate-brief", () => {
+    it("returns error when player has no CharacterRoll", async () => {
+      const result = await resolver.resolve({ verb: "@regenerate-brief" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("no CharacterRoll");
+    });
+
+    it("returns error when named player not found", async () => {
+      const result = await resolver.resolve({ verb: "@regenerate-brief", target: "Ghost" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("No player found");
+    });
+
+    it("regenerates own brief and stores new CharacterBrief", async () => {
+      const roll = {
+        gender: "female", age: "adult", height: "average", build: "average",
+        skin: "warm beige", eyes: "hazel", hair: "auburn",
+        fantasticalFeature: null, skinMarks: [] as string[],
+      };
+      world.addComponent(adminId, "CharacterRoll", roll as unknown as Record<string, unknown>);
+
+      vi.spyOn(briefClient, "generate").mockResolvedValue({ ok: true, text: "Female, adult, average build." });
+
+      const result = await resolver.resolve({ verb: "@regenerate-brief" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("Brief regenerated");
+      expect(plain).toContain("Female, adult, average build.");
+
+      const stored = world.getComponent(adminId, "CharacterBrief") as { brief: string } | undefined;
+      expect(stored?.brief).toBe("Female, adult, average build.");
+    });
+
+    it("regenerates another player's brief by name", async () => {
+      const roll = {
+        gender: "male", age: "teen", height: "short", build: "lean",
+        skin: "pale", eyes: "blue", hair: "black",
+        fantasticalFeature: null, skinMarks: [] as string[],
+      };
+      world.addComponent(normalId, "CharacterRoll", roll as unknown as Record<string, unknown>);
+
+      vi.spyOn(briefClient, "generate").mockResolvedValue({ ok: true, text: "Male teen, lean build." });
+
+      const result = await resolver.resolve({ verb: "@regenerate-brief", target: "Normal" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("Brief regenerated");
+      expect(plain).toContain("Normal");
+
+      const stored = world.getComponent(normalId, "CharacterBrief") as { brief: string } | undefined;
+      expect(stored?.brief).toBe("Male teen, lean build.");
+    });
+
+    it("falls back to static brief when LLM fails", async () => {
+      const roll = {
+        gender: "female", age: "adult", height: "average", build: "average",
+        skin: "warm beige", eyes: "hazel", hair: "auburn",
+        fantasticalFeature: null, skinMarks: [] as string[],
+      };
+      world.addComponent(adminId, "CharacterRoll", roll as unknown as Record<string, unknown>);
+
+      vi.spyOn(briefClient, "generate").mockResolvedValue({ ok: false, error: "API error" });
+
+      const result = await resolver.resolve({ verb: "@regenerate-brief" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("Brief regenerated");
+      // fallback includes core physical traits
+      expect(plain).toContain("female");
+      expect(plain).toContain("warm beige");
+    });
+
+    it("shows help text", async () => {
+      const result = await resolver.resolve({ verb: "@regenerate-brief", target: "help" }, adminId);
+      const plain = stripAnsi(result.toPlayer);
+      expect(plain).toContain("@regenerate-brief");
+      expect(plain).toContain("current prompt");
+    });
   });
 });
 
