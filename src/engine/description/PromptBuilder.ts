@@ -73,7 +73,11 @@ function formatItemBlock(item: ItemBriefEntry, indent: string): string {
       .join(", ");
     if (stateStr) lines.push(`${indent}  STATE: ${stateStr}`);
   }
-  lines.push(`${indent}  POSITION: ${item.location}`);
+  if (item.location.startsWith("carried by")) {
+    lines.push(`${indent}  CARRIED`);
+  } else {
+    lines.push(`${indent}  POSITION: ${item.location}`);
+  }
   lines.push(`${indent}}`);
   return lines.join("\n");
 }

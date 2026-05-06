@@ -45,10 +45,7 @@ entities:
         slot: "hand"
       ItemBrief:
         brief: >-
-          A Coleman lantern from another era, sitting on a shelf as though someone
-          meant to return for it. The green paint has gone chalky with age. The
-          glass globe is intact. Oil sloshes faintly in the reservoir when you
-          lift it.
+          Vintage Coleman oil lantern, olive green. Paint chalky with age, glass globe intact.
       ItemState:
         lit: false
         oil: "full"

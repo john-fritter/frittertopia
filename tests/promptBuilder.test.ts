@@ -287,7 +287,8 @@ describe("buildSenseUserPrompt — item briefs", () => {
     expect(output).toContain("[ITEM: a Coleman lantern]");
     expect(output).toContain("POSITION: in room");
     expect(output).toContain("[ITEM: a gold coin]");
-    expect(output).toContain("POSITION: carried by Maren");
+    expect(output).toContain("CARRIED");
+    expect(output).not.toContain("POSITION: carried by");
   });
 
   it("includes only inventory items when room has none with briefs", () => {
@@ -301,7 +302,8 @@ describe("buildSenseUserPrompt — item briefs", () => {
     const output = builder.buildSenseUserPrompt(ctx, "inventory");
     expect(output).toContain("[ITEMS]");
     expect(output).toContain("[ITEM: a coin]");
-    expect(output).toContain("POSITION: carried by Maren");
+    expect(output).toContain("CARRIED");
+    expect(output).not.toContain("POSITION: carried by");
   });
 
   it("omits placedAt from sense prompt state too", () => {
