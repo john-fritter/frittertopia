@@ -4,7 +4,7 @@ import type { RoomContext, ItemBriefEntry } from "./ContextBuilder.js";
 import type { CharacterRoll } from "../../game/characterGenerator.js";
 
 // ---------------------------------------------------------------------------
-// Internal helpers — shared by buildRoomUserPrompt
+// Internal helpers
 // ---------------------------------------------------------------------------
 
 interface WorldStatePayload {
@@ -46,30 +46,58 @@ function assembleWorldState(ctx: RoomContext): WorldStatePayload {
   };
 }
 
-function formatWeatherLine(state: WorldStatePayload): string {
-  if (state.tempF === undefined) return `Weather: ${state.weather}`;
-  const parts: string[] = [state.weather];
-  parts.push(`${state.tempF}°F (${state.tempBracket ?? ""})`);
-  if (state.pressureMb !== undefined && state.pressureTrend !== undefined) {
-    parts.push(`${state.pressureMb} mb ${state.pressureTrend}`);
+function formatEnvironmentState(state: WorldStatePayload): string {
+  const parts: string[] = [
+    `time=${state.timeOfDay}`,
+    `moon=${state.moonPhase} (${state.moonAboveHorizon ? "above horizon" : "below horizon"})`,
+    `weather=${state.weather}`,
+  ];
+  if (state.tempF !== undefined) {
+    parts.push(`temp=${state.tempF}°F (${state.tempBracket ?? ""})`);
   }
-  return `Weather: ${parts.join(", ")}`;
+  if (state.pressureMb !== undefined && state.pressureTrend !== undefined) {
+    parts.push(`pressure=${state.pressureMb} mb ${state.pressureTrend}`);
+  }
+  return `STATE: ${parts.join(", ")}`;
 }
 
-function formatItemBriefs(items: ItemBriefEntry[]): string {
-  return items
-    .map((item) => {
-      const lines = [`- ${item.short} (${item.location})`, `  ${item.brief}`];
-      if (item.state) {
-        const stateStr = Object.entries(item.state)
-          .filter(([k]) => k !== "placedAt")
-          .map(([k, v]) => `${k}=${String(v)}`)
-          .join(", ");
-        if (stateStr) lines.push(`  State: ${stateStr}`);
-      }
-      return lines.join("\n");
-    })
-    .join("\n");
+function formatItemBlock(item: ItemBriefEntry, indent: string): string {
+  const lines = [
+    `${indent}[ITEM: ${item.short}] {`,
+    `${indent}  ${item.brief}`,
+  ];
+  if (item.state) {
+    const stateStr = Object.entries(item.state)
+      .filter(([k]) => k !== "placedAt")
+      .map(([k, v]) => `${k}=${String(v)}`)
+      .join(", ");
+    if (stateStr) lines.push(`${indent}  STATE: ${stateStr}`);
+  }
+  lines.push(`${indent}  POSITION: ${item.location}`);
+  lines.push(`${indent}}`);
+  return lines.join("\n");
+}
+
+function buildRoomBlock(state: WorldStatePayload): string {
+  const presentParts: string[] = [
+    ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
+    ...state.otherPlayers.map((name) => `${name} (player)`),
+  ];
+  const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
+
+  const lines = [
+    `[ROOM: ${state.roomName}] {`,
+    `  ${state.roomBrief}`,
+    `  present: ${presentLine}`,
+  ];
+  if (state.exits && Object.keys(state.exits).length > 0) {
+    const exitParts = Object.entries(state.exits)
+      .map(([dir, name]) => `${dir} → ${name}`)
+      .join(", ");
+    lines.push(`  exits: ${exitParts}`);
+  }
+  lines.push("}");
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -84,8 +112,9 @@ const FALLBACK_STORYTELLER =
   "Never refuse, apologize, or break frame to mention mechanics.";
 
 const FALLBACK_DESCRIBE_ROOM =
-  "Describe the room in 1–3 sentences. " +
-  "Every entry in the Present list must be named in your prose.";
+  "Describe the room as the player perceives it right now, in 1–3 sentences. " +
+  "Use the room brief in [ROOM] as ground truth. " +
+  "Every entity in the present field must be named in your prose.";
 
 const FALLBACK_BRIEF_GENERATOR =
   "You are a brief generator for Frittertopia. " +
@@ -98,7 +127,7 @@ const FALLBACK_CHARACTER_BRIEF =
 
 const FALLBACK_DESCRIBE =
   "Respond to the player's sense input. Describe what is perceived. " +
-  "Use only what is given. Do not invent facts not present in the context.";
+  "Use only what is given in the context blocks. Do not invent facts.";
 
 // ---------------------------------------------------------------------------
 // PromptBuilder class
@@ -146,45 +175,54 @@ export class PromptBuilder {
 
   buildRoomUserPrompt(ctx: RoomContext, rawInput: string): string {
     const state = assembleWorldState(ctx);
+    const blocks: string[] = [];
 
-    const presentParts: string[] = [
-      ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
-      ...state.otherPlayers.map((name) => `${name} (player)`),
-    ];
-    const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
+    // [ROOM] block
+    blocks.push(buildRoomBlock(state));
 
-    const lines = [
-      `Room: ${state.roomName}`,
-      `Brief: ${state.roomBrief}`,
-      `Time: ${state.timeOfDay}`,
-      `Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`,
-      formatWeatherLine(state),
-      `Present: ${presentLine}`,
-    ];
+    // [ENVIRONMENT] block — placeholder; zone brief content added in a later step
+    blocks.push(`[ENVIRONMENT] {\n  ${formatEnvironmentState(state)}\n}`);
 
-    if (state.characterBriefs && state.characterBriefs.length > 0) {
-      const briefLines = state.characterBriefs
-        .map((b) => `- ${b.name}: ${b.brief}`)
-        .join("\n");
-      lines.push(`Character details:\n${briefLines}`);
+    // [CURRENT PLAYER] block
+    const currentName = ctx.currentPlayerName;
+    const selfBrief = currentName
+      ? (state.characterBriefs ?? []).find((b) => b.name === currentName)
+      : undefined;
+    if (currentName && selfBrief) {
+      blocks.push(`[CURRENT PLAYER: ${currentName}] {\n  ${selfBrief.brief}\n}`);
     }
 
+    // [CHARACTERS] block — other players who have briefs
+    const otherBriefs = (state.characterBriefs ?? []).filter(
+      (b) => b.name !== currentName,
+    );
+    if (otherBriefs.length > 0) {
+      const charLines = ["[CHARACTERS] {"];
+      for (const b of otherBriefs) {
+        charLines.push(`  [PLAYER: ${b.name}] {`);
+        charLines.push(`    ${b.brief}`);
+        charLines.push(`  }`);
+      }
+      charLines.push("}");
+      blocks.push(charLines.join("\n"));
+    }
+
+    // [ITEMS] block — room items only
     if (state.roomItemBriefs && state.roomItemBriefs.length > 0) {
-      lines.push(`Item details:\n${formatItemBriefs(state.roomItemBriefs)}`);
+      const itemLines = ["[ITEMS] {"];
+      for (const item of state.roomItemBriefs) {
+        itemLines.push(formatItemBlock(item, "  "));
+      }
+      itemLines.push("}");
+      blocks.push(itemLines.join("\n"));
     }
 
-    if (state.exits && Object.keys(state.exits).length > 0) {
-      const exitParts = Object.entries(state.exits)
-        .map(([dir, name]) => `${dir} → ${name}`)
-        .join(", ");
-      lines.push(`Exits: ${exitParts}`);
-    }
+    // [INPUT]
+    blocks.push(`[INPUT] { ${rawInput} }`);
 
-    // recentOutput seam: lines.push(`Recent: ${recentOutput}`);
+    // recentOutput seam: blocks.push(`[RECENT] { ${recentOutput} }`);
 
-    lines.push(`Player input: ${rawInput}`);
-
-    return lines.join("\n");
+    return blocks.join("\n");
   }
 
   buildSenseUserPrompt(
@@ -197,84 +235,59 @@ export class PromptBuilder {
     const otherBriefs = (ctx.characterBriefs ?? []).filter((b) => b.name !== currentName);
     const state = assembleWorldState(ctx);
 
-    const lines: string[] = [];
+    const blocks: string[] = [];
 
-    // ── Current player ─────────────────────────────────────────────────────────
-    lines.push(`CURRENT PLAYER: ${currentName}`);
-    lines.push("");
-    lines.push("CURRENT PLAYER BRIEF:");
-    lines.push("<<<");
-    lines.push(selfBrief?.brief ?? "(no brief on file)");
-    lines.push(">>>");
-    lines.push("");
-    lines.push("REFERENCE RULE:");
-    lines.push(
-      `"I", "me", "my", "myself", "self", and unqualified body-part references ` +
-        `(hands, legs, face, body, eyes, etc.) refer only to the current player: ${currentName}. ` +
-        `If the player intends to inspect another character they will name that character explicitly.`,
+    // [ROOM] block
+    blocks.push(buildRoomBlock(state));
+
+    // [ENVIRONMENT] block — placeholder; zone brief content added in a later step
+    blocks.push(`[ENVIRONMENT] {\n  ${formatEnvironmentState(state)}\n}`);
+
+    // [CURRENT PLAYER] block
+    const selfBriefText = selfBrief?.brief ?? "(no brief on file)";
+    const referenceRule =
+      `REFERENCE RULE: "I", "me", "my", "myself", "self", and unqualified body-part references ` +
+      `(hands, legs, face, body, eyes, etc.) refer only to the current player: ${currentName}. ` +
+      `If the player intends to inspect another character they will name that character explicitly.`;
+    blocks.push(
+      `[CURRENT PLAYER: ${currentName}] {\n  ${selfBriefText}\n  ${referenceRule}\n}`,
     );
 
-    // ── Other present players ───────────────────────────────────────────────────
+    // [CHARACTERS] block — other players who have briefs
     if (otherBriefs.length > 0) {
-      lines.push("");
-      lines.push("OTHER PRESENT PLAYERS:");
+      const charLines = ["[CHARACTERS] {"];
       for (const b of otherBriefs) {
-        lines.push("");
-        lines.push(`PLAYER: ${b.name}`);
-        lines.push("BRIEF:");
-        lines.push("<<<");
-        lines.push(b.brief);
-        lines.push(">>>");
+        charLines.push(`  [PLAYER: ${b.name}] {`);
+        charLines.push(`    ${b.brief}`);
+        charLines.push(`  }`);
       }
+      charLines.push("}");
+      blocks.push(charLines.join("\n"));
     }
 
-    // ── Target ─────────────────────────────────────────────────────────────────
+    // [TARGET] block
     if (targetBrief) {
-      lines.push("");
-      lines.push(`TARGET: ${targetBrief.name}`);
-      lines.push("TARGET BRIEF:");
-      lines.push("<<<");
-      lines.push(targetBrief.brief);
-      lines.push(">>>");
+      blocks.push(`[TARGET: ${targetBrief.name}] {\n  ${targetBrief.brief}\n}`);
     }
 
-    // ── Room context ────────────────────────────────────────────────────────────
-    const presentParts: string[] = [
-      ...state.entitiesPresent.map((e) => `${e.name}: ${e.description}`),
-      ...state.otherPlayers.map((name) => `${name} (player)`),
-    ];
-    const presentLine = presentParts.length > 0 ? presentParts.join(", ") : "empty";
-
-    lines.push("");
-    lines.push(`Room: ${state.roomName}`);
-    lines.push(`Brief: ${state.roomBrief}`);
-    lines.push(`Time: ${state.timeOfDay}`);
-    lines.push(`Moon: ${state.moonPhase}, ${state.moonAboveHorizon ? "above horizon" : "below horizon"}`);
-    lines.push(formatWeatherLine(state));
-    lines.push(`Present: ${presentLine}`);
-
+    // [ITEMS] block — room items + inventory items combined
     const allItems = [
       ...(ctx.roomItemBriefs ?? []),
       ...(ctx.inventoryItemBriefs ?? []),
     ];
     if (allItems.length > 0) {
-      lines.push("");
-      lines.push("ITEM DETAILS:");
-      lines.push("<<<");
-      lines.push(formatItemBriefs(allItems));
-      lines.push(">>>");
+      const itemLines = ["[ITEMS] {"];
+      for (const item of allItems) {
+        itemLines.push(formatItemBlock(item, "  "));
+      }
+      itemLines.push("}");
+      blocks.push(itemLines.join("\n"));
     }
 
-    if (state.exits && Object.keys(state.exits).length > 0) {
-      const exitParts = Object.entries(state.exits)
-        .map(([dir, name]) => `${dir} → ${name}`)
-        .join(", ");
-      lines.push(`Exits: ${exitParts}`);
-    }
+    // [INPUT]
+    blocks.push(`[INPUT] { ${rawInput} }`);
 
-    lines.push(`Player input: ${rawInput}`);
-
-    return lines.join("\n");
+    return blocks.join("\n");
   }
 
   buildCharacterUserPrompt(roll: CharacterRoll): string {

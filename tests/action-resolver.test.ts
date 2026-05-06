@@ -305,7 +305,7 @@ describe("Targeted look — raw input passed to storyteller", () => {
     // Footer is appended on targeted look
     expect(plain).toContain("The Test Room");
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: look at rosemary");
+    expect(userPrompt).toContain("[INPUT] { look at rosemary }");
     expect(userPrompt).not.toContain("Target:");
     expect(userPrompt).not.toContain("Command:");
   });
@@ -459,7 +459,7 @@ describe("Sensory verbs", () => {
     expect(plain).toContain("You hear rustling.");
     expect(plain).toContain("The Herb Garden");
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: listen to rosemary");
+    expect(userPrompt).toContain("[INPUT] { listen to rosemary }");
   });
 
   // --- raw input is passed to the storyteller (not a Command: field) ---
@@ -472,7 +472,7 @@ describe("Sensory verbs", () => {
     await resolver.resolve({ verb: "listen", target: "rosemary", rawInput: "listen to rosemary" }, playerId);
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: listen to rosemary");
+    expect(userPrompt).toContain("[INPUT] { listen to rosemary }");
     expect(userPrompt).not.toContain("Command:");
   });
 
@@ -484,7 +484,7 @@ describe("Sensory verbs", () => {
     await resolver.resolve({ verb: "touch", target: "rosemary", rawInput: "touch rosemary" }, playerId);
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: touch rosemary");
+    expect(userPrompt).toContain("[INPUT] { touch rosemary }");
     expect(userPrompt).not.toContain("Command:");
   });
 
@@ -496,7 +496,7 @@ describe("Sensory verbs", () => {
     await resolver.resolve({ verb: "taste", target: "rosemary", rawInput: "taste rosemary" }, playerId);
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: taste rosemary");
+    expect(userPrompt).toContain("[INPUT] { taste rosemary }");
     expect(userPrompt).not.toContain("Command:");
   });
 

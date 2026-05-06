@@ -244,8 +244,6 @@ describe("buildDescriptionPrompt", () => {
   it("system prompt is self-contained — two calls with different rawInput produce the same system prompt", () => {
     const r1 = buildDescriptionPrompt(baseContext, "look");
     const r2 = buildDescriptionPrompt(baseContext, "smell candle");
-    // Verifies the description kind is a pure, isolated function;
-    // a future kind can be added as a separate export without touching this one.
     expect(r1.system).toBe(r2.system);
   });
 
@@ -270,40 +268,40 @@ describe("buildDescriptionPrompt", () => {
   describe("user prompt — field presence", () => {
     it("includes the room name", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Room: The Courtyard");
+      expect(user).toContain("[ROOM: The Courtyard]");
     });
 
     it("includes the room brief", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Brief: A wide open courtyard surrounded by stone walls.");
+      expect(user).toContain("A wide open courtyard surrounded by stone walls.");
     });
 
     it("includes time and moon", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Time: day");
-      expect(user).toContain("Moon: full, above horizon");
+      expect(user).toContain("time=day");
+      expect(user).toContain("moon=full (above horizon)");
     });
 
     it("includes weather", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Weather: clear");
+      expect(user).toContain("weather=clear");
     });
 
     it("includes exits when present", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Exits:");
+      expect(user).toContain("exits:");
       expect(user).toContain("east → The Corridor");
       expect(user).toContain("south → The Kitchen");
     });
 
     it("omits exits line when exits is empty", () => {
       const { user } = buildDescriptionPrompt({ ...baseContext, exits: {} }, "look");
-      expect(user).not.toContain("Exits:");
+      expect(user).not.toContain("exits:");
     });
 
     it("omits exits line when exits is undefined", () => {
       const { user } = buildDescriptionPrompt({ ...baseContext, exits: undefined }, "look");
-      expect(user).not.toContain("Exits:");
+      expect(user).not.toContain("exits:");
     });
 
     it("lists present entities", () => {
@@ -324,19 +322,19 @@ describe("buildDescriptionPrompt", () => {
 
     it("shows 'empty' when nothing is present", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("Present: empty");
+      expect(user).toContain("present: empty");
     });
   });
 
   describe("user prompt — raw input contract", () => {
-    it("includes Player input field with the raw input", () => {
+    it("includes [INPUT] block with the raw input", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look at the altar");
-      expect(user).toContain("Player input: look at the altar");
+      expect(user).toContain("[INPUT] { look at the altar }");
     });
 
     it("includes raw sensory input verbatim", () => {
       const { user } = buildDescriptionPrompt(baseContext, "smell candle");
-      expect(user).toContain("Player input: smell candle");
+      expect(user).toContain("[INPUT] { smell candle }");
     });
 
     it("does NOT contain a Target: field", () => {
@@ -354,12 +352,12 @@ describe("buildDescriptionPrompt", () => {
       expect(user).not.toContain("Visit:");
     });
 
-    it("Player input appears after other context fields", () => {
+    it("[INPUT] block appears after [ROOM] block", () => {
       const { user } = buildDescriptionPrompt(baseContext, "listen");
-      const briefIdx = user.indexOf("Brief:");
-      const inputIdx = user.indexOf("Player input:");
-      expect(briefIdx).toBeGreaterThan(-1);
-      expect(inputIdx).toBeGreaterThan(briefIdx);
+      const roomIdx = user.indexOf("[ROOM:");
+      const inputIdx = user.indexOf("[INPUT]");
+      expect(roomIdx).toBeGreaterThan(-1);
+      expect(inputIdx).toBeGreaterThan(roomIdx);
     });
   });
 });
@@ -470,7 +468,7 @@ describe("DescriptionService", () => {
     await world.description.describe(roomId, playerId, "listen to the bell");
 
     const userPrompt = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(userPrompt).toContain("Player input: listen to the bell");
+    expect(userPrompt).toContain("[INPUT] { listen to the bell }");
   });
 
   it("user prompt does not contain Target: or Command:", async () => {
@@ -495,8 +493,8 @@ describe("DescriptionService", () => {
 
     const prompt1 = generateMock.mock.calls[0]?.[1] ?? "";
     const prompt2 = generateMock.mock.calls[1]?.[1] ?? "";
-    expect(prompt1).toContain("Player input: look");
-    expect(prompt2).toContain("Player input: smell candle");
+    expect(prompt1).toContain("[INPUT] { look }");
+    expect(prompt2).toContain("[INPUT] { smell candle }");
   });
 });
 
@@ -529,14 +527,13 @@ describe("PromptBuilder — buildSenseUserPrompt", () => {
     };
   });
 
-  it("includes CURRENT PLAYER with the player's name", () => {
+  it("includes [CURRENT PLAYER] with the player's name", () => {
     const user = builder.buildSenseUserPrompt(baseCtx, "look hands");
-    expect(user).toContain("CURRENT PLAYER: Aria");
+    expect(user).toContain("[CURRENT PLAYER: Aria]");
   });
 
-  it("includes CURRENT PLAYER BRIEF with the player's brief text", () => {
+  it("includes the player's brief text inside [CURRENT PLAYER]", () => {
     const user = builder.buildSenseUserPrompt(baseCtx, "look hands");
-    expect(user).toContain("CURRENT PLAYER BRIEF:");
     expect(user).toContain("Tall woman with auburn hair.");
   });
 
@@ -549,7 +546,7 @@ describe("PromptBuilder — buildSenseUserPrompt", () => {
     expect(user).toContain('"myself"');
   });
 
-  it("includes delimited PLAYER/BRIEF blocks for other players, not a flat list", () => {
+  it("includes [CHARACTERS] and [PLAYER] blocks for other players", () => {
     const ctx = {
       ...baseCtx,
       otherPlayers: ["Pell"],
@@ -559,57 +556,52 @@ describe("PromptBuilder — buildSenseUserPrompt", () => {
       ],
     };
     const user = builder.buildSenseUserPrompt(ctx, "look");
-    expect(user).toContain("OTHER PRESENT PLAYERS:");
-    expect(user).toContain("PLAYER: Pell");
-    expect(user).toContain("BRIEF:");
-    expect(user).toContain("<<<");
+    expect(user).toContain("[CHARACTERS]");
+    expect(user).toContain("[PLAYER: Pell]");
     expect(user).toContain("Short man with grey eyes.");
-    expect(user).toContain(">>>");
     // Not a flat list (no "- Pell: ..." format)
     expect(user).not.toMatch(/- Pell:/);
   });
 
-  it("omits OTHER PRESENT PLAYERS section when no other players have briefs", () => {
+  it("omits [CHARACTERS] section when no other players have briefs", () => {
     const user = builder.buildSenseUserPrompt(baseCtx, "look");
-    expect(user).not.toContain("OTHER PRESENT PLAYERS:");
-    // "PLAYER: Name" (other-player block header) should be absent;
-    // "CURRENT PLAYER:" is still present and is intentionally different
-    expect(user).not.toMatch(/^PLAYER: /m);
+    expect(user).not.toContain("[CHARACTERS]");
+    // [PLAYER: Name] block header should be absent
+    expect(user).not.toMatch(/\[PLAYER: /);
   });
 
-  it("includes TARGET and TARGET BRIEF sections when a target brief is supplied", () => {
+  it("includes [TARGET] section when a target brief is supplied", () => {
     const target = { name: "Pell", brief: "Short man with grey eyes." };
     const user = builder.buildSenseUserPrompt(baseCtx, "look at Pell", target);
-    expect(user).toContain("TARGET: Pell");
-    expect(user).toContain("TARGET BRIEF:");
+    expect(user).toContain("[TARGET: Pell]");
     expect(user).toContain("Short man with grey eyes.");
   });
 
-  it("omits TARGET section when no target brief is supplied", () => {
+  it("omits [TARGET] section when no target brief is supplied", () => {
     const user = builder.buildSenseUserPrompt(baseCtx, "look at the well");
-    expect(user).not.toContain("TARGET:");
+    expect(user).not.toContain("[TARGET:");
     expect(user).not.toContain("TARGET BRIEF:");
   });
 
   it("includes room context fields", () => {
     const user = builder.buildSenseUserPrompt(baseCtx, "look");
-    expect(user).toContain("Room: The Courtyard");
-    expect(user).toContain("Brief: A wide open courtyard");
-    expect(user).toContain("Time: day");
-    expect(user).toContain("Player input: look");
+    expect(user).toContain("[ROOM: The Courtyard]");
+    expect(user).toContain("A wide open courtyard");
+    expect(user).toContain("time=day");
+    expect(user).toContain("[INPUT] { look }");
   });
 
   it("includes exits when present", () => {
     const ctx = { ...baseCtx, exits: { north: "The Hall" } };
     const user = builder.buildSenseUserPrompt(ctx, "look");
-    expect(user).toContain("Exits:");
+    expect(user).toContain("exits:");
     expect(user).toContain("north → The Hall");
   });
 
   it("falls back to (no brief on file) when current player has no brief", () => {
     const ctx = { ...baseCtx, characterBriefs: [] };
     const user = builder.buildSenseUserPrompt(ctx, "look hands");
-    expect(user).toContain("CURRENT PLAYER: Aria");
+    expect(user).toContain("[CURRENT PLAYER: Aria]");
     expect(user).toContain("(no brief on file)");
   });
 });
@@ -640,7 +632,7 @@ describe("DescriptionService — role routing", () => {
     vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Stone." });
     await world.description.describe(roomId, playerId, "look");
     const system = world.description.lastPrompt?.system ?? "";
-    expect(system).toContain("Present list"); // unique to describe-room.md
+    expect(system).toContain("present field"); // unique to describe-room.md
     expect(system).not.toContain("self-directed"); // unique to describe.md
   });
 
@@ -649,7 +641,7 @@ describe("DescriptionService — role routing", () => {
     await world.description.describeSense(roomId, playerId, "look hands");
     const system = world.description.lastPrompt?.system ?? "";
     expect(system).toContain("self-directed"); // unique to describe.md
-    expect(system).not.toContain("Present list"); // unique to describe-room.md
+    expect(system).not.toContain("present field"); // unique to describe-room.md
   });
 
   it("describeSense() sets lastPrompt context as sense:", async () => {
@@ -673,28 +665,28 @@ describe("DescriptionService — role routing", () => {
 
     await world.description.describeSense(roomId, playerId, "look at Mira", "Mira");
     const user = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(user).toContain("TARGET: Mira");
+    expect(user).toContain("[TARGET: Mira]");
     expect(user).toContain("Slight woman, dark eyes.");
   });
 
-  it("describeSense() omits TARGET section for targets without a brief", async () => {
+  it("describeSense() omits [TARGET] section for targets without a brief", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Just a wall." });
 
     await world.description.describeSense(roomId, playerId, "look at the wall", "the wall");
     const user = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(user).not.toContain("TARGET:");
+    expect(user).not.toContain("[TARGET:");
   });
 
-  it("describeSense() user prompt includes CURRENT PLAYER section", async () => {
+  it("describeSense() user prompt includes [CURRENT PLAYER] section", async () => {
     const generateMock = vi
       .spyOn(world.llm, "generate")
       .mockResolvedValue({ ok: true, text: "Your hands." });
 
     await world.description.describeSense(roomId, playerId, "look hands");
     const user = generateMock.mock.calls[0]?.[1] ?? "";
-    expect(user).toContain("CURRENT PLAYER: Tester");
+    expect(user).toContain("[CURRENT PLAYER: Tester]");
     expect(user).toContain("REFERENCE RULE:");
     expect(user).toContain("refer only to the current player: Tester");
   });
