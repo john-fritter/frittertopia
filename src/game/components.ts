@@ -92,6 +92,8 @@ export function registerComponents(world: World): void {
   world.registerComponent(
     "WeatherZone",
     z.object({
+      name: z.string().optional(),
+      brief: z.string().optional(),
       climate: z.string(),
       tempCurve: z.object({
         winterMin: z.number(),

@@ -324,3 +324,78 @@ describe("buildSenseUserPrompt — item briefs", () => {
     expect(output).toContain("lit=false");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ENVIRONMENT block — zone name and brief
+// ---------------------------------------------------------------------------
+
+describe("buildRoomUserPrompt — ENVIRONMENT block", () => {
+  let builder: PromptBuilder;
+
+  beforeEach(() => {
+    builder = new PromptBuilder();
+    builder.loadPromptFiles(PROMPTS_DIR);
+  });
+
+  it("renders [ENVIRONMENT] without zone name when none is provided", () => {
+    const output = builder.buildRoomUserPrompt(minimalCtx(), "look");
+    expect(output).toContain("[ENVIRONMENT]");
+    expect(output).not.toContain("[ENVIRONMENT:");
+  });
+
+  it("renders [ENVIRONMENT: zoneName] when zone name is provided", () => {
+    const ctx = minimalCtx({ zoneName: "Alpine Monastery" });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).toContain("[ENVIRONMENT: Alpine Monastery]");
+  });
+
+  it("includes zone brief content when provided", () => {
+    const ctx = minimalCtx({
+      zoneName: "Alpine Monastery",
+      zoneBrief: "High-elevation alpine zone. Cold winters, mild summers.",
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).toContain("High-elevation alpine zone.");
+    expect(output).toContain("Cold winters, mild summers.");
+  });
+
+  it("brief appears before STATE line in the ENVIRONMENT block", () => {
+    const ctx = minimalCtx({
+      zoneName: "Alpine Monastery",
+      zoneBrief: "High-elevation alpine zone.",
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    const briefIdx = output.indexOf("High-elevation alpine zone.");
+    const stateIdx = output.indexOf("STATE:");
+    expect(briefIdx).toBeGreaterThan(-1);
+    expect(stateIdx).toBeGreaterThan(briefIdx);
+  });
+
+  it("STATE line is always present regardless of zone", () => {
+    const output = builder.buildRoomUserPrompt(minimalCtx(), "look");
+    expect(output).toContain("STATE:");
+    expect(output).toContain("time=morning");
+  });
+
+  it("multi-line zone brief renders each line indented", () => {
+    const ctx = minimalCtx({
+      zoneName: "Test Zone",
+      zoneBrief: "First paragraph line.\n\nSecond paragraph line.",
+    });
+    const output = builder.buildRoomUserPrompt(ctx, "look");
+    expect(output).toContain("  First paragraph line.");
+    expect(output).toContain("  Second paragraph line.");
+  });
+
+  it("sense prompt also renders zone name and brief in ENVIRONMENT block", () => {
+    const ctx = minimalCtx({
+      currentPlayerName: "Aria",
+      characterBriefs: [{ name: "Aria", brief: "Tall woman." }],
+      zoneName: "Alpine Monastery",
+      zoneBrief: "High-elevation alpine zone.",
+    });
+    const output = builder.buildSenseUserPrompt(ctx, "look around");
+    expect(output).toContain("[ENVIRONMENT: Alpine Monastery]");
+    expect(output).toContain("High-elevation alpine zone.");
+  });
+});

@@ -212,6 +212,43 @@ describe("ContextBuilder", () => {
     expect(typeof ctx.moonAboveHorizon).toBe("boolean");
     expect(ctx.weather).toBe("clear");
   });
+
+  it("includes zoneName and zoneBrief from WeatherZone when room has a WeatherZoneRef", () => {
+    const world2 = makeWorld();
+    const zoneId = world2.createEntity("test.zone");
+    world2.addComponent(zoneId, "WeatherZone", {
+      name: "Test Alpine",
+      brief: "Cold and wet.",
+      climate: "alpine",
+      tempCurve: { winterMin: -10, winterMax: 2, summerMin: 5, summerMax: 18, diurnalRange: 10 },
+      pressureDrift: { speed: "slow", volatility: "high" },
+      precipitationBias: "high",
+    });
+    world2.addComponent(zoneId, "WeatherState", {
+      tempC: 5,
+      pressureMb: 1010,
+      precipState: "clear",
+      precipStateElapsedMs: 0,
+      precipStateDurationMs: 0,
+      tempNoise: 0,
+      pressureNoise: 0,
+      pressureHistory: [],
+      snowDepth: 0,
+    });
+    const r2 = addRoom(world2, "zone.room", "The Courtyard", "a courtyard");
+    world2.addComponent(r2, "WeatherZoneRef", { zoneId });
+    const p2 = addPlayer(world2, r2, "Hiker", []);
+
+    const ctx = new ContextBuilder(world2).buildContext(r2, p2);
+    expect(ctx.zoneName).toBe("Test Alpine");
+    expect(ctx.zoneBrief).toBe("Cold and wet.");
+  });
+
+  it("omits zoneName and zoneBrief for rooms without a WeatherZoneRef", () => {
+    const ctx = new ContextBuilder(world).buildContext(roomId, playerId);
+    expect(ctx.zoneName).toBeUndefined();
+    expect(ctx.zoneBrief).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

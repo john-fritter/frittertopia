@@ -20,6 +20,8 @@ interface WorldStatePayload {
   tempBracket?: string;
   pressureMb?: number;
   pressureTrend?: string;
+  zoneName?: string;
+  zoneBrief?: string;
   exits?: Record<string, string>;
   characterBriefs?: { name: string; brief: string }[];
   roomItemBriefs?: ItemBriefEntry[];
@@ -40,6 +42,8 @@ function assembleWorldState(ctx: RoomContext): WorldStatePayload {
     ...(ctx.tempBracket !== undefined && { tempBracket: ctx.tempBracket }),
     ...(ctx.pressureMb !== undefined && { pressureMb: ctx.pressureMb }),
     ...(ctx.pressureTrend !== undefined && { pressureTrend: ctx.pressureTrend }),
+    ...(ctx.zoneName !== undefined && { zoneName: ctx.zoneName }),
+    ...(ctx.zoneBrief !== undefined && { zoneBrief: ctx.zoneBrief }),
     ...(ctx.exits !== undefined && { exits: ctx.exits }),
     ...((ctx.characterBriefs?.length ?? 0) > 0 && { characterBriefs: ctx.characterBriefs }),
     ...((ctx.roomItemBriefs?.length ?? 0) > 0 && { roomItemBriefs: ctx.roomItemBriefs }),
@@ -79,6 +83,19 @@ function formatItemBlock(item: ItemBriefEntry, indent: string): string {
     lines.push(`${indent}  POSITION: ${item.location}`);
   }
   lines.push(`${indent}}`);
+  return lines.join("\n");
+}
+
+function buildEnvironmentBlock(state: WorldStatePayload): string {
+  const header = state.zoneName ? `[ENVIRONMENT: ${state.zoneName}]` : "[ENVIRONMENT]";
+  const lines = [`${header} {`];
+  if (state.zoneBrief) {
+    for (const line of state.zoneBrief.trimEnd().split("\n")) {
+      lines.push(`  ${line}`);
+    }
+  }
+  lines.push(`  ${formatEnvironmentState(state)}`);
+  lines.push("}");
   return lines.join("\n");
 }
 
@@ -199,8 +216,8 @@ export class PromptBuilder {
     // [ROOM] block
     blocks.push(buildRoomBlock(state));
 
-    // [ENVIRONMENT] block — placeholder; zone brief content added in a later step
-    blocks.push(`[ENVIRONMENT] {\n  ${formatEnvironmentState(state)}\n}`);
+    // [ENVIRONMENT] block — zone name and brief when available, live state always
+    blocks.push(buildEnvironmentBlock(state));
 
     // [CURRENT PLAYER] block
     const currentName = ctx.currentPlayerName;
@@ -259,8 +276,8 @@ export class PromptBuilder {
     // [ROOM] block
     blocks.push(buildRoomBlock(state));
 
-    // [ENVIRONMENT] block — placeholder; zone brief content added in a later step
-    blocks.push(`[ENVIRONMENT] {\n  ${formatEnvironmentState(state)}\n}`);
+    // [ENVIRONMENT] block — zone name and brief when available, live state always
+    blocks.push(buildEnvironmentBlock(state));
 
     // [CURRENT PLAYER] block
     const selfBriefText = selfBrief?.brief ?? "(no brief on file)";

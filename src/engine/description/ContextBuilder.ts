@@ -47,6 +47,10 @@ export interface RoomContext {
   pressureMb?: number;
   /** Pressure trend label — present only for rooms with a WeatherZoneRef. */
   pressureTrend?: PressureTrend;
+  /** Zone display name — present only for rooms with a WeatherZoneRef and a named zone. */
+  zoneName?: string;
+  /** Zone biome brief — present only for rooms with a WeatherZoneRef and an authored brief. */
+  zoneBrief?: string;
   /** Mechanical exits: direction → target room name. */
   exits?: Record<string, string>;
   /** Character briefs for entities present in the room, including the current player. */
@@ -213,7 +217,7 @@ export class ContextBuilder {
 
     type WeatherFields = Pick<
       RoomContext,
-      "weather" | "tempC" | "tempF" | "tempBracket" | "pressureMb" | "pressureTrend"
+      "weather" | "tempC" | "tempF" | "tempBracket" | "pressureMb" | "pressureTrend" | "zoneName" | "zoneBrief"
     >;
 
     let weatherFields: WeatherFields = { weather: "clear" };
@@ -226,16 +230,21 @@ export class ContextBuilder {
             pressureHistory: PressurePoint[];
           }
         | undefined;
-      if (ws) {
-        weatherFields = {
-          weather: ws.precipState,
+      const wz = this.world.getComponent(weatherZoneRef.zoneId, "WeatherZone") as
+        | { name?: string; brief?: string }
+        | undefined;
+      weatherFields = {
+        weather: ws?.precipState ?? "clear",
+        ...(ws !== undefined && {
           tempC: ws.tempC,
           tempF: Math.round(celsiusToFahrenheit(ws.tempC)),
           tempBracket: computeTempBracket(ws.tempC),
           pressureMb: Math.round(ws.pressureMb),
           pressureTrend: computePressureTrend(ws.pressureHistory),
-        };
-      }
+        }),
+        ...(wz?.name !== undefined && { zoneName: wz.name }),
+        ...(wz?.brief !== undefined && { zoneBrief: wz.brief }),
+      };
     }
 
     return {
