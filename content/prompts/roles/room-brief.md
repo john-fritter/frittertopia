@@ -1,63 +1,103 @@
 Create an internal physical continuity record for a room.
 
-Use only the provided source prose. Do not invent facts not supported by the source.
+Use only the provided source prose as the basis for facts. You may
+infer and commit to specific physical details not stated in the source
+— dimensions, positions, materials — when the source supports the
+inference. These become canon. Do not invent features, objects, or
+structural elements the source does not establish.
 
-Core physical facts: materials, approximate dimensions or scale when the source provides them, layout, permanent structural features, fixed furniture. Terse. Use as few lines as needed. Omit anything the source does not establish.
+Core physical facts: materials, dimensions, layout, permanent
+structural features, fixed furniture. Every room must have at least
+one committed dimension — actual measurements or clear scale
+references, not vague terms like "large" or "small". Terse. Use as
+few lines as needed.
 
-Notes: include a note only when it prevents a specific misreading or captures non-obvious mechanical behavior the storyteller needs to maintain. Common sense is assumed. Do not over-instruct.
+Every named feature must include:
+- What it is and what it's made of
+- Its position in the room ("north wall", "center of the room",
+  "along the east and west walls")
+- Its approximate size or scale ("six feet deep", "shoulder height",
+  "wide enough to seat six per side")
+
+Notes: include a note only when it prevents a specific misreading or
+captures non-obvious mechanical behavior the storyteller needs to
+maintain. Common sense is assumed. Do not over-instruct.
 
 Good notes:
-- "The bareness is deliberate, not neglected." (prevents misreading of intent as poverty or abandonment)
-- "Stone walls hold warmth for hours after the hearth goes cold." (non-obvious mechanical behavior)
-- "The ceiling is low — tall people duck by instinct even where clearance is fine." (spatial fact with behavioral consequence)
+- "The bareness is deliberate, not neglected."
+- "Stone walls hold warmth for hours after the hearth goes cold."
+- "The ceiling is low — tall people duck by instinct even where
+  clearance is fine."
 
 Not notes — omit these:
 - "The silence has weight." (mood without misreading to prevent)
 - "The room feels ancient." (atmosphere, not prevention)
-- "Everything here has a story." (editorial)
+- "The table is the social center of the monastery." (editorial)
+- Any instruction about how or when to describe something.
 
-Sensory variation: when the source establishes how a room changes at different times of day or seasons, state those as plain facts. "Morning light enters as a pale rectangle on the north wall. By afternoon it has moved to the floor." Not as directions to the storyteller — as facts about the room.
+Sensory variation: when the source establishes how a room changes
+at different times of day or seasons, state those as plain facts.
+"Morning light enters as a pale rectangle on the north wall. By
+afternoon it has moved to the floor." Not as directions — as facts.
 
-Named features: for each named fixture, furniture, or recurring point of interaction, create a bracket-headed block. The block contains physical facts about that feature, any notes specific to it, and optionally a REVEAL for a detail the source establishes should only surface on close inspection.
+Named features: for each named fixture, furniture, or recurring
+point of interaction, create a bracket-headed block containing
+physical facts, position, dimensions, any notes specific to it,
+and optionally a REVEAL.
 
-REVEAL syntax: REVEAL: <detail> — <unlock condition>
+REVEAL syntax: REVEAL: detail — unlock condition
 
-Use REVEAL only when the source explicitly establishes a conditional detail. Do not speculate.
+Use REVEAL only when the source explicitly establishes a conditional
+detail. Do not speculate.
 
 Hard exclusions — omit entirely:
-- History, lore, origin, who built it, how old it is
+- History, lore, origin, age, who built it
 - NPCs and their behaviors
 - Items and portable objects (they have their own briefs)
 - Live state: current occupancy, weather, time of day
-- Exit descriptions, directions used only for navigation, destination room names, and room-to-room narrative. Do not create feature blocks for exits, doorways, archways, passages, doors, or thresholds whose main purpose is navigation — even if the source prose names them in brackets. Keep only permanent physical details that matter inside the room.
+- Exit descriptions and navigation. Do not create feature blocks
+  for doors, archways, passages, or thresholds whose main purpose
+  is navigation.
 - Future-state speculation outside a REVEAL
 - Mood and atmosphere that serve no correction purpose
+- Instructions to the storyteller about when or how to describe
+  something
 
 Output format:
 
-Core physical facts. One or two terse lines.
+Core physical facts and room dimensions. Terse.
 
-Notes, if any. Plain sentences. Omit entirely if none are needed.
+Notes, if any. Omit if none needed.
 
 Sensory variation, if the source establishes it. Omit otherwise.
 
 [feature name] {
-  Physical facts about this feature. Terse.
-  Notes for this feature, if applicable.
-  REVEAL: detail — unlock condition   (only if applicable)
+  What it is, what it's made of.
+  Position in room.
+  Approximate size or scale.
+  Notes, if applicable.
+  REVEAL: detail — unlock condition (only if applicable)
 }
 
-[feature name] {
-  ...
-}
+No section headers. No labels. The structure does the work.
 
-No section headers. No labels like CANON or FEATURES. The structure itself does the work. Line breaks separate logical groups within the core section and within each feature block.
+Example (structural illustration only):
 
-Example (structural illustration only — do not copy this content):
-
-Roughly square flagstone courtyard, open to sky, about thirty feet across. Stones worn smooth on the paths, rough where foot traffic is absent.
+Roughly square flagstone courtyard, open to sky. Approximately
+thirty feet across, bounded by monastery walls on three sides.
+Stone flags uneven and cracked, worn smooth on the main paths,
+rough where foot traffic is absent. Moss in shaded corners.
+Only fully open space in the monastery — weather reaches here
+directly.
 
 [well] {
-  Stone well, center of the courtyard. Rim worn smooth. Wooden frame darkened with age, slightly crooked. Hemp rope recently replaced — newer than the frame. Old leather bucket, cracked but functional. Water clean and very cold.
-  Echo changes with time of day: clear and bright in the morning, flat by midday, deepening in the evening, sharp and resonant at night.
+  Stone well, center of the courtyard.
+  Rim worn smooth from hands and rope. Wooden frame above,
+  darkened with age, slightly crooked. Hemp rope recently
+  replaced — newer than the frame. Old leather bucket, cracked
+  but functional. Approximately four feet across at the rim.
+  Water clean and very cold.
+  Echo changes with time of day: clear and bright in morning,
+  flat by midday, deepening in evening, sharp at night.
+  Do not explain the echo change.
 }
