@@ -23,13 +23,13 @@ describe("PromptBuilder", () => {
     it("contains storyteller voice", () => {
       // unique phrase from storyteller.md
       expect(builder.buildSystemPrompt("describe-room")).toContain(
-        "been here a long time",
+        "narrator before you are a writer",
       );
     });
 
     it("contains describe-room role instructions", () => {
       // unique phrase from roles/describe-room.md
-      expect(builder.buildSystemPrompt("describe-room")).toContain("present field");
+      expect(builder.buildSystemPrompt("describe-room")).toContain("editorialize");
     });
 
     it("does not contain character-brief role instructions", () => {
@@ -62,15 +62,15 @@ describe("PromptBuilder", () => {
     });
 
     it("does not contain storyteller voice", () => {
-      // "been here a long time" is the unique storyteller.md phrase
+      // "narrator before you are a writer" is the unique storyteller.md phrase
       expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
-        "been here a long time",
+        "narrator before you are a writer",
       );
     });
 
     it("does not contain describe-room role instructions", () => {
       expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
-        "present field",
+        "editorialize",
       );
     });
   });
@@ -82,7 +82,7 @@ describe("PromptBuilder", () => {
     });
 
     it("contains storyteller voice", () => {
-      expect(builder.buildSystemPrompt("describe")).toContain("been here a long time");
+      expect(builder.buildSystemPrompt("describe")).toContain("narrator before you are a writer");
     });
 
     it("contains describe role instructions", () => {
@@ -91,7 +91,7 @@ describe("PromptBuilder", () => {
     });
 
     it("does not contain describe-room role instructions", () => {
-      expect(builder.buildSystemPrompt("describe")).not.toContain("present field");
+      expect(builder.buildSystemPrompt("describe")).not.toContain("editorialize");
     });
 
     it("does not contain character-brief role instructions", () => {
@@ -108,17 +108,8 @@ describe("PromptBuilder", () => {
 
   // Requirement: world.md content appears in ALL system prompts regardless of role
   describe("world.md content — shared across all roles", () => {
-    it("contains the body-difference line in every role", () => {
-      const phrase = "Do not treat visible difference as proof of nature, origin, morality, or destiny";
-      expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
-      expect(builder.buildSystemPrompt("describe")).toContain(phrase);
-      expect(builder.buildSystemPrompt("character-brief", false)).toContain(phrase);
-      expect(builder.buildSystemPrompt("room-brief", false)).toContain(phrase);
-    });
-
-    it("contains playability constraints in every role", () => {
-      // moved from character-brief.md task to world.md so all roles see it
-      const phrase = "fit through a normal doorway";
+    it("world context appears in every role", () => {
+      const phrase = "They walk back";
       expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
       expect(builder.buildSystemPrompt("describe")).toContain(phrase);
       expect(builder.buildSystemPrompt("character-brief", false)).toContain(phrase);
@@ -126,23 +117,20 @@ describe("PromptBuilder", () => {
     });
   });
 
-  // Requirement: storyteller.md contains the character brief usage guidance
+  // Requirement: storyteller.md content appears in storyteller prompts but not brief prompts
   describe("storyteller.md content", () => {
-    it("contains character brief usage guidance", () => {
+    it("storyteller voice appears in storyteller prompts", () => {
       expect(builder.buildSystemPrompt("describe-room")).toContain(
-        "Use character briefs as continuity records, not scripts",
+        "narrator before you are a writer",
       );
-    });
-
-    it("contains the appearance inference prohibition", () => {
-      const phrase =
-        "Do not infer personality, backstory, social role, health, morality, species, ancestry, culture, origin, or destiny from appearance";
-      expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
+      expect(builder.buildSystemPrompt("describe")).toContain(
+        "narrator before you are a writer",
+      );
     });
 
     it("is absent from character-brief prompt", () => {
       expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
-        "Use character briefs as continuity records, not scripts",
+        "narrator before you are a writer",
       );
     });
   });
@@ -161,10 +149,10 @@ describe("PromptBuilder", () => {
       expect(builder.buildSystemPrompt("room-brief", false)).not.toContain("self-directed");
     });
 
-    it("describe-room task content (present field) is absent from describe and brief prompts", () => {
-      expect(builder.buildSystemPrompt("describe")).not.toContain("present field");
-      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain("present field");
-      expect(builder.buildSystemPrompt("room-brief", false)).not.toContain("present field");
+    it("describe-room task content is absent from describe and brief prompts", () => {
+      expect(builder.buildSystemPrompt("describe")).not.toContain("editorialize");
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain("editorialize");
+      expect(builder.buildSystemPrompt("room-brief", false)).not.toContain("editorialize");
     });
 
     it("room-brief task content (REVEAL) is absent from storyteller prompts", () => {

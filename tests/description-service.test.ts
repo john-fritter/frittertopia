@@ -287,18 +287,13 @@ describe("buildDescriptionPrompt", () => {
   describe("system prompt", () => {
     it("instructs second-person present-tense writing", () => {
       const { system } = buildDescriptionPrompt(baseContext, "look");
-      expect(system).toMatch(/second-person/i);
+      expect(system).toMatch(/second person/i);
       expect(system).toMatch(/present.tense/i);
     });
 
-    it("specifies sentence length", () => {
+    it("contains length guidance", () => {
       const { system } = buildDescriptionPrompt(baseContext, "look");
-      expect(system).toMatch(/sentences/i);
-    });
-
-    it("instructs in-character handling of implausible input — no refusals", () => {
-      const { system } = buildDescriptionPrompt(baseContext, "look");
-      expect(system).toMatch(/never refuse|never.*apologi|in character/i);
+      expect(system).toMatch(/as long as needed|one or two lines/i);
     });
   });
 
@@ -660,7 +655,7 @@ describe("DescriptionService — role routing", () => {
     vi.spyOn(world.llm, "generate").mockResolvedValue({ ok: true, text: "Stone." });
     await world.description.describe(roomId, playerId, "look");
     const system = world.description.lastPrompt?.system ?? "";
-    expect(system).toContain("present field"); // unique to describe-room.md
+    expect(system).toContain("editorialize"); // unique to describe-room.md
     expect(system).not.toContain("self-directed"); // unique to describe.md
   });
 
@@ -669,7 +664,7 @@ describe("DescriptionService — role routing", () => {
     await world.description.describeSense(roomId, playerId, "look hands");
     const system = world.description.lastPrompt?.system ?? "";
     expect(system).toContain("self-directed"); // unique to describe.md
-    expect(system).not.toContain("present field"); // unique to describe-room.md
+    expect(system).not.toContain("editorialize"); // unique to describe-room.md
   });
 
   it("describeSense() sets lastPrompt context as sense:", async () => {

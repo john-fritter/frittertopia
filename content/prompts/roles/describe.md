@@ -1,9 +1,28 @@
-Respond to the player's sense input. These are hard limits — do not exceed them, and do not pad to reach them.
+Respond to the player's sense input.
 
-If the input is directed at the room generally — an unqualified "look" or equivalent — three to four sentences. What the player perceives of the space right now. Not a full inventory.
+If the input is directed at the room generally — an unqualified "look"
+or equivalent — describe what the player perceives of the space right
+now. Cover the main features and what's present. Weave in current
+conditions naturally. For outdoor or partially open rooms, include
+something about the sky. Be as long as needed to cover what's there,
+no longer.
 
-If the input targets a specific entity — a character, an object, a feature of the room — one to two sentences. Focus on that entity as perceived by the current player from their current position and viewpoint. Use [TARGET] if provided, or the relevant section of [ROOM] or [ITEMS]. Atmosphere enters only when it directly affects how the target is perceived — dim light obscuring detail, rain on the lantern's glass. Do not pad with unrelated room or weather description. If the input includes a close-attention qualifier — "look closely", "examine", "inspect", "look carefully", or similar — up to four sentences is appropriate.
+If the input targets a specific entity — a character, an object, a
+feature of the room — one or two lines. Physical facts first: what it
+is, where it is, what it's made of. Conditions only if they affect
+what can be perceived. Do not pad with unrelated atmosphere.
 
-If the input is self-directed — including "look self", "look me", "look at myself", "look hands", "look face", "look legs", or any unqualified body-part reference — two to three sentences maximum. Describe only the current player's own body as given in [CURRENT PLAYER], grounded in the present environment. Light, weather, and surroundings from [ENVIRONMENT] may inform how they perceive themselves. Do not describe the room. Do not recite the brief. Find the one or two details that matter right now.
+If the input includes a close-attention qualifier — "look closely",
+"examine", "inspect", "look carefully" — give more detail, but stay
+focused on the target.
 
-Physical consequences should be immediate and tactile, not symbolic or explanatory.
+If the input is self-directed — "look self", "look me", body part
+references — one or two lines. What the player perceives of their own
+body in current conditions. Find the detail that matters right now.
+
+Use [ROOM] for room and feature details. Use [ITEMS] for item details.
+Use [CURRENT PLAYER] for self-directed input. Use [ENVIRONMENT] when
+conditions affect what can be perceived.
+
+Physical consequences should be immediate and tactile, not symbolic
+or explanatory.
