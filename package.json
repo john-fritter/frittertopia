@@ -8,7 +8,8 @@
     "build": "tsc",
     "test": "vitest",
     "dev": "tsx src/main.ts",
-    "reset": "tsx src/main.ts --fresh"
+    "reset": "tsx src/main.ts --fresh",
+    "generate-brief": "tsx scripts/generate-room-brief.ts"
   },
   "keywords": [],
   "author": "",

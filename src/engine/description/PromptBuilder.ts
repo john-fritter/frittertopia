@@ -129,6 +129,12 @@ const FALLBACK_CHARACTER_BRIEF =
   "You are writing an internal character brief. " +
   "Plain prose, under 75 words. Describe the character as a body at rest.";
 
+const FALLBACK_ROOM_BRIEF =
+  "Create a physical continuity record for a room. " +
+  "Extract facts from the source prose. No invented details. " +
+  "Named features use [feature name] { ... } blocks. " +
+  "REVEAL: detail — condition for conditional facts only when the source establishes them.";
+
 const FALLBACK_DESCRIBE =
   "Respond to the player's sense input. Describe what is perceived. " +
   "Use only what is given in the context blocks. Do not invent facts.";
@@ -137,7 +143,7 @@ const FALLBACK_DESCRIBE =
 // PromptBuilder class
 // ---------------------------------------------------------------------------
 
-export type PromptRole = "describe-room" | "describe" | "character-brief";
+export type PromptRole = "describe-room" | "describe" | "character-brief" | "room-brief";
 
 export class PromptBuilder {
   private world = "";
@@ -146,6 +152,7 @@ export class PromptBuilder {
   private describeRoom = FALLBACK_DESCRIBE_ROOM;
   private describe = FALLBACK_DESCRIBE;
   private characterBrief = FALLBACK_CHARACTER_BRIEF;
+  private roomBrief = FALLBACK_ROOM_BRIEF;
 
   loadPromptFiles(promptsDir: string): void {
     this.world = fs.readFileSync(path.join(promptsDir, "world.md"), "utf8").trim();
@@ -164,17 +171,25 @@ export class PromptBuilder {
     this.characterBrief = fs
       .readFileSync(path.join(promptsDir, "roles", "character-brief.md"), "utf8")
       .trim();
+    this.roomBrief = fs
+      .readFileSync(path.join(promptsDir, "roles", "room-brief.md"), "utf8")
+      .trim();
   }
 
   buildSystemPrompt(role: PromptRole, includingStoryteller: boolean = true): string {
     let roleContent: string;
     if (role === "describe-room") roleContent = this.describeRoom;
     else if (role === "describe") roleContent = this.describe;
+    else if (role === "room-brief") roleContent = this.roomBrief;
     else roleContent = this.characterBrief;
     const middleLayer = includingStoryteller ? this.storyteller : this.briefGenerator;
     return [this.world, middleLayer, roleContent]
       .filter((s) => s.length > 0)
       .join("\n\n");
+  }
+
+  buildRoomBriefUserPrompt(roomName: string, prose: string): string {
+    return `Room name: ${roomName}\n\nSource:\n${prose}`;
   }
 
   buildRoomUserPrompt(ctx: RoomContext, rawInput: string): string {

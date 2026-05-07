@@ -197,4 +197,9 @@ export function registerComponents(world: World): void {
     ["itemIds[]"]
   );
 
+  world.registerComponent(
+    "RoomProse",
+    z.object({ prose: z.string() })
+  );
+
 }
