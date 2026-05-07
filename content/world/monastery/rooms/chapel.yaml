@@ -5,8 +5,8 @@ entities:
         name: "The Small Chapel"
       Description:
         short: "a small stone chapel"
-      RoomBrief:
-        brief: |
+      RoomProse:
+        prose: |
           The chapel is small — room for perhaps twenty, though it's hard to imagine twenty people here at once. The walls are pale limestone, unplastered, cut in blocks so precisely fitted that the mortar lines are barely visible. No paint, no hangings, no decoration of any kind except the cross above the altar. The bareness feels deliberate, not neglected.
 
           [cross] A simple wooden cross mounted on the wall above the altar. The wood is dark and fine-grained, very old, joined without nails — the crossbar is fitted into the upright with a tight mortise. There are no carvings or embellishments. The surface has a faint sheen, as though someone polishes it regularly. (This is one of the oldest objects in the monastery. Don't state this directly. If examined, describe only what can be seen and touched.)
@@ -20,6 +20,35 @@ entities:
           The floor is the same limestone as the walls, but smoother — polished by feet over a long time. There's a shallow groove worn into the stone down the center aisle. The air is cool and very still, carrying a faint smell of old wood and stone dust. Sound behaves strangely here — footsteps are sharp and clear, but voices seem to die quickly, absorbed by the bare walls. The silence has weight.
 
           Exits: South to the corridor.
+
+      RoomBrief:
+        brief: |
+          Small chamber, room for perhaps twenty occupants. Pale limestone walls, unplastered, blocks fitted so precisely mortar lines are barely visible. Smooth limestone floor, polished by long foot traffic — a shallow groove worn down the center aisle. Cool, still air.
+
+          The bareness is deliberate, not neglected.
+
+          Sound behavior: footsteps carry sharp and clear; voices die quickly, absorbed by bare walls.
+
+          Light varies significantly with time of day — match descriptions to current time.
+
+          [cross] {
+            Simple wooden cross mounted on wall above altar. Dark, fine-grained wood, very old. Crossbar fitted into upright with tight mortise — no nails. No carvings or embellishments. Surface has faint sheen as though regularly polished.
+          }
+
+          [altar] {
+            Plain stone slab on two squat stone legs, centered beneath cross. Surface smooth and slightly concave in the middle — worn, not carved. Thin linen cloth covers it, clean but patched in several places. Nothing sits on the altar.
+            REVEAL: concavity is from centuries of hands resting in the same place — close examination or touch
+          }
+
+          [pews] {
+            Three rows of wooden pews, six seats each, arranged with narrow aisle down center. Dark wood, aged and oiled from hands, edges rounded soft. Seats slightly hollowed. Kneelers are thin folding planks, bare wood worn pale at knee points — no cushion.
+            Pews creak when sat in.
+          }
+
+          [window] {
+            Single arched window, plain glass, high in east wall. No color, no leading — single pane in stone frame. Primary light source for the chapel.
+            Morning: direct light pours through, lays bright arch across floor and front pews. Midday: light has moved past, window gives diffuse even glow. Evening: glass catches last color of sky. Night: black arch, chapel lit only by spillover through the doorway.
+          }
       Exits:
         exits:
           south: monastery.corridor

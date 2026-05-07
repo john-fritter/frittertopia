@@ -5,8 +5,8 @@ entities:
         name: "The Dormitory"
       Description:
         short: "a long, spare dormitory"
-      RoomBrief:
-        brief: |
+      RoomProse:
+        prose: |
           A long, low-ceilinged room that runs along the east wall of the monastery. The ceiling is close — rough-hewn beams with the bark still on in places, dark with age. The room is austere by design, not poverty. Everything here exists because it was deemed necessary, and nothing else was.
 
           [cots] Eight narrow cots arranged in a row along the north wall, each identical: a wooden frame, a thin straw mattress, a single wool blanket folded with tight corners. The frames are old but well-maintained — someone has replaced joints and tightened pegs over the years. The blankets are coarse grey wool, heavy and warm, each one slightly different in its wear. A few mattresses show the shapes of their occupants — faint impressions that haven't quite sprung back. (Not all the cots are in use. Describe some as clearly unslept-in — blankets too perfect, no impression in the mattress. The room was built for more people than currently live here. Don't state this directly.)
@@ -20,6 +20,31 @@ entities:
           The door to the west is heavy dark wood, slightly crooked in its stone frame — it scrapes the floor when opened or closed, and the sound carries through the dormitory. There's a groove worn into the stone where it drags.
 
           Exits: West to the corridor.
+
+      RoomBrief:
+        brief: |
+          A long, low-ceilinged room along the east wall. Rough-hewn beams with bark still visible, darkened with age. Stone floor, bare and swept clean. Austere by design — everything present is deemed necessary; nothing superfluous.
+
+          The room was built for more occupants than currently inhabit it. This is evident in the arrangement and state of fixtures, not stated aloud.
+
+          Morning light enters as a bright shaft through the east window, flooding the room. By midday the light has moved on and the room falls into cool dimness. In the evening the window frames the darkening sky. At night with shutters closed, the room is very dark. The window is the only light source; its quality defines the room's mood entirely.
+
+          Stone floor is cold underfoot. Faint smell of wool, old wood, and mineral cold. The silence is distinct from the chapel's — the quiet of people sleeping or a room waiting for sleep. Sound from the corridor arrives muted, absorbed by thick walls.
+
+          [cots] {
+            Eight narrow cots in a row along the north wall, each identical: wooden frame, thin straw mattress, single coarse grey wool blanket folded with tight corners. Frames are old but well-maintained — joints replaced and pegs tightened over time. Blankets are heavy and warm, each worn slightly differently.
+            Some mattresses show faint impressions of occupants that haven't fully sprung back. Others show no impression — blankets too perfect, clearly unslept-in. Do not state the disparity directly; let it render the room's half-emptiness.
+          }
+
+          [window] {
+            Single shuttered window at the far east end, looking east down the mountain. Heavy wooden shutters, swollen slightly with moisture, do not close perfectly — a thin line of light or dark always leaks through. When open, admits direct morning light; by midday the shaft has moved on. In evening, frames the darkening sky.
+            This is the room's only light source. Match its state and quality to time of day.
+          }
+
+          [pegs] {
+            Row of wooden pegs driven into the south wall, one beside each cot. Most are empty. One holds a rough linen robe. Another has a leather cord with a few wooden beads.
+            These are the only personal storage in the room. The emptiness of most pegs reinforces the sparseness of individual possession.
+          }
       Exits:
         exits:
           west: monastery.corridor

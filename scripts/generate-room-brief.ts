@@ -84,7 +84,7 @@ const user = promptBuilder.buildRoomBriefUserPrompt(roomName, prose);
 
 process.stderr.write(`Generating brief for: ${roomName} (${roomKey})\n`);
 
-const result = await client.generate(system, user);
+const result = await client.generate(system, user, { maxTokens: 1400 });
 
 if (!result.ok) {
   console.error(`LLM error: ${result.error}`);

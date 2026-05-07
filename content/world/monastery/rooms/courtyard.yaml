@@ -5,8 +5,8 @@ entities:
         name: "The Monastery Courtyard"
       Description:
         short: "a crumbling stone courtyard"
-      RoomBrief:
-        brief: |
+      RoomProse:
+        prose: |
           The courtyard is the center of the monastery, a roughly square expanse of old flagstone open to the sky. The stones are uneven and cracked, worn smooth along the paths between doorways and rough where nobody walks. Moss fills the gaps in the shaded corners. The space is maybe thirty feet across.
 
           [well] A stone well near the center of the courtyard. The rim is worn smooth from hands and rope. The wooden frame above it is darkened with age, slightly crooked. The rope is hemp, frayed but recently replaced — newer than anything else on the structure. The bucket is old leather, cracked at the seams but still holding water. The water is clean and very cold. In the morning the well produces a clear, bright echo — sound bouncing off cold stone that hasn't warmed yet. Midday it goes flat and dull, the sun heating the shaft walls. In the evening the echo deepens and lingers, as though the well is slower to give sound back. At night it rings — a single drop sounds like it falls for a long time. (Describe the echo quality appropriate to the current time of day when the player interacts with the well or listens. Don't explain why it changes.)
@@ -16,6 +16,18 @@ entities:
           The sky is the dominant feature. This is the only place in the monastery fully open to weather — rain pools in the low spots between flagstones, wind funnels through the doorways, snow piles against the walls in winter. On clear nights the stars feel very close. The altitude is real here.
 
           Exits: East to the corridor. South to the kitchen.
+
+      RoomBrief:
+        brief: |
+          Roughly square flagstone courtyard, open to sky, approximately thirty feet across. Stones uneven and cracked, worn smooth along foot-traffic paths, rough in unused areas. Moss fills gaps in shaded corners.
+
+          The courtyard is the only fully open space in the monastery. Weather reaches here directly — rain pools between flagstones, wind funnels through doorways, snow accumulates against walls in winter. On clear nights, stars are notably visible and close-seeming due to altitude.
+
+          [well] {
+            Stone well near center of courtyard. Rim worn smooth from hands and rope. Wooden frame darkened with age, slightly crooked. Hemp rope recently replaced — newer than the frame itself. Leather bucket, cracked at seams but functional. Water clean and very cold.
+
+            Echo quality varies with time of day. Morning: clear and bright. Midday: flat and dull. Evening: deepens and lingers. Night: rings sharply — a single drop sounds prolonged. Describe echo quality appropriate to current time when player interacts with or listens to the well. Do not explain the cause.
+          }
       WeatherZoneRef:
         zoneId: weather.zone.monastery
       Exits:

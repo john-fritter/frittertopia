@@ -5,8 +5,8 @@ entities:
         name: "The East Corridor"
       Description:
         short: "a long stone corridor"
-      RoomBrief:
-        brief: |
+      RoomProse:
+        prose: |
           A narrow passage of rough-cut stone, running east to west with a branch to the north. The ceiling is low — tall people duck by instinct even where they don't need to. The walls are unfinished, the chisel marks still visible in the grey stone, and the floor is worn flagstone with a slight dip along the center where feet have passed for a very long time.
 
           [window] A single window set high in the south wall, narrow and deep-set in the thick stone. The glass is old and slightly uneven, giving the light that comes through a faintly rippled quality. In the morning the light falls as a pale rectangle on the opposite wall. By afternoon it's moved to the floor, a long bright trapezoid. In the evening the corridor dims quickly — the window faces south and catches no sunset light. At night the corridor is dark except for what spills from adjacent rooms. (Match the light description to time of day. The corridor has no light source of its own.)
@@ -16,6 +16,18 @@ entities:
           The corridor smells of cold stone and, faintly, of the kitchen — oil and woodsmoke that have seeped into the walls over years. Sounds carry strangely: footsteps echo, but conversation from adjacent rooms arrives muffled and indistinct. The stone stays cool even in summer.
 
           Exits: West to the courtyard. North to the chapel. East to the dormitory.
+
+      RoomBrief:
+        brief: |
+          Narrow passage, rough-cut stone, running east-west with northern branch. Ceiling low enough that tall people duck by instinct. Walls unfinished, chisel marks visible. Floor is worn flagstone with a central dip from long foot traffic. Stone remains cool even in summer.
+
+          Sounds carry strangely: footsteps echo clearly, but conversation from adjacent rooms arrives muffled and indistinct.
+
+          Morning: pale rectangle of light on the north wall from the window. By afternoon the light has moved to the floor as a long bright trapezoid. Evening: corridor dims quickly. Night: dark except for spill from adjacent rooms.
+
+          [window] {
+            Single window set high in the south wall, narrow and deep-set in thick stone. Glass is old and slightly uneven, giving rippled quality to light passing through.
+          }
       Exits:
         exits:
           west: starting.room

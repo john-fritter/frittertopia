@@ -5,8 +5,8 @@ entities:
         name: "The Herb Garden"
       Description:
         short: "an overgrown walled garden"
-      RoomBrief:
-        brief: |
+      RoomProse:
+        prose: |
           A small walled garden on the south side of the monastery, sheltered from the worst of the mountain wind but open to the sky. The walls are old stone, chest-high, capped with flat slabs that have shifted and cracked over the years. In places the mortar has crumbled entirely and the stones are held in place by the roots that have grown between them. The garden is maybe twenty feet square — intimate, enclosed, a room without a roof.
 
           [beds] Four raised beds of dark earth, edged with rough-cut stone, arranged in a simple grid with gravel paths between them. The beds were once orderly rows of culinary and medicinal herbs, and the bones of that order are still visible — sage in one bed, lavender in another — but everything has grown past its boundaries. The sage is woody and sprawling. The lavender has gone leggy, falling over the stone edges. A few beds show signs of recent tending — pulled weeds piled at the edges, soil turned dark where someone has been working — but the garden is winning. (The garden is tended but not controlled. Someone cares for it but can't keep up. Describe it as alive and a little wild, not abandoned.)
@@ -20,6 +20,28 @@ entities:
           The east wall has a low passage back into the kitchen — a dark rectangle in the stone, with light and cooking-smell spilling out. The threshold is worn smooth and there's always a little drift of soil tracked back and forth.
 
           Exits: East to the kitchen.
+
+      RoomBrief:
+        brief: |
+          Small walled garden, roughly twenty feet square, south-facing. Stone walls chest-high, capped with flat slabs cracked and shifted. Mortar crumbled in places; roots grow between stones, holding them. Open to sky. Uneven gravel paths between raised beds, half-buried by soil and spreading plants.
+
+          The garden is tended but not controlled — someone weeds and works the soil, but the plants have claimed most of the space. Describe as alive and a little wild, not abandoned.
+
+          Morning: cool, dewy, dense with herb fragrance. By midday: sun-baked, smell turns dry and resinous. Evening: stone walls radiate stored heat; garden becomes the warmest outdoor space in the monastery. Night: damp earth and cooling stone.
+
+          [raised beds] {
+            Four beds of dark earth edged with rough-cut stone, arranged in a grid. Sage in one, lavender in another. Both have grown past their boundaries — sage woody and sprawling, lavender leggy and falling over edges. Some beds show recent work: pulled weeds piled at edges, dark turned soil. Gravel paths between.
+          }
+
+          [rosemary] {
+            Waist-high bush in southwest corner, wider than tall. Thick woody stems at base, fragrant green growth at tips. Has colonized its corner, pushing branches across gravel and against the wall. Brushing it releases sharp, clean scent that lingers on clothing. Pale blue flowers in spring.
+            The dominant feature of the garden by sheer presence. Mention in any description. Has been growing here a very long time.
+          }
+
+          [brambles] {
+            Wild brambles in northeast corner, thorny runners threading through stone gaps. Recently cut back — cut ends pale and fresh, new growth already reaching. Carry small dark berries in summer and autumn, tart and worth the scratches.
+            Not cultivated. An intrusion the monks tolerate because the berries are useful.
+          }
       WeatherZoneRef:
         zoneId: weather.zone.monastery
       Exits:

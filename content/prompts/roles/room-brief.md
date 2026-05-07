@@ -31,7 +31,7 @@ Hard exclusions — omit entirely:
 - NPCs and their behaviors
 - Items and portable objects (they have their own briefs)
 - Live state: current occupancy, weather, time of day
-- Exit descriptions and room-to-room narrative
+- Exit descriptions, directions used only for navigation, destination room names, and room-to-room narrative. Do not create feature blocks for exits, doorways, archways, passages, doors, or thresholds whose main purpose is navigation — even if the source prose names them in brackets. Keep only permanent physical details that matter inside the room.
 - Future-state speculation outside a REVEAL
 - Mood and atmosphere that serve no correction purpose
 
