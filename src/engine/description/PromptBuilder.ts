@@ -109,13 +109,13 @@ function buildRoomBlock(state: WorldStatePayload): string {
   const lines = [
     `[ROOM: ${state.roomName}] {`,
     `  ${state.roomBrief}`,
-    `  present: ${presentLine}`,
+    `  PRESENT: ${presentLine}`,
   ];
   if (state.exits && Object.keys(state.exits).length > 0) {
     const exitParts = Object.entries(state.exits)
       .map(([dir, name]) => `${dir} → ${name}`)
       .join(", ");
-    lines.push(`  exits: ${exitParts}`);
+    lines.push(`  EXITS: ${exitParts}`);
   }
   lines.push("}");
   return lines.join("\n");
@@ -281,13 +281,7 @@ export class PromptBuilder {
 
     // [CURRENT PLAYER] block
     const selfBriefText = selfBrief?.brief ?? "(no brief on file)";
-    const referenceRule =
-      `REFERENCE RULE: "I", "me", "my", "myself", "self", and unqualified body-part references ` +
-      `(hands, legs, face, body, eyes, etc.) refer only to the current player: ${currentName}. ` +
-      `If the player intends to inspect another character they will name that character explicitly.`;
-    blocks.push(
-      `[CURRENT PLAYER: ${currentName}] {\n  ${selfBriefText}\n  ${referenceRule}\n}`,
-    );
+    blocks.push(`[CURRENT PLAYER: ${currentName}] {\n  ${selfBriefText}\n}`);
 
     // [CHARACTERS] block — other players who have briefs
     if (otherBriefs.length > 0) {

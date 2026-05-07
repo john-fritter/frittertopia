@@ -326,19 +326,19 @@ describe("buildDescriptionPrompt", () => {
 
     it("includes exits when present", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("exits:");
+      expect(user).toContain("EXITS:");
       expect(user).toContain("east → The Corridor");
       expect(user).toContain("south → The Kitchen");
     });
 
     it("omits exits line when exits is empty", () => {
       const { user } = buildDescriptionPrompt({ ...baseContext, exits: {} }, "look");
-      expect(user).not.toContain("exits:");
+      expect(user).not.toContain("EXITS:");
     });
 
     it("omits exits line when exits is undefined", () => {
       const { user } = buildDescriptionPrompt({ ...baseContext, exits: undefined }, "look");
-      expect(user).not.toContain("exits:");
+      expect(user).not.toContain("EXITS:");
     });
 
     it("lists present entities", () => {
@@ -359,7 +359,7 @@ describe("buildDescriptionPrompt", () => {
 
     it("shows 'empty' when nothing is present", () => {
       const { user } = buildDescriptionPrompt(baseContext, "look");
-      expect(user).toContain("present: empty");
+      expect(user).toContain("PRESENT: empty");
     });
   });
 
@@ -574,15 +574,6 @@ describe("PromptBuilder — buildSenseUserPrompt", () => {
     expect(user).toContain("Tall woman with auburn hair.");
   });
 
-  it("includes REFERENCE RULE binding self-references to the current player by name", () => {
-    const user = builder.buildSenseUserPrompt(baseCtx, "look me");
-    expect(user).toContain("REFERENCE RULE:");
-    expect(user).toContain("refer only to the current player: Aria");
-    expect(user).toContain('"I"');
-    expect(user).toContain('"me"');
-    expect(user).toContain('"myself"');
-  });
-
   it("includes [CHARACTERS] and [PLAYER] blocks for other players", () => {
     const ctx = {
       ...baseCtx,
@@ -631,7 +622,7 @@ describe("PromptBuilder — buildSenseUserPrompt", () => {
   it("includes exits when present", () => {
     const ctx = { ...baseCtx, exits: { north: "The Hall" } };
     const user = builder.buildSenseUserPrompt(ctx, "look");
-    expect(user).toContain("exits:");
+    expect(user).toContain("EXITS:");
     expect(user).toContain("north → The Hall");
   });
 
@@ -724,7 +715,5 @@ describe("DescriptionService — role routing", () => {
     await world.description.describeSense(roomId, playerId, "look hands");
     const user = generateMock.mock.calls[0]?.[1] ?? "";
     expect(user).toContain("[CURRENT PLAYER: Tester]");
-    expect(user).toContain("REFERENCE RULE:");
-    expect(user).toContain("refer only to the current player: Tester");
   });
 });

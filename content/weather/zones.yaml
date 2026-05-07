@@ -4,9 +4,9 @@ entities:
       WeatherZone:
         name: "Alpine Monastery"
         brief: |
-          High-elevation alpine zone. Winters cold and snowy (-12 to 4°C), summers mild (8 to 22°C) with a 12-degree daily swing. High annual precipitation — rain and fog in spring and autumn, heavy snow from late autumn through early spring.
+          Alpine mountain zone. Conifer forest below treeline — fir, pine, larch. Heather, sedge, and rocky scree above. Ravens, marmots, red deer. Snow holds in shadowed hollows through late spring.
 
-          Pressure is volatile: despite slow drift, conditions can shift from clear to storm within hours. Conifer forest below treeline, heather and scrub above. Snow holds in north-facing hollows through spring.
+          Pressure shifts quickly. A clear morning can become a storm within hours.
         climate: alpine
         tempCurve:
           winterMin: -12
