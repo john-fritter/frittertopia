@@ -6,4 +6,4 @@ If the input targets another named entity — a character, an object, a feature 
 
 If the input is directed at the room generally, describe what the player perceives of the space right now.
 
-Use only what is given. Do not invent objects, exits, traits, or facts not present in the context blocks. Physical consequences should be immediate and tactile, not symbolic or explanatory.
+Physical consequences should be immediate and tactile, not symbolic or explanatory.

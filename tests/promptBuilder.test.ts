@@ -106,12 +106,23 @@ describe("PromptBuilder", () => {
     });
   });
 
-  // Requirement: world.md contains the body-difference line
-  describe("world.md content", () => {
-    it("contains the basic biology / body-difference line", () => {
+  // Requirement: world.md content appears in ALL system prompts regardless of role
+  describe("world.md content — shared across all roles", () => {
+    it("contains the body-difference line in every role", () => {
       const phrase = "Do not treat visible difference as proof of nature, origin, morality, or destiny";
       expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
+      expect(builder.buildSystemPrompt("describe")).toContain(phrase);
       expect(builder.buildSystemPrompt("character-brief", false)).toContain(phrase);
+      expect(builder.buildSystemPrompt("room-brief", false)).toContain(phrase);
+    });
+
+    it("contains playability constraints in every role", () => {
+      // moved from character-brief.md task to world.md so all roles see it
+      const phrase = "fit through a normal doorway";
+      expect(builder.buildSystemPrompt("describe-room")).toContain(phrase);
+      expect(builder.buildSystemPrompt("describe")).toContain(phrase);
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain(phrase);
+      expect(builder.buildSystemPrompt("room-brief", false)).toContain(phrase);
     });
   });
 
@@ -133,6 +144,43 @@ describe("PromptBuilder", () => {
       expect(builder.buildSystemPrompt("character-brief", false)).not.toContain(
         "Use character briefs as continuity records, not scripts",
       );
+    });
+  });
+
+  // Requirement: task-layer content does not bleed into other tasks
+  describe("task layer isolation", () => {
+    it("character-brief task content is absent from describe-room and describe prompts", () => {
+      // "forgettable" is unique to character-brief.md
+      expect(builder.buildSystemPrompt("describe-room")).not.toContain("forgettable");
+      expect(builder.buildSystemPrompt("describe")).not.toContain("forgettable");
+    });
+
+    it("describe task content (self-directed) is absent from describe-room and brief prompts", () => {
+      expect(builder.buildSystemPrompt("describe-room")).not.toContain("self-directed");
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain("self-directed");
+      expect(builder.buildSystemPrompt("room-brief", false)).not.toContain("self-directed");
+    });
+
+    it("describe-room task content (present field) is absent from describe and brief prompts", () => {
+      expect(builder.buildSystemPrompt("describe")).not.toContain("present field");
+      expect(builder.buildSystemPrompt("character-brief", false)).not.toContain("present field");
+      expect(builder.buildSystemPrompt("room-brief", false)).not.toContain("present field");
+    });
+
+    it("room-brief task content (REVEAL) is absent from storyteller prompts", () => {
+      // REVEAL keyword is unique to room-brief.md
+      expect(builder.buildSystemPrompt("describe-room")).not.toContain("REVEAL");
+      expect(builder.buildSystemPrompt("describe")).not.toContain("REVEAL");
+    });
+  });
+
+  // Requirement: brief-generator role content appears in brief tasks but not storyteller tasks
+  describe("brief-generator role layer", () => {
+    it("'prompt infrastructure' appears in brief tasks but not storyteller tasks", () => {
+      expect(builder.buildSystemPrompt("character-brief", false)).toContain("prompt infrastructure");
+      expect(builder.buildSystemPrompt("room-brief", false)).toContain("prompt infrastructure");
+      expect(builder.buildSystemPrompt("describe-room")).not.toContain("prompt infrastructure");
+      expect(builder.buildSystemPrompt("describe")).not.toContain("prompt infrastructure");
     });
   });
 

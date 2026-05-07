@@ -1,7 +1,5 @@
 Create an internal physical continuity record for a player character.
 
-The record is never shown directly to the player. It will be given to the live storyteller so the character can be described consistently when relevant.
-
 Use only the provided CharacterRoll or player-written source description.
 
 For rolled characters:
@@ -13,8 +11,6 @@ For freeform player descriptions:
 - Preserve explicitly stated physical facts as source truth.
 - Anything not specified may vary between incarnations.
 - If the description violates playability constraints, reinterpret it as the nearest playable humanoid version and include an ADJUSTMENT note.
-
-All player characters are mortal, land-walking, breathing, eating, drinking, speaking, bipedal humanoids. They can fit through a normal doorway, wear clothing, carry a pack, use tools, and die.
 
 Do not describe the character as unremarkable, forgettable, ugly, beautiful, monstrous, divine, cursed, sick, weak, lazy, disciplined, poor, wealthy, dangerous, harmless, noble, evil, holy, or doomed unless explicitly supplied by the player.
 

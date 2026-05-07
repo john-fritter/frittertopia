@@ -1,7 +1,5 @@
 Create an internal physical continuity record for a room.
 
-The record is never shown directly to the player. It will be given to the live storyteller so the room can be described consistently.
-
 Use only the provided source prose. Do not invent facts not supported by the source.
 
 Core physical facts: materials, approximate dimensions or scale when the source provides them, layout, permanent structural features, fixed furniture. Terse. Use as few lines as needed. Omit anything the source does not establish.
