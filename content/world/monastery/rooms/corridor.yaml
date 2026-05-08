@@ -19,14 +19,15 @@ entities:
 
       RoomBrief:
         brief: |
-          Narrow passage, rough-cut stone, running east-west with northern branch. Ceiling low enough that tall people duck by instinct. Walls unfinished, chisel marks visible. Floor is worn flagstone with a central dip from long foot traffic. Stone remains cool even in summer.
+          Narrow passage of rough-cut stone, running east-west with a northern branch. Approximately twelve feet long, six feet wide, and six and a half feet high. Unfinished grey stone walls show visible chisel marks. Floor is worn flagstone with a shallow central dip from long foot traffic. Stone retains coolness even in summer.
 
-          Sounds carry strangely: footsteps echo clearly, but conversation from adjacent rooms arrives muffled and indistinct.
+          Odor of cold stone and kitchen smoke — oil and woodsmoke — has settled into the walls. Footsteps echo clearly; conversation from adjacent rooms arrives muffled and indistinct.
 
-          Morning: pale rectangle of light on the north wall from the window. By afternoon the light has moved to the floor as a long bright trapezoid. Evening: corridor dims quickly. Night: dark except for spill from adjacent rooms.
+          Morning light enters as a pale rectangle on the north wall. By afternoon it shifts to the floor as a long bright trapezoid. In evening the corridor dims quickly because the south-facing window catches no sunset. At night the corridor is dark except for light spilling from nearby rooms.
 
           [window] {
-            Single window set high in the south wall, narrow and deep-set in thick stone. Glass is old and slightly uneven, giving rippled quality to light passing through.
+            Single pane of old, slightly uneven glass set high in the south wall.
+            Opening is deep-set in thick stone, roughly two feet wide and three feet tall, with the sill above eye level. Light through it has a faintly rippled quality.
           }
       Exits:
         exits:

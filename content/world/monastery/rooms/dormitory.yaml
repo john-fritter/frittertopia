@@ -23,27 +23,23 @@ entities:
 
       RoomBrief:
         brief: |
-          A long, low-ceilinged room along the east wall. Rough-hewn beams with bark still visible, darkened with age. Stone floor, bare and swept clean. Austere by design — everything present is deemed necessary; nothing superfluous.
+          Rectangular dormitory running east-west along the monastery's east wall. Approximately forty feet long, sixteen feet wide, and nine feet high at the ceiling peak. Rough-hewn beams with bark intact are darkened with age. Bare flagstone floor is cold and swept clean. Faint smell of wool, old wood, and mineral stone-cold. Sound from the corridor arrives muted through thick walls.
 
-          The room was built for more occupants than currently inhabit it. This is evident in the arrangement and state of fixtures, not stated aloud.
-
-          Morning light enters as a bright shaft through the east window, flooding the room. By midday the light has moved on and the room falls into cool dimness. In the evening the window frames the darkening sky. At night with shutters closed, the room is very dark. The window is the only light source; its quality defines the room's mood entirely.
-
-          Stone floor is cold underfoot. Faint smell of wool, old wood, and mineral cold. The silence is distinct from the chapel's — the quiet of people sleeping or a room waiting for sleep. Sound from the corridor arrives muted, absorbed by thick walls.
+          Stone floor never fully warms. The room changes sharply with window state and time of day.
 
           [cots] {
-            Eight narrow cots in a row along the north wall, each identical: wooden frame, thin straw mattress, single coarse grey wool blanket folded with tight corners. Frames are old but well-maintained — joints replaced and pegs tightened over time. Blankets are heavy and warm, each worn slightly differently.
-            Some mattresses show faint impressions of occupants that haven't fully sprung back. Others show no impression — blankets too perfect, clearly unslept-in. Do not state the disparity directly; let it render the room's half-emptiness.
+            Eight wooden-frame cots with straw mattresses and coarse grey wool blankets, arranged in a single row along the north wall.
+            Each frame is approximately three feet wide and six feet long, evenly spaced with narrow gaps between. Frames are old, with joints recently re-tightened and pegged. Blankets are folded with tight corners. Several mattresses show faint body impressions; several remain untouched.
           }
 
           [window] {
-            Single shuttered window at the far east end, looking east down the mountain. Heavy wooden shutters, swollen slightly with moisture, do not close perfectly — a thin line of light or dark always leaks through. When open, admits direct morning light; by midday the shaft has moved on. In evening, frames the darkening sky.
-            This is the room's only light source. Match its state and quality to time of day.
+            Single shuttered opening at the far east end of the room, looking down the mountain's eastern slope.
+            Opening is roughly three feet wide and four feet tall. Heavy wooden shutters are swollen slightly with moisture and do not close perfectly, leaving a thin line at the edges. Morning light enters as a direct bright shaft from east to west. By midday the room falls into cool dimness. In evening the window frames darkening sky. With shutters closed at night, the room is very dark.
           }
 
           [pegs] {
-            Row of wooden pegs driven into the south wall, one beside each cot. Most are empty. One holds a rough linen robe. Another has a leather cord with a few wooden beads.
-            These are the only personal storage in the room. The emptiness of most pegs reinforces the sparseness of individual possession.
+            Wooden pegs driven into the south wall at regular intervals, one beside each cot.
+            Each peg is about six inches long, set at shoulder height. Most are empty. One holds a rough linen robe. One holds a leather cord with a few wooden beads.
           }
       Exits:
         exits:

@@ -23,24 +23,25 @@ entities:
 
       RoomBrief:
         brief: |
-          Small walled garden, roughly twenty feet square, south-facing. Stone walls chest-high, capped with flat slabs cracked and shifted. Mortar crumbled in places; roots grow between stones, holding them. Open to sky. Uneven gravel paths between raised beds, half-buried by soil and spreading plants.
+          Roughly square walled garden on the south side of the monastery, approximately twenty feet across. Stone walls are chest-high, capped with flat slabs shifted and cracked. Mortar has crumbled in places; roots grow between stones and hold them. Open to sky, sheltered from the worst mountain wind.
 
-          The garden is tended but not controlled — someone weeds and works the soil, but the plants have claimed most of the space. Describe as alive and a little wild, not abandoned.
+          Morning is cool and dewy, with herb scent at its strongest. Midday sun bakes the garden and turns the smell dry and resinous. Evening stone walls radiate stored heat, making this the warmest outdoor space in the monastery. At night the strongest scents are damp earth and cooling stone.
 
-          Morning: cool, dewy, dense with herb fragrance. By midday: sun-baked, smell turns dry and resinous. Evening: stone walls radiate stored heat; garden becomes the warmest outdoor space in the monastery. Night: damp earth and cooling stone.
-
-          [raised beds] {
-            Four beds of dark earth edged with rough-cut stone, arranged in a grid. Sage in one, lavender in another. Both have grown past their boundaries — sage woody and sprawling, lavender leggy and falling over edges. Some beds show recent work: pulled weeds piled at edges, dark turned soil. Gravel paths between.
+          [beds] {
+            Four raised beds of dark earth edged with rough-cut stone, arranged in a simple grid with gravel paths running north-south and east-west between them.
+            Each bed is approximately four feet square, with stone edges about one foot high. Sage fills one bed; lavender fills another. Both have grown past their boundaries. Some beds show recent tending: pulled weeds piled at edges, soil turned dark. Gravel paths are uneven and half-buried by soil wash and spreading herbs.
           }
 
           [rosemary] {
-            Waist-high bush in southwest corner, wider than tall. Thick woody stems at base, fragrant green growth at tips. Has colonized its corner, pushing branches across gravel and against the wall. Brushing it releases sharp, clean scent that lingers on clothing. Pale blue flowers in spring.
-            The dominant feature of the garden by sheer presence. Mention in any description. Has been growing here a very long time.
+            Rosemary bush in the southwest corner of the garden.
+            Waist-high and wider than tall, about five feet across, with thick woody stems at the base and fragrant green growth at the tips. Branches spread across the gravel path and press against the wall. Brushing it releases a sharp clean scent that lingers on clothing.
+            REVEAL: pale blue flowers — spring
           }
 
           [brambles] {
-            Wild brambles in northeast corner, thorny runners threading through stone gaps. Recently cut back — cut ends pale and fresh, new growth already reaching. Carry small dark berries in summer and autumn, tart and worth the scratches.
-            Not cultivated. An intrusion the monks tolerate because the berries are useful.
+            Wild brambles in the northeast corner of the garden, creeping in from gaps in the outside wall.
+            Thorny runners spread roughly six feet along the wall and two feet into the garden. Cut ends are pale and fresh; new growth is already reaching. They are not cultivated.
+            REVEAL: small dark berries, tart — summer and autumn
           }
       WeatherZoneRef:
         zoneId: weather.zone.monastery

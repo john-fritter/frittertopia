@@ -23,31 +23,32 @@ entities:
 
       RoomBrief:
         brief: |
-          Small chamber, room for perhaps twenty occupants. Pale limestone walls, unplastered, blocks fitted so precisely mortar lines are barely visible. Smooth limestone floor, polished by long foot traffic — a shallow groove worn down the center aisle. Cool, still air.
+          Small rectangular chapel, limestone throughout. Approximately twenty-five feet long and fifteen feet wide. Pale limestone walls are unplastered, precisely fitted blocks with barely visible mortar. Limestone floor is smoother than the walls, polished by foot traffic, with a shallow groove worn down the center aisle. Air is cool and still. Footsteps carry clearly; voices are absorbed quickly by bare stone.
 
           The bareness is deliberate, not neglected.
 
-          Sound behavior: footsteps carry sharp and clear; voices die quickly, absorbed by bare walls.
-
-          Light varies significantly with time of day — match descriptions to current time.
+          Morning light enters through the east window as a bright arch across the floor and front pews. By midday the light has moved past and the window gives only diffuse glow. In evening the glass catches the last color of the sky. At night the window is a black arch and the chapel is lit only by spill from outside.
 
           [cross] {
-            Simple wooden cross mounted on wall above altar. Dark, fine-grained wood, very old. Crossbar fitted into upright with tight mortise — no nails. No carvings or embellishments. Surface has faint sheen as though regularly polished.
+            Simple wooden cross mounted on the wall above the altar, centered on the east end of the chapel.
+            Dark fine-grained wood, joined without nails; crossbar fitted into upright with a tight mortise. No carvings or embellishments. Surface has a faint polished sheen.
+            Approximately four feet tall and two feet wide.
           }
 
           [altar] {
-            Plain stone slab on two squat stone legs, centered beneath cross. Surface smooth and slightly concave in the middle — worn, not carved. Thin linen cloth covers it, clean but patched in several places. Nothing sits on the altar.
-            REVEAL: concavity is from centuries of hands resting in the same place — close examination or touch
+            Plain stone slab on two squat stone legs, centered beneath the cross.
+            Approximately four feet long, two feet wide, and waist-high. Surface is smooth and slightly concave in the middle from wear, not carving. Thin linen cloth covers it, clean but patched in several places. Nothing sits on it.
           }
 
           [pews] {
-            Three rows of wooden pews, six seats each, arranged with narrow aisle down center. Dark wood, aged and oiled from hands, edges rounded soft. Seats slightly hollowed. Kneelers are thin folding planks, bare wood worn pale at knee points — no cushion.
-            Pews creak when sat in.
+            Three rows of wooden pews arranged with a narrow center aisle.
+            Each pew is dark oiled wood, about ten feet long, with room for six people. Edges are rounded soft. Seats are slightly hollowed. Kneelers are thin fold-down planks, bare wood worn pale at knee points.
+            Pews creak audibly when weight settles on them.
           }
 
           [window] {
-            Single arched window, plain glass, high in east wall. No color, no leading — single pane in stone frame. Primary light source for the chapel.
-            Morning: direct light pours through, lays bright arch across floor and front pews. Midday: light has moved past, window gives diffuse even glow. Evening: glass catches last color of sky. Night: black arch, chapel lit only by spillover through the doorway.
+            Single arched window of plain glass in a stone frame, high in the east wall above the altar.
+            Approximately three feet wide at the base and five feet tall to the arch peak. No color, no leading, single pane.
           }
       Exits:
         exits:

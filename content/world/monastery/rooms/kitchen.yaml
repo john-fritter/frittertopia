@@ -23,30 +23,34 @@ entities:
 
       RoomBrief:
         brief: |
-          Large room serving both cooking and dining. Vaulted stone ceiling darkened almost black by smoke. Warmed by hearth even when cold — stone walls retain heat for hours after fire dies.
+          Roughly rectangular room, approximately forty-five feet long and twenty feet wide, with a vaulted stone ceiling darkened almost black by smoke. Cooking occupies the north end; eating and work occupy the center and south end. Stone walls retain heat for hours after the hearth cools. Flagstone floor is smoother in the working paths between hearth, table, shelves, and basin.
 
-          Heavy oak table runs most of the room's length, wide enough for work and eating on both sides. Surface thick with knife marks, ring stains, scorch marks. Edges rounded from years of gripping. Wood has absorbed oil and food — faint smell of old bread, animal fat, fermented things. Benches on both sides, equally scarred.
-
-          Shelves of rough-cut planks along walls: clay pots, iron cookware, wooden bowls, glass jars of preserved things (dark, amber, contents unclear). System intuitive, not labeled. Stone basin near hearth serves as sink; copper pipe brings cold mineral-tasting water, runs slow.
-
-          Bundles of dried herbs hang from hooks along rafters — rosemary, thyme, sage, lavender. Oldest bundles grey and brittle. Newer ones retain color. Smell strongest near hearth where heat draws it out.
-
-          The table is the social center of the monastery — meals, conversation, mending, any task needing a flat surface happens here. The bareness of the system (intuitive rather than labeled) reflects how long the room has functioned this way.
+          Morning light enters from the north opening as a pale rectangle on the flagstones. By midday it reaches the center of the room. By evening it retreats toward the south wall. When the hearth is lit, the room is close and warm. When cold and recently used, warmth remains in the walls; when long unused, the room is cool and hollow.
 
           [hearth] {
-            Broad stone hearth built into north wall, deep enough to stand in. Firebox blackened and cracked, repaired with rough mortar that doesn't quite match. Heavy iron grate inside, pitted with rust but structurally sound. Iron hooks of various lengths hang from bar across top, for pots. Single stone slab mantelpiece, slightly bowed in middle from heat or weight.
+            Broad stone hearth built into the north wall.
+            Firebox is approximately six feet wide, four feet high, and deep enough for a person to stand inside. Stone is blackened and cracked in places, repaired with rough mortar that does not quite match. Iron grate is heavy, pitted with rust, and structurally sound. Iron hooks of various lengths hang from a bar across the top for pots. Mantelpiece is a single stone slab about seven feet long, slightly bowed in the middle.
+            Smoke draws cleanly through the flue.
+          }
 
-            When lit, fire heats stone walls and they hold warmth for hours after flames die. Smoke draws well — flue was built by someone who knew what they were doing. When describing the kitchen, render the hearth's state (lit, recently cold, long cold) as the primary source of the room's warmth or coolness.
+          [table] {
+            Heavy oak table running lengthwise through the center of the room, slightly south of the hearth path.
+            Approximately thirty-five feet long and six feet wide, with benches on both long sides. Surface is thick with knife marks, ring stains, and scorch marks from hot pots. Edges are rounded from hands gripping them. Wood carries faint smells of old bread, animal fat, and fermented food.
           }
 
           [herbs] {
-            Bundles of dried herbs hang from hooks along rafters — rosemary, thyme, sage, lavender. Oldest bundles grey and brittle, hanging longer than anyone remembers. Newer ones still have color. Smell is strongest near hearth end where heat draws it out.
+            Bundles of dried rosemary, thyme, sage, and lavender hanging from hooks along the rafters above the hearth half of the room.
+            Each bundle is roughly forearm-length and tied with cord. Older bundles are grey and brittle; newer bundles retain color. Smell is strongest near the hearth, where heat draws it out.
+          }
 
-            Some are still used in cooking; others are now primarily decorative. Do not treat age as indicator of usability without context.
+          [shelves] {
+            Rough-cut plank shelves fixed along the east and west walls.
+            Shelves run in sections of six to eight feet, from waist height to just above head height. They hold clay pots, iron cookware, wooden bowls, and glass jars of dark and amber preserved things. Everything has a place, but the system is not labeled.
           }
 
           [basin] {
-            Stone basin near hearth serves as sink. Copper pipe brings water from above — runs slow and cold, tastes of minerals.
+            Stone basin near the hearth on the east side of the room.
+            Basin is waist-high, about three feet wide and two feet deep. Copper pipe descends from above and brings slow, cold, mineral-tasting water.
           }
       Exits:
         exits:
