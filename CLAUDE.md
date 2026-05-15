@@ -95,6 +95,17 @@ tests/
   weather-notifications.test.ts
 ```
 
+## Probes (`scripts/`)
+
+Volume-test harnesses that exercise the LLM prompt stack against the real model.
+Outputs timestamped markdown to `tmp/probe-runs/` (gitignored).
+
+**Character brief probe** (`scripts/probe-character-brief.ts`):
+- **Pinned scenario mode**: `npx tsx scripts/probe-character-brief.ts <scenario.yaml> <count>` — same `CharacterRoll` N times. Scenarios live in `scripts/scenarios/`.
+- **Random mode**: `npx tsx scripts/probe-character-brief.ts random <count>` — fresh `rollCharacter()` each iteration, choosing from `man`/`woman`/`nonbinary person`. The primary use case for volume testing.
+
+Requires `OPENROUTER_API_KEY`. Without one, every iteration returns a formatted fallback.
+
 ## Components currently registered (`src/game/components.ts`)
 
 | Component | Shape | Notes |
@@ -215,62 +226,70 @@ The long arc is a world that responds to you — not through scripted events but
 - Equip/wear/use/eat verbs (item schema fields are reserved).
 - Item spawn system (items must currently be authored in YAML or created via admin commands; there is no runtime loot drop or respawn mechanism beyond the YAML baseline).
 <br>
-## Working with Cleo
+## Working with Gizmo
 
-Cleo is the resident agent on fritter.lol — the server this code runs on. She's a separate AI (not Claude) with her own identity, memory, and Slack presence. She lives in a Docker container on the host with full sudo access and handles all on-server operational work: deployment, service management, testing, monitoring, and config changes.
+Gizmo is John's resident Hermes agent on fritter.lol — the server this code runs on. Gizmo replaces the old Cleo/OpenClaw operational role. Gizmo has Slack presence, persistent memory, repository access, shell access on the host, and can coordinate deployment, service checks, testing, repo hygiene, and routine operational work.
 
 ### Why this matters
 
-You (Claude) have hands on the repo. Cleo has hands on the server. John connects you by telling one or both of you what's happening. Neither of you auto-discovers the other's work — handoffs must be explicit.
+You (Claude) are John's design and planning partner for Frittertopia. Gizmo is the execution agent on the server. John connects the two of you by carrying prompts, briefs, and results through Slack; don't assume either agent has seen work unless John says so or it is committed in the repo.
 
-Cleo runs on budget models. She's good at execution and routine ops, not at hard design thinking or complex code. That's your job. When a task needs both design and deployment, you design it, write it, commit it, and hand the deployment to Cleo. She runs it, verifies it, and tells John how it went.
+The intended split is:
 
-### How to hand off to Cleo
+- **Claude:** creative design, architecture discussion, mechanics, tone, prompts, and implementation briefs.
+- **Gizmo:** repo execution, OpenCode orchestration, tests/builds, branch cleanup, PR creation when John asks, and server-side verification/deployment tasks.
+- **OpenCode:** coding worker delegated by Gizmo for non-trivial implementation prompts.
 
-When you build something that needs on-server deployment, testing, or verification, create a handoff doc:
+When John gives Gizmo a Frittertopia coding prompt, Gizmo creates a feature branch, runs `opencode run` in this repo with this `CLAUDE.md` as context, then runs `npm test && npm run build` and reports the changed files and results. Gizmo should not rewrite the prompt or add taste/architecture review unless John asks for that separately.
+
+### How to hand off to Gizmo
+
+When you build or design something that needs on-server deployment, testing, verification, or follow-up implementation, create a handoff doc:
 
 **Location:** `handoffs/<YYYY-MM-DD>-<short-slug>.md`
 
 **Conventions:**
-- **Address Cleo directly** — second person, "you." She reads these herself.
-- **Be self-contained.** What the thing is, prerequisites, step-by-step commands, how to test, how to verify, what to do if something breaks.
-- **Flag uncertainty.** You can't test against the real server. Anything you're unsure about, mark "verify this" rather than stating as fact. Cleo will find the gaps.
+- **Address Gizmo directly** — second person, "you." Gizmo reads these through the repo or from John.
+- **Be self-contained.** State what changed, prerequisites, exact commands, how to test, how to verify, and what to do if something breaks.
+- **Flag uncertainty.** If you can't test against the real server, mark "verify this" rather than stating it as fact.
 - **Reference env vars by name, never by value.** Secrets stay out of the repo.
-- **Give exact commands** where possible. Cleo is good at following precise instructions. She's less good at inferring what you meant.
-- **Note ownership.** If you add scripts, say so. Cleo owns operational scripts going forward and iterates on them freely.
+- **Give exact commands** where possible. Gizmo can run commands, but precise handoffs reduce mistakes.
+- **Note ownership.** If you add scripts or operational procedures, say who should maintain them going forward.
 
-After writing a handoff doc, commit it. John will tell Cleo to pull and execute.
+After writing a handoff doc, commit it. John can tell Gizmo to pull and execute.
 
-### What Cleo handles on her own (no handoff needed)
+### What Gizmo can handle on request
 
-- Pulling and restarting the frittertopia container after a push
-- Checking logs (`docker logs`, `journalctl`)
-- Simple config changes (env vars, port changes)
-- Service health checks
-- Routine operational responses to alerts
+- Pulling and restarting the Frittertopia service/container after a push.
+- Checking logs (`docker logs`, `journalctl`) and service health.
+- Running `npm test`, `npm run build`, and smoke checks.
+- Creating feature branches, delegating coding prompts to OpenCode, and reporting results.
+- Opening PRs against `main` when John asks.
+- Simple config changes such as env var names, ports, or service settings when John has provided the needed values.
+- Routine operational responses to alerts.
 
-### What needs a handoff from you
+### What needs an explicit handoff or John approval
 
-- New deployment procedures (first time setting up a service, changing how the container is built)
-- Database migrations or schema changes
-- Anything requiring new env vars or secrets
-- Changes to the Docker setup, Caddy routing, or deployment workflow
-- Verification steps that need specific test commands or expected output
+- New deployment procedures or changes to how the container/service is built.
+- Database migrations or schema changes.
+- Anything requiring new env vars, secrets, or credential rotation.
+- Changes to Docker setup, Caddy routing, public service exposure, or deployment workflow.
+- Verification steps that depend on specific expected output or real-player behavior.
+- Destructive operations against production data, media, configs, or volumes.
 
-### Reverse handoffs: Cleo to Claude
+### Reverse handoffs: Gizmo to Claude
 
-Cleo may discover issues on the server that need code changes — bugs, config problems, missing error handling. She writes a brief (a short problem report) and tells John. John brings it to you in a future session. When you see a brief from Cleo, treat it as reliable operational context — she's looking at the real server, not guessing.
+Gizmo may discover issues on the server that need design or code changes — bugs, config problems, missing error handling, deployment hazards, or test failures. Gizmo should write a concise problem report and give it to John. When John brings such a report to you, treat it as operational context from the live server, not a design request in isolation.
 
-### What Cleo knows about this project
+### What Gizmo knows about this project
 
-Cleo has read this CLAUDE.md, the README, and her own FRITTERTOPIA.md (a project context file in her workspace). She knows the tech stack, the architecture at a high level, and the creative direction. She does *not* read the codebase regularly and does not have the full source in her context. If a handoff depends on her understanding specific code, explain it in the handoff doc rather than assuming she'll read the source.
+Gizmo has read this `CLAUDE.md` and can read the repo, README, tests, and local operational notes when asked. Gizmo does not automatically carry full repo context into every conversation; if a handoff depends on specific code, include file paths and commands rather than assuming it is loaded.
 
 ### Secrets and credentials
 
-- The `OPENROUTER_API_KEY` for LLM descriptions is stored in `.env` on the host (not in git). Cleo manages it on John's instruction.
-- Cleo has sudo on the host but does not have access to your Claude session or John's Claude Pro subscription.
-- Never put API keys, passwords, or tokens in the repo. Handoff docs reference env var names.
+- The `OPENROUTER_API_KEY` for LLM descriptions is stored in `.env` on the host (not in git). Gizmo can verify that env vars exist, but secrets must never be written into the repo.
+- Never put API keys, passwords, or tokens in committed files. Handoff docs reference env var names only.
 
 ### Communication
 
-All communication between you and Cleo goes through John in Slack. You don't have direct access to Cleo and she doesn't have direct access to you. John is the courier. Keep handoff docs and briefs clear and concise — John may be reading them on his phone.
+All communication between Claude and Gizmo goes through John in Slack or through committed handoff docs. Keep handoff docs and briefs clear and concise — John may be reading them on his phone.

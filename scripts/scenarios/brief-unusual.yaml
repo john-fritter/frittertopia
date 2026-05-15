@@ -1,0 +1,13 @@
+description: "Unusual character with fantastical feature and skin marks"
+roll:
+  gender: "woman"
+  age: "young adult"
+  height: "tall"
+  build: "sturdy"
+  skin: "iridescent"
+  eyes: "vivid violet"
+  hair: "silver"
+  fantasticalFeature: "small horns (two symmetrical)"
+  skinMarks:
+    - "freckles (heavy)"
+    - "large tattoo"
