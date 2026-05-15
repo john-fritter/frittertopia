@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { runProbe, ScenarioSchema } from "../scripts/probe-character-brief.js";
+import { runProbe, runRandomProbe, ScenarioSchema } from "../scripts/probe-character-brief.js";
 import type { CharacterRoll } from "../src/game/characterGenerator.js";
 
 const SCENARIO_DIR = path.join(import.meta.dirname, "..", "scripts", "scenarios");
@@ -206,5 +206,102 @@ describe("runProbe output", () => {
     });
 
     expect(fs.existsSync(result.outputPath)).toBe(true);
+  });
+});
+
+describe("runRandomProbe", () => {
+  const mockGenerateFn = vi.fn<(roll: CharacterRoll) => Promise<string>>();
+  let tmpDir: string;
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    if (tmpDir) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes output with expected iteration count", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-test-"));
+    mockGenerateFn.mockResolvedValue("random brief");
+
+    const result = await runRandomProbe({
+      count: 5,
+      generateFn: mockGenerateFn,
+      outputDir: tmpDir,
+    });
+
+    expect(fs.existsSync(result.outputPath)).toBe(true);
+    const content = fs.readFileSync(result.outputPath, "utf-8");
+
+    expect(content).toContain("**Mode:** random");
+    expect(content).toContain("**Iterations:** 5");
+    expect(result.successCount).toBe(5);
+    expect(result.failureCount).toBe(0);
+
+    expect(content).toContain("## Prompt sent");
+    expect(content).toContain("### System prompt");
+    expect(content).toContain("## Results");
+
+    const iterationHeaders = content.match(/### Iteration \d+/g);
+    expect(iterationHeaders).toHaveLength(5);
+
+    expect(mockGenerateFn).toHaveBeenCalledTimes(5);
+  });
+
+  it("includes per-iteration roll details", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-test-"));
+    mockGenerateFn.mockResolvedValue("brief text");
+
+    const result = await runRandomProbe({
+      count: 3,
+      generateFn: mockGenerateFn,
+      outputDir: tmpDir,
+    });
+
+    const content = fs.readFileSync(result.outputPath, "utf-8");
+
+    const rollSections = content.match(/#### Roll/g);
+    expect(rollSections).toHaveLength(3);
+    expect(content).toContain("gender:");
+    expect(content).toContain("age:");
+    expect(content).toContain("height:");
+    expect(content).toContain("build:");
+  });
+
+  it("records failures when generateFn throws", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-test-"));
+    mockGenerateFn
+      .mockResolvedValueOnce("ok")
+      .mockRejectedValueOnce(new Error("random fail"))
+      .mockResolvedValue("ok rest");
+
+    const result = await runRandomProbe({
+      count: 5,
+      generateFn: mockGenerateFn,
+      outputDir: tmpDir,
+    });
+
+    const content = fs.readFileSync(result.outputPath, "utf-8");
+
+    expect(result.successCount).toBe(4);
+    expect(result.failureCount).toBe(1);
+    expect(content).toContain("Iteration 2 — ERROR");
+    expect(content).toContain("random fail");
+  });
+
+  it("uses custom genders when provided", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-test-"));
+    mockGenerateFn.mockImplementation(async (roll) => `gender:${roll.gender}`);
+
+    await runRandomProbe({
+      count: 10,
+      generateFn: mockGenerateFn,
+      outputDir: tmpDir,
+      genders: ["test-gender"],
+    });
+
+    for (const call of mockGenerateFn.mock.calls) {
+      expect(call[0]!.gender).toBe("test-gender");
+    }
   });
 });

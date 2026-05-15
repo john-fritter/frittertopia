@@ -11,17 +11,27 @@ patterns (hedging, boilerplate, inconsistency, etc).
 
 ```bash
 npx tsx scripts/probe-character-brief.ts <scenario.yaml> <count>
+npx tsx scripts/probe-character-brief.ts random <count>
 ```
 
-Example:
+Examples:
 
 ```bash
 npx tsx scripts/probe-character-brief.ts scripts/scenarios/brief-ordinary.yaml 5
+npx tsx scripts/probe-character-brief.ts random 10
 ```
 
-Loads a scenario YAML, constructs a `CharacterRoll`, calls
-`generateCharacterBrief` N times, and writes results to
-`tmp/probe-runs/character-brief-<timestamp>.md`.
+Two modes:
+
+**Scenario mode** — loads a pinned scenario YAML, constructs a `CharacterRoll`,
+calls `generateCharacterBrief` N times with the same roll.
+
+**Random mode** — uses `random` as the first argument. Each iteration generates
+a fresh random `CharacterRoll` via `rollCharacter()` (choosing from `man`,
+`woman`, and `nonbinary person`) and calls `generateCharacterBrief`. The output
+includes per-iteration roll details.
+
+Both modes write results to `tmp/probe-runs/character-brief-<timestamp>.md`.
 
 **Scenarios** are in `scripts/scenarios/`. Each is a YAML file with:
 
@@ -38,10 +48,6 @@ roll:
   fantasticalFeature: null  # or a string
   skinMarks: []             # or a list of strings
 ```
-
-Only explicit (pinned) input is supported for v1 — no seeded sampling. If you
-need to sample from `rollCharacter`, create a scenario with the exact rolled
-values.
 
 No mock mode. Real LLM only — the point is testing against the actual model.
 If `OPENROUTER_API_KEY` is not set, every iteration returns a formatted
