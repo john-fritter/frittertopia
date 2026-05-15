@@ -95,6 +95,17 @@ tests/
   weather-notifications.test.ts
 ```
 
+## Probes (`scripts/`)
+
+Volume-test harnesses that exercise the LLM prompt stack against the real model.
+Outputs timestamped markdown to `tmp/probe-runs/` (gitignored).
+
+**Character brief probe** (`scripts/probe-character-brief.ts`):
+- **Pinned scenario mode**: `npx tsx scripts/probe-character-brief.ts <scenario.yaml> <count>` — same `CharacterRoll` N times. Scenarios live in `scripts/scenarios/`.
+- **Random mode**: `npx tsx scripts/probe-character-brief.ts random <count>` — fresh `rollCharacter()` each iteration, choosing from `man`/`woman`/`nonbinary person`. The primary use case for volume testing.
+
+Requires `OPENROUTER_API_KEY`. Without one, every iteration returns a formatted fallback.
+
 ## Components currently registered (`src/game/components.ts`)
 
 | Component | Shape | Notes |
