@@ -1,0 +1,11 @@
+description: "Ordinary male character, no unusual traits"
+roll:
+  gender: "man"
+  age: "adult"
+  height: "average"
+  build: "lean"
+  skin: "fair"
+  eyes: "brown"
+  hair: "brown"
+  fantasticalFeature: null
+  skinMarks: []
