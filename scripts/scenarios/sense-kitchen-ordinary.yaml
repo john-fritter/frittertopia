@@ -1,0 +1,25 @@
+description: "Monastery kitchen, afternoon, ordinary woman, scan + targeted looks"
+roomKey: "monastery.kitchen"
+overrides:
+  time:
+    bracket: "afternoon"
+    moonPhase: "third_quarter"
+    moonAboveHorizon: false
+currentPlayer:
+  name: "anon"
+  brief: |
+    CANON:
+    - Woman, adult, average height, lean build.
+    - Light beige skin, brown eyes, dark hair.
+calls:
+  - role: "describe-room"
+    count: 3
+  - role: "describe"
+    input: "look"
+    count: 10
+  - role: "describe"
+    input: "look shelves"
+    count: 10
+  - role: "describe"
+    input: "look self"
+    count: 10

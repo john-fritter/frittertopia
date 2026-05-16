@@ -1,0 +1,31 @@
+description: "Monastery kitchen, evening, with a scenario-added lit lantern"
+roomKey: "monastery.kitchen"
+overrides:
+  time:
+    bracket: "evening"
+    moonPhase: "waxing_crescent"
+    moonAboveHorizon: true
+currentPlayer:
+  name: "anon"
+  brief: |
+    CANON:
+    - Woman, adult, average height, lean build.
+    - Light beige skin, brown eyes, dark hair.
+items:
+  - shortDescription: "an iron lantern"
+    brief: |
+      A heavy iron lantern with a smoke-stained glass chimney. The wick
+      is trimmed short. The metal base is warm.
+    presence: "An iron lantern sits on the table, casting a warm pool of light."
+    state:
+      lit: true
+      oil: "half"
+calls:
+  - role: "describe-room"
+    count: 3
+  - role: "describe"
+    input: "look lantern"
+    count: 10
+  - role: "describe"
+    input: "look table"
+    count: 5

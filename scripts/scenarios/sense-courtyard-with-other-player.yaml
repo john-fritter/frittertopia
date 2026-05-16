@@ -1,0 +1,36 @@
+description: "Monastery courtyard, morning, light rain, two players"
+roomKey: "starting.room"
+overrides:
+  time:
+    bracket: "morning"
+    moonPhase: "third_quarter"
+    moonAboveHorizon: false
+  weather:
+    tempC: 8
+    precipState: "rain"
+    pressureMb: 998
+    pressureTrend: "falling"
+currentPlayer:
+  name: "anon"
+  brief: |
+    CANON:
+    - Woman, adult, average height, lean build.
+    - Light beige skin, brown eyes, dark hair.
+otherPlayers:
+  - name: "pell"
+    brief: |
+      CANON:
+      - Man, middle-aged, tall, sturdy build.
+      - Deep brown skin, hazel eyes, grey hair.
+calls:
+  - role: "describe-room"
+    count: 3
+  - role: "describe"
+    input: "look"
+    count: 5
+  - role: "describe"
+    input: "look pell"
+    count: 10
+  - role: "describe"
+    input: "look self"
+    count: 10
